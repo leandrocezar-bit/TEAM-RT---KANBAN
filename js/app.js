@@ -234,6 +234,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     let html = `<div>`;
 
     if (pendingTransfers.length > 0) {
+      // CORREÇÃO: Pegando o primeiro item da lista usando [0] para não quebrar a leitura
       const firstTr = pendingTransfers[0];
       const task = tasks.find(t => t.id === firstTr.taskId) || { title: 'Atividade' };
       const fromMem = membersMap.get(firstTr.fromMemberId) || { name: 'Alguém' };
@@ -248,6 +249,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           </div> 
         </div> 
       `;
+
     } else if (urgentTasks.length > 0 && !loggedId) {
       html += ` 
         <span> 
