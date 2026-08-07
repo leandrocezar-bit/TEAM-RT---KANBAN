@@ -260,7 +260,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     html += `</div>`;
     container.innerHTML = html;
 
-    // Vinculação correta dos cliques
+    // Vinculação dos cliques alinhada com as colunas do Supabase
     const btnAccept = container.querySelector('.btn-accept-transfer');
     if (btnAccept) {
       btnAccept.addEventListener('click', async () => {
@@ -268,7 +268,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const transfer = await DB.get('activity_transfers', transferId);
         if (transfer) {
           transfer.status = 'ACEITO';
-          transfer.respondedAt = new Date().toISOString();
+          transfer.requested_at = new Date().toISOString(); // Mudado de respondedAt para requested_at
           await DB.save('activity_transfers', transfer);
           const task = await DB.get('tasks', transfer.taskId);
           if (task) {
@@ -288,7 +288,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const transfer = await DB.get('activity_transfers', transferId);
         if (transfer) {
           transfer.status = 'REJEITADO';
-          transfer.respondedAt = new Date().toISOString();
+          transfer.requested_at = new Date().toISOString(); // Mudado de respondedAt para requested_at
           await DB.save('activity_transfers', transfer);
           showToast('Solicitação de transferência recusada.', 'info');
           await refreshUI();
@@ -296,7 +296,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
     }
   }
-
 
   /**
    * Renderiza a barra de abas de membros no topo
