@@ -137,28 +137,27 @@ document.addEventListener('DOMContentLoaded', async () => {
     await renderMemberTabs();
     await renderTopNotificationBar();
 
-    // Esconde a barra de abas dos outros membros se for usuário comum
     const loggedId = localStorage.getItem('logged_member_id');
     const memberTabsBar = document.getElementById('member-tabs-bar');
+
+    // Se o usuário estiver logado e na tela do Kanban, esconde as abas dos colegas
     if (memberTabsBar) {
-      memberTabsBar.style.display = loggedId ? 'none' : 'flex';
+      if (loggedId && activeView === 'kanban') {
+        memberTabsBar.style.display = 'none';
+        currentMemberFilter = loggedId; // Trava o filtro no próprio usuário
+      } else {
+        memberTabsBar.style.display = 'flex'; // Mostra as abas normalmente nas outras seções
+      }
     }
 
-    // Esconde botões administrativos (Dashboard, Configurações, Novo Colaborador) para usuários comuns
+    // Exibe TODOS os botões das outras abas normalmente para o usuário navegar
     const adminButtons = [btnViewManager, btnViewMap, btnViewSettings, btnViewProjects, btnNewMember, btnResetDb];
     adminButtons.forEach(btn => {
-      if (btn) btn.style.display = loggedId ? 'none' : 'inline-block';
+      if (btn) btn.style.display = 'inline-block';
     });
-
-    // Força a visão a ser sempre o Kanban caso um usuário comum tente burlar a URL
-    if (loggedId) {
-      activeView = 'kanban';
-      currentMemberFilter = loggedId;
-    }
 
     // Reset dos botões de navegação
     [btnViewKanban, btnViewManager, btnViewMap, btnViewSettings, btnViewProjects].forEach(btn => {
-
       if (btn) {
         btn.classList.remove('btn-primary');
         btn.classList.add('btn-secondary');
@@ -181,6 +180,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         onReportImpediment: openReportImpedimentModal,
         onOpenTaskDetails: openTaskDetailsModal
       });
+
     } else if (activeView === 'manager') {
       sectionManager.classList.add('active');
       if (btnViewManager) {
