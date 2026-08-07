@@ -9,18 +9,16 @@
     content="Sistema de gestão de atividades de equipe estilo Kanban com timers de execução em tempo real, registro de contratempos, persistência Supabase e Dashboard do Gestor.">
   <link rel="stylesheet" href="css/kanban.css">
   <link rel="icon"
-    href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📋</text></svg>">
+    href="data:image/svg+xml,<svg xmlns=%22http://w3.org viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📋</text></svg>">
 </head>
 
 <body data-theme="dark">
-
   <!-- OVERLAY DE LOGIN / PASSCODE GATE -->
   <div id="login-overlay" class="login-overlay active">
     <div class="login-card">
       <div class="login-logo">🔒</div>
       <h2>Acesso Restrito ao App</h2>
       <p>Digite a senha de acesso da equipe para continuar:</p>
-
       <form id="form-login" style="margin-top:1.25rem;">
         <div class="form-group" style="margin-bottom:1.25rem;">
           <input type="password" id="input-passcode" class="input-control" placeholder="Digite a senha..." required
@@ -28,471 +26,470 @@
         </div>
         <button type="submit" class="btn btn-primary"
           style="width:100%; padding:0.75rem; font-size:1rem; font-weight:700;">
-          🔓 Entrar no Painel
+          Entrar no Painel
         </button>
       </form>
+    </div>
+  </div>
 
-      <!-- BARRA DE NOTIFICAÇÕES & PENDÊNCIAS NO CABEÇALHO DA PÁGINA -->
-      <div id="top-notification-bar" class="top-notification-bar" style="display:none;">
-        <div class="notification-content" id="top-notification-list"></div>
+  <!-- BARRA DE NOTIFICAÇÕES & PENDÊNCIAS NO CABEÇALHO DA PÁGINA -->
+  <div id="top-notification-bar" class="top-notification-bar" style="display:none;">
+    <div class="notification-content" id="top-notification-list"></div>
+  </div>
+
+  <!-- Header da Aplicação -->
+  <header class="app-header">
+    <div class="brand">
+      <div class="brand-logo">📋</div>
+      <div class="brand-text">
+        <h1>TEAM RT</h1>
+        <p>Gestão de Atividades & Acompanhamento em Tempo Real</p>
+      </div>
+    </div>
+
+    <div class="nav-actions">
+      <button id="btn-view-kanban" class="btn btn-primary">📋 Quadro Kanban</button>
+      <button id="btn-view-manager" class="btn btn-secondary">📊 Dashboard</button>
+      <button id="btn-view-map" class="btn btn-secondary">🗺️ Fluxo RT</button>
+      <button id="btn-view-settings" class="btn btn-secondary">⚙️ Configurações</button>
+      <button id="btn-view-projects" class="btn btn-secondary">📁 Projetos</button>
+      <button id="btn-reset-db" class="btn btn-secondary" title="Restaurar Dados Iniciais Padrão">🔄
+        Restaurar</button>
+      <button id="btn-new-member" class="btn btn-secondary">+ Colaborador</button>
+      <button id="btn-new-task" class="btn btn-primary">+ Nova Atividade</button>
+      <button id="btn-logout" class="btn btn-secondary" title="Sair do aplicativo" style="padding:0.4rem 0.6rem;">🔒
+        Sair</button>
+    </div>
+  </header>
+
+  <!-- Barra de Abas dos Membros da Equipe -->
+  <nav class="member-tabs-container" id="member-tabs-bar" aria-label="Navegação por Membro da Equipe">
+    <!-- Renderizado dinamicamente pelo JS (Todos + Abas com Avatar) -->
+  </nav>
+
+  <!-- Conteúdo Principal -->
+  <main class="main-wrapper">
+
+    <!-- SEÇÃO 1: Quadro Kanban Interativo -->
+    <section id="section-kanban" class="view-section active">
+
+      <!-- Filtros de Período do Kanban -->
+      <div
+        style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.75rem; margin-bottom:1rem; background:var(--bg-secondary); padding:0.6rem 1.25rem; border-radius:var(--radius-md); border:1px solid var(--border-color);">
+        <div style="display:flex; align-items:center; gap:0.5rem;">
+          <span style="font-size:0.85rem; font-weight:700; color:var(--text-muted);">🗓️ Filtrar Período:</span>
+          <button class="btn btn-secondary btn-period-filter active" data-period="all"
+            style="padding:0.25rem 0.6rem; font-size:0.75rem;">Todos</button>
+          <button class="btn btn-secondary btn-period-filter" data-period="daily"
+            style="padding:0.25rem 0.6rem; font-size:0.75rem;">Diário</button>
+          <button class="btn btn-secondary btn-period-filter" data-period="weekly"
+            style="padding:0.25rem 0.6rem; font-size:0.75rem;">Semanal</button>
+          <button class="btn btn-secondary btn-period-filter" data-period="monthly"
+            style="padding:0.25rem 0.6rem; font-size:0.75rem;">Mensal</button>
+        </div>
+
+        <div style="font-size:0.775rem; color:var(--text-dim);">
+          💡 Dica: Pressione <strong>Ctrl+Z</strong> para desfazer a última alteração!
+        </div>
       </div>
 
-      <!-- Header da Aplicação -->
-      <header class="app-header">
-        <div class="brand">
-          <div class="brand-logo">📋</div>
-          <div class="brand-text">
-            <h1>TEAM RT</h1>
-            <p>Gestão de Atividades & Acompanhamento em Tempo Real</p>
+      <div class="kanban-board">
+
+        <!-- Coluna A FAZER -->
+        <div class="kanban-column col-todo" data-status="A FAZER">
+          <div class="column-header">
+            <h3 class="column-title">📌 A FAZER</h3>
+            <span class="column-count">0</span>
           </div>
+          <div class="cards-container"></div>
         </div>
 
-        <div class="nav-actions">
-          <button id="btn-view-kanban" class="btn btn-primary">📋 Quadro Kanban</button>
-          <button id="btn-view-manager" class="btn btn-secondary">📊 Dashboard</button>
-          <button id="btn-view-map" class="btn btn-secondary">🗺️ Fluxo RT</button>
-          <button id="btn-view-settings" class="btn btn-secondary">⚙️ Configurações</button>
-          <button id="btn-view-projects" class="btn btn-secondary">📁 Projetos</button>
-          <button id="btn-reset-db" class="btn btn-secondary" title="Restaurar Dados Iniciais Padrão">🔄
-            Restaurar</button>
-          <button id="btn-new-member" class="btn btn-secondary">+ Colaborador</button>
-          <button id="btn-new-task" class="btn btn-primary">+ Nova Atividade</button>
-          <button id="btn-logout" class="btn btn-secondary" title="Sair do aplicativo" style="padding:0.4rem 0.6rem;">🔒
-            Sair</button>
+        <!-- Coluna EM EXECUÇÃO -->
+        <div class="kanban-column col-wip" data-status="EM EXECUÇÃO">
+          <div class="column-header">
+            <h3 class="column-title">⚡ EM EXECUÇÃO</h3>
+            <span class="column-count">0</span>
+          </div>
+          <div class="cards-container"></div>
         </div>
-      </header>
 
-      <!-- Barra de Abas dos Membros da Equipe -->
-      <nav class="member-tabs-container" id="member-tabs-bar" aria-label="Navegação por Membro da Equipe">
-        <!-- Renderizado dinamicamente pelo JS (Todos + Abas com Avatar) -->
-      </nav>
-
-      <!-- Conteúdo Principal -->
-      <main class="main-wrapper">
-
-        <!-- SEÇÃO 1: Quadro Kanban Interativo -->
-        <section id="section-kanban" class="view-section active">
-
-          <!-- Filtros de Período do Kanban -->
-          <div
-            style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.75rem; margin-bottom:1rem; background:var(--bg-secondary); padding:0.6rem 1.25rem; border-radius:var(--radius-md); border:1px solid var(--border-color);">
-            <div style="display:flex; align-items:center; gap:0.5rem;">
-              <span style="font-size:0.85rem; font-weight:700; color:var(--text-muted);">🗓️ Filtrar Período:</span>
-              <button class="btn btn-secondary btn-period-filter active" data-period="all"
-                style="padding:0.25rem 0.6rem; font-size:0.75rem;">Todos</button>
-              <button class="btn btn-secondary btn-period-filter" data-period="daily"
-                style="padding:0.25rem 0.6rem; font-size:0.75rem;">Diário</button>
-              <button class="btn btn-secondary btn-period-filter" data-period="weekly"
-                style="padding:0.25rem 0.6rem; font-size:0.75rem;">Semanal</button>
-              <button class="btn btn-secondary btn-period-filter" data-period="monthly"
-                style="padding:0.25rem 0.6rem; font-size:0.75rem;">Mensal</button>
-            </div>
-
-            <div style="font-size:0.775rem; color:var(--text-dim);">
-              💡 Dica: Pressione <strong>Ctrl+Z</strong> para desfazer a última alteração!
-            </div>
+        <!-- Coluna CONCLUÍDO -->
+        <div class="kanban-column col-done" data-status="CONCLUÍDO">
+          <div class="column-header">
+            <h3 class="column-title">✅ CONCLUÍDO</h3>
+            <span class="column-count">0</span>
           </div>
+          <div class="cards-container"></div>
+        </div>
 
-          <div class="kanban-board">
+      </div>
+    </section>
 
-            <!-- Coluna A FAZER -->
-            <div class="kanban-column col-todo" data-status="A FAZER">
-              <div class="column-header">
-                <h3 class="column-title">📌 A FAZER</h3>
-                <span class="column-count">0</span>
-              </div>
-              <div class="cards-container"></div>
-            </div>
+    <!-- SEÇÃO 2: Visão do Gestor (Dashboard & Calendário) -->
+    <section id="section-manager" class="view-section">
+      <h2 style="font-size:1.15rem; font-weight:800; margin-bottom:1rem; display:flex; align-items:center; gap:0.5rem;">
+        👥 Desempenho e Horas da Equipe
+      </h2>
+      <div class="dashboard-grid" id="manager-members-grid"></div>
 
-            <!-- Coluna EM EXECUÇÃO -->
-            <div class="kanban-column col-wip" data-status="EM EXECUÇÃO">
-              <div class="column-header">
-                <h3 class="column-title">⚡ EM EXECUÇÃO</h3>
-                <span class="column-count">0</span>
-              </div>
-              <div class="cards-container"></div>
-            </div>
+      <div class="calendar-panel" style="margin-bottom:1.5rem;">
+        <h3
+          style="font-size:1.1rem; font-weight:700; margin-bottom:1rem; display:flex; align-items:center; gap:0.5rem;">
+          ⚠️ Central de Contratempos e Imprevistos Relatados
+        </h3>
+        <div id="impediments-list-container"></div>
+      </div>
 
-            <!-- Coluna CONCLUÍDO -->
-            <div class="kanban-column col-done" data-status="CONCLUÍDO">
-              <div class="column-header">
-                <h3 class="column-title">✅ CONCLUÍDO</h3>
-                <span class="column-count">0</span>
-              </div>
-              <div class="cards-container"></div>
-            </div>
+      <div class="calendar-panel">
+        <h3
+          style="font-size:1.1rem; font-weight:700; margin-bottom:0.5rem; display:flex; align-items:center; gap:0.5rem;">
+          📅 Agenda e Prazos das Atividades
+        </h3>
+        <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:1rem;">Visualização por dia das datas
+          limites de entrega. Clique em um dia para ver a agenda detalhada.</p>
 
-          </div>
-        </section>
+        <div class="calendar-grid" id="calendar-grid-container"></div>
+      </div>
+    </section>
 
-        <!-- SEÇÃO 2: Visão do Gestor (Dashboard & Calendário) -->
-        <section id="section-manager" class="view-section">
-          <h2
-            style="font-size:1.15rem; font-weight:800; margin-bottom:1rem; display:flex; align-items:center; gap:0.5rem;">
-            👥 Desempenho e Horas da Equipe
+    <!-- SEÇÃO 3: Organograma e Fluxo RT -->
+    <section id="section-map" class="view-section">
+      <div
+        style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem; margin-bottom:1.25rem;">
+        <div>
+          <h2 style="font-size:1.25rem; font-weight:800; display:flex; align-items:center; gap:0.5rem;">
+            🏢 Organograma & Processos Recorrentes do DP / RT
           </h2>
-          <div class="dashboard-grid" id="manager-members-grid"></div>
-
-          <div class="calendar-panel" style="margin-bottom:1.5rem;">
-            <h3
-              style="font-size:1.1rem; font-weight:700; margin-bottom:1rem; display:flex; align-items:center; gap:0.5rem;">
-              ⚠️ Central de Contratempos e Imprevistos Relatados
-            </h3>
-            <div id="impediments-list-container"></div>
-          </div>
-
-          <div class="calendar-panel">
-            <h3
-              style="font-size:1.1rem; font-weight:700; margin-bottom:0.5rem; display:flex; align-items:center; gap:0.5rem;">
-              📅 Agenda e Prazos das Atividades
-            </h3>
-            <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:1rem;">Visualização por dia das datas
-              limites de entrega. Clique em um dia para ver a agenda detalhada.</p>
-
-            <div class="calendar-grid" id="calendar-grid-container"></div>
-          </div>
-        </section>
-
-        <!-- SEÇÃO 3: Organograma e Fluxo RT -->
-        <section id="section-map" class="view-section">
-          <div
-            style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem; margin-bottom:1.25rem;">
-            <div>
-              <h2 style="font-size:1.25rem; font-weight:800; display:flex; align-items:center; gap:0.5rem;">
-                🏢 Organograma & Processos Recorrentes do DP / RT
-              </h2>
-              <p style="font-size:0.8rem; color:var(--text-muted);">Mapeamento de rotinas recorrentes do setor.</p>
-            </div>
-
-            <button id="btn-start-dp-cycle" class="btn btn-primary" style="box-shadow:var(--shadow-glow);">
-              📅 Iniciar Ciclo Mensal do DP
-            </button>
-          </div>
-
-          <div class="metrics-grid" id="map-metrics-summary" style="margin-bottom:1.5rem;"></div>
-
-          <h2
-            style="font-size:1.15rem; font-weight:800; margin-bottom:1rem; display:flex; align-items:center; gap:0.5rem;">
-            🗺️ Árvore de Processsos e Responsáveis do DP
-          </h2>
-          <div
-            style="display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:1.25rem; margin-bottom:2rem;"
-            id="map-organogram-grid"></div>
-
-          <div class="card-panel">
-            <div class="panel-header">
-              <h3 class="panel-title">🗓️ Roadmap de Atividades Ativas no Mês</h3>
-              <span class="summary-pill">Setor de Departamento Pessoal</span>
-            </div>
-            <div class="table-responsive">
-              <table class="custom-table">
-                <thead>
-                  <tr>
-                    <th>Demanda / Atividade DP</th>
-                    <th>Responsável</th>
-                    <th>Prioridade</th>
-                    <th>Status</th>
-                    <th>Prazo</th>
-                    <th>Saúde do Prazo</th>
-                    <th>Tempo Trabalhado</th>
-                  </tr>
-                </thead>
-                <tbody id="map-roadmap-table-body"></tbody>
-              </table>
-            </div>
-          </div>
-        </section>
-
-        <!-- SEÇÃO 4: Configurações de Atividades & Matriz de Responsabilidades -->
-        <section id="section-settings" class="view-section"></section>
-
-        <!-- SEÇÃO 5: Projetos e Atividades em Grupo -->
-        <section id="section-projects" class="view-section"></section>
-
-      </main>
-
-      <!-- MODAL 1: Cadastrar Membro da Equipe -->
-      <div class="modal-overlay" id="modal-member">
-        <div class="modal-card">
-          <div class="modal-header">
-            <h3 class="modal-title">👤 Novo Membro da Equipe</h3>
-            <button class="modal-close">&times;</button>
-          </div>
-
-          <form id="form-member">
-            <div class="form-grid">
-              <div class="form-group full-width">
-                <label for="member-name" class="form-label">Nome Completo *</label>
-                <input type="text" id="member-name" class="input-control" required placeholder="Ex: Roberto Alves">
-              </div>
-
-              <div class="form-group">
-                <label for="member-role" class="form-label">Cargo / Função *</label>
-                <input type="text" id="member-role" class="input-control" required
-                  placeholder="Ex: Desenvolvedor Frontend">
-              </div>
-
-              <div class="form-group">
-                <label for="member-contact" class="form-label">Contato / E-mail</label>
-                <input type="text" id="member-contact" class="input-control" placeholder="Ex: roberto@empresa.com">
-              </div>
-
-              <div class="form-group full-width">
-                <label for="member-photo" class="form-label">Foto / Avatar do Membro</label>
-                <input type="file" id="member-photo" class="input-control" accept="image/*">
-                <img id="member-photo-preview" class="img-preview" alt="Preview da foto">
-              </div>
-            </div>
-
-            <div class="modal-actions">
-              <button type="button" class="btn btn-secondary btn-modal-cancel">Cancelar</button>
-              <button type="submit" class="btn btn-primary">Salvar Membro</button>
-            </div>
-          </form>
+          <p style="font-size:0.8rem; color:var(--text-muted);">Mapeamento de rotinas recorrentes do setor.</p>
         </div>
+
+        <button id="btn-start-dp-cycle" class="btn btn-primary" style="box-shadow:var(--shadow-glow);">
+          📅 Iniciar Ciclo Mensal do DP
+        </button>
       </div>
 
-      <!-- MODAL 2: Editar Perfil do Membro da Equipe -->
-      <div class="modal-overlay" id="modal-edit-profile">
-        <div class="modal-card">
-          <div class="modal-header">
-            <h3 class="modal-title">✏️ Editar Perfil do Colaborador</h3>
-            <button class="modal-close">&times;</button>
-          </div>
+      <div class="metrics-grid" id="map-metrics-summary" style="margin-bottom:1.5rem;"></div>
 
-          <form id="form-edit-profile">
-            <input type="hidden" id="edit-profile-id">
-            <div class="form-grid">
-              <div class="form-group full-width">
-                <label for="edit-profile-name" class="form-label">Nome Completo *</label>
-                <input type="text" id="edit-profile-name" class="input-control" required>
-              </div>
+      <h2 style="font-size:1.15rem; font-weight:800; margin-bottom:1rem; display:flex; align-items:center; gap:0.5rem;">
+        🗺️ Árvore de Processsos e Responsáveis do DP
+      </h2>
+      <div
+        style="display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:1.25rem; margin-bottom:2rem;"
+        id="map-organogram-grid"></div>
 
-              <div class="form-group">
-                <label for="edit-profile-role" class="form-label">Cargo / Função *</label>
-                <input type="text" id="edit-profile-role" class="input-control" required>
-              </div>
-
-              <div class="form-group">
-                <label for="edit-profile-email" class="form-label">E-mail *</label>
-                <input type="email" id="edit-profile-email" class="input-control" required>
-              </div>
-
-              <div class="form-group full-width">
-                <label for="edit-profile-photo" class="form-label">Alterar Foto / Avatar</label>
-                <input type="file" id="edit-profile-photo" class="input-control" accept="image/*">
-                <img id="edit-profile-preview" class="img-preview active"
-                  style="max-height:80px; width:80px; border-radius:50%; margin-top:0.5rem; object-fit:cover;"
-                  alt="Preview foto">
-              </div>
-            </div>
-
-            <div class="modal-actions">
-              <button type="button" class="btn btn-secondary btn-modal-cancel">Cancelar</button>
-              <button type="submit" class="btn btn-primary">Salvar Alterações</button>
-            </div>
-          </form>
+      <div class="card-panel">
+        <div class="panel-header">
+          <h3 class="panel-title">🗓️ Roadmap de Atividades Ativas no Mês</h3>
+          <span class="summary-pill">Setor de Departamento Pessoal</span>
+        </div>
+        <div class="table-responsive">
+          <table class="custom-table">
+            <thead>
+              <tr>
+                <th>Demanda / Atividade DP</th>
+                <th>Responsável</th>
+                <th>Prioridade</th>
+                <th>Status</th>
+                <th>Prazo</th>
+                <th>Saúde do Prazo</th>
+                <th>Tempo Trabalhado</th>
+              </tr>
+            </thead>
+            <tbody id="map-roadmap-table-body"></tbody>
+          </table>
         </div>
       </div>
+    </section>
 
-      <!-- MODAL 3: Criar / Editar Atividade -->
-      <div class="modal-overlay" id="modal-task">
-        <div class="modal-card">
-          <div class="modal-header">
-            <h3 class="modal-title" id="modal-task-title-header">📌 Nova Atividade</h3>
-            <button class="modal-close">&times;</button>
-          </div>
+    <!-- SEÇÃO 4: Configurações de Atividades & Matriz de Responsabilidades -->
+    <section id="section-settings" class="view-section"></section>
 
-          <form id="form-task">
-            <input type="hidden" id="task-id">
-            <div class="form-grid">
-              <div class="form-group full-width">
-                <label for="task-title" class="form-label">Título da Atividade *</label>
-                <input type="text" id="task-title" class="input-control" required
-                  placeholder="Ex: Fechamento da Folha de Pagamento">
-              </div>
+    <!-- SEÇÃO 5: Projetos e Atividades em Grupo -->
+    <section id="section-projects" class="view-section"></section>
 
-              <div class="form-group">
-                <label for="task-member" class="form-label">Responsável Principal *</label>
-                <select id="task-member" class="select-control" required></select>
-              </div>
+  </main>
 
-              <div class="form-group">
-                <label for="task-project" class="form-label">Vincular a Projeto (Opcional)</label>
-                <select id="task-project" class="select-control">
-                  <option value="">-- Sem Projeto --</option>
-                </select>
-              </div>
-
-              <div class="form-group">
-                <label for="task-priority" class="form-label">Prioridade *</label>
-                <select id="task-priority" class="select-control" required>
-                  <option value="Baixa">Baixa</option>
-                  <option value="Média" selected>Média</option>
-                  <option value="Alta">Alta</option>
-                </select>
-              </div>
-
-              <div class="form-group">
-                <label for="task-date" class="form-label">Prazo (Data Limite) *</label>
-                <input type="date" id="task-date" class="input-control" required>
-              </div>
-
-              <div class="form-group full-width">
-                <label for="task-desc" class="form-label">Descrição dos Detalhes</label>
-                <textarea id="task-desc" class="input-control" rows="3"
-                  placeholder="Instruções e requisitos da atividade..."></textarea>
-              </div>
-            </div>
-
-            <div class="modal-actions">
-              <button type="button" class="btn btn-secondary btn-modal-cancel">Cancelar</button>
-              <button type="submit" class="btn btn-primary">Criar Atividade</button>
-            </div>
-          </form>
-        </div>
+  <!-- MODAL 1: Cadastrar Membro da Equipe -->
+  <div class="modal-overlay" id="modal-member">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">👤 Novo Membro da Equipe</h3>
+        <button class="modal-close">&times;</button>
       </div>
 
-      <!-- MODAL 4: Visualizar Detalhes da Atividade & Contratempos -->
-      <div class="modal-overlay" id="modal-task-details">
-        <div class="modal-card" style="max-width:650px;">
-          <div class="modal-header">
-            <h3 class="modal-title" id="task-details-title">📌 Detalhes da Atividade</h3>
-            <button class="modal-close">&times;</button>
+      <form id="form-member">
+        <div class="form-grid">
+          <div class="form-group full-width">
+            <label for="member-name" class="form-label">Nome Completo *</label>
+            <input type="text" id="member-name" class="input-control" required placeholder="Ex: Roberto Alves">
           </div>
 
-          <div id="task-details-body" style="line-height:1.6;"></div>
-
-          <div class="modal-actions">
-            <button type="button" class="btn btn-secondary btn-modal-cancel">Fechar</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- MODAL 5: Registrar Contratempo -->
-      <div class="modal-overlay" id="modal-impediment">
-        <div class="modal-card">
-          <div class="modal-header">
-            <h3 class="modal-title">⚠️ Evidenciar Imprevisto / Contratempo</h3>
-            <button class="modal-close">&times;</button>
+          <div class="form-group">
+            <label for="member-role" class="form-label">Cargo / Função *</label>
+            <input type="text" id="member-role" class="input-control" required placeholder="Ex: Desenvolvedor Frontend">
           </div>
 
-          <form id="form-impediment">
-            <div class="form-grid">
-              <div class="form-group full-width">
-                <label for="impediment-desc" class="form-label">Descrição do Ocorrido *</label>
-                <textarea id="impediment-desc" class="input-control" rows="3" required
-                  placeholder="Relate o motivo do atraso ou problema enfrentado durante a execução..."></textarea>
-              </div>
-
-              <div class="form-group full-width">
-                <label for="impediment-file" class="form-label">Anexar Print / Evidência (Opcional)</label>
-                <input type="file" id="impediment-file" class="input-control" accept="image/*">
-                <img id="impediment-preview" class="img-preview" alt="Preview da imagem">
-              </div>
-            </div>
-
-            <div class="modal-actions">
-              <button type="button" class="btn btn-secondary btn-modal-cancel">Cancelar</button>
-              <button type="submit" class="btn btn-warning">Registrar Contratempo</button>
-            </div>
-          </form>
-        </div>
-      </div>
-
-      <!-- MODAL 6: Visualizar Evidência (Foto) -->
-      <div class="modal-overlay" id="modal-evidence">
-        <div class="modal-card" style="max-width:680px;">
-          <div class="modal-header">
-            <h3 class="modal-title">🖼️ Evidência do Contratempo</h3>
-            <button class="modal-close">&times;</button>
+          <div class="form-group">
+            <label for="member-contact" class="form-label">Contato / E-mail</label>
+            <input type="text" id="member-contact" class="input-control" placeholder="Ex: roberto@empresa.com">
           </div>
-          <div style="text-align:center;">
-            <img id="evidence-modal-img"
-              style="max-width:100%; max-height:70vh; border-radius:var(--radius-md); border:1px solid var(--border-color);"
-              alt="Evidência em tamanho grande">
-          </div>
-          <div class="modal-actions">
-            <button type="button" class="btn btn-secondary btn-modal-cancel">Fechar</button>
+
+          <div class="form-group full-width">
+            <label for="member-photo" class="form-label">Foto / Avatar do Membro</label>
+            <input type="file" id="member-photo" class="input-control" accept="image/*">
+            <img id="member-photo-preview" class="img-preview" alt="Preview da foto">
           </div>
         </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary btn-modal-cancel">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Salvar Membro</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL 2: Editar Perfil do Membro da Equipe -->
+  <div class="modal-overlay" id="modal-edit-profile">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">✏️ Editar Perfil do Colaborador</h3>
+        <button class="modal-close">&times;</button>
       </div>
 
-      <!-- MODAL 7: Agenda do Dia Específico do Calendário -->
-      <div class="modal-overlay" id="modal-calendar-day">
-        <div class="modal-card" style="max-width:650px;">
-          <div class="modal-header">
-            <h3 class="modal-title" id="calendar-day-modal-title">📅 Agenda do Dia</h3>
-            <button class="modal-close">&times;</button>
+      <form id="form-edit-profile">
+        <input type="hidden" id="edit-profile-id">
+        <div class="form-grid">
+          <div class="form-group full-width">
+            <label for="edit-profile-name" class="form-label">Nome Completo *</label>
+            <input type="text" id="edit-profile-name" class="input-control" required>
           </div>
 
-          <div id="calendar-day-modal-body"></div>
+          <div class="form-group">
+            <label for="edit-profile-role" class="form-label">Cargo / Função *</label>
+            <input type="text" id="edit-profile-role" class="input-control" required>
+          </div>
 
-          <div class="modal-actions">
-            <button type="button" class="btn btn-secondary btn-modal-cancel">Fechar</button>
+          <div class="form-group">
+            <label for="edit-profile-email" class="form-label">E-mail *</label>
+            <input type="email" id="edit-profile-email" class="input-control" required>
+          </div>
+
+          <div class="form-group full-width">
+            <label for="edit-profile-photo" class="form-label">Alterar Foto / Avatar</label>
+            <input type="file" id="edit-profile-photo" class="input-control" accept="image/*">
+            <img id="edit-profile-preview" class="img-preview active"
+              style="max-height:80px; width:80px; border-radius:50%; margin-top:0.5rem; object-fit:cover;"
+              alt="Preview foto">
           </div>
         </div>
-      </div>
 
-      <!-- MODAL 8: Criar / Editar Projeto -->
-      <div class="modal-overlay" id="modal-project">
-        <div class="modal-card">
-          <div class="modal-header">
-            <h3 class="modal-title" id="modal-project-title-header">📁 Novo Projeto</h3>
-            <button class="modal-close">&times;</button>
-          </div>
-
-          <form id="form-project">
-            <input type="hidden" id="project-id">
-            <div class="form-grid">
-              <div class="form-group full-width">
-                <label for="project-name" class="form-label">Nome do Projeto *</label>
-                <input type="text" id="project-name" class="input-control" required
-                  placeholder="Ex: Implantação eSocial SST 2026">
-              </div>
-
-              <div class="form-group full-width">
-                <label for="project-desc" class="form-label">Descrição e Escopo do Projeto</label>
-                <textarea id="project-desc" class="input-control" rows="3"
-                  placeholder="Objetivos, entregáveis e diretrizes gerais..."></textarea>
-              </div>
-            </div>
-
-            <div class="modal-actions">
-              <button type="button" class="btn btn-secondary btn-modal-cancel">Cancelar</button>
-              <button type="submit" class="btn btn-primary">Salvar Projeto</button>
-            </div>
-          </form>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary btn-modal-cancel">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Salvar Alterações</button>
         </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL 3: Criar / Editar Atividade -->
+  <div class="modal-overlay" id="modal-task">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modal-task-title-header">📌 Nova Atividade</h3>
+        <button class="modal-close">&times;</button>
       </div>
 
-      <!-- MODAL 9: Gerenciar Membros do Grupo da Atividade -->
-      <div class="modal-overlay" id="modal-task-group">
-        <div class="modal-card" style="max-width:500px;">
-          <div class="modal-header">
-            <h3 class="modal-title">👥 Integrantes em Grupo da Atividade</h3>
-            <button class="modal-close">&times;</button>
+      <form id="form-task">
+        <input type="hidden" id="task-id">
+        <div class="form-grid">
+          <div class="form-group full-width">
+            <label for="task-title" class="form-label">Título da Atividade *</label>
+            <input type="text" id="task-title" class="input-control" required
+              placeholder="Ex: Fechamento da Folha de Pagamento">
           </div>
 
-          <div style="margin-bottom:1rem;">
-            <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:0.75rem;">
-              Marque quais colaboradores adicionais participam desta atividade junto com o responsável principal:
-            </p>
-            <div id="task-group-members-list" style="max-height:240px; overflow-y:auto;"></div>
+          <div class="form-group">
+            <label for="task-member" class="form-label">Responsável Principal *</label>
+            <select id="task-member" class="select-control" required></select>
           </div>
 
-          <div class="modal-actions">
-            <button type="button" class="btn btn-secondary btn-modal-cancel">Cancelar</button>
-            <button type="button" id="task-group-save-btn" class="btn btn-primary">Salvar Grupo</button>
+          <div class="form-group">
+            <label for="task-project" class="form-label">Vincular a Projeto (Opcional)</label>
+            <select id="task-project" class="select-control">
+              <option value="">-- Sem Projeto --</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="task-priority" class="form-label">Prioridade *</label>
+            <select id="task-priority" class="select-control" required>
+              <option value="Baixa">Baixa</option>
+              <option value="Média" selected>Média</option>
+              <option value="Alta">Alta</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="task-date" class="form-label">Prazo (Data Limite) *</label>
+            <input type="date" id="task-date" class="input-control" required>
+          </div>
+
+          <div class="form-group full-width">
+            <label for="task-desc" class="form-label">Descrição dos Detalhes</label>
+            <textarea id="task-desc" class="input-control" rows="3"
+              placeholder="Instruções e requisitos da atividade..."></textarea>
           </div>
         </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary btn-modal-cancel">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Criar Atividade</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL 4: Visualizar Detalhes da Atividade & Contratempos -->
+  <div class="modal-overlay" id="modal-task-details">
+    <div class="modal-card" style="max-width:650px;">
+      <div class="modal-header">
+        <h3 class="modal-title" id="task-details-title">📌 Detalhes da Atividade</h3>
+        <button class="modal-close">&times;</button>
       </div>
 
-      <!-- Container de Toasts -->
-      <div id="toast-container" class="toast-container"></div>
+      <div id="task-details-body" style="line-height:1.6;"></div>
 
-      <!-- Script Principal -->
-      <script type="module" src="js/app.js"></script>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary btn-modal-cancel">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 5: Registrar Contratempo -->
+  <div class="modal-overlay" id="modal-impediment">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">⚠️ Evidenciar Imprevisto / Contratempo</h3>
+        <button class="modal-close">&times;</button>
+      </div>
+
+      <form id="form-impediment">
+        <div class="form-grid">
+          <div class="form-group full-width">
+            <label for="impediment-desc" class="form-label">Descrição do Ocorrido *</label>
+            <textarea id="impediment-desc" class="input-control" rows="3" required
+              placeholder="Relate o motivo do atraso ou problema enfrentado durante a execução..."></textarea>
+          </div>
+
+          <div class="form-group full-width">
+            <label for="impediment-file" class="form-label">Anexar Print / Evidência (Opcional)</label>
+            <input type="file" id="impediment-file" class="input-control" accept="image/*">
+            <img id="impediment-preview" class="img-preview" alt="Preview da imagem">
+          </div>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary btn-modal-cancel">Cancelar</button>
+          <button type="submit" class="btn btn-warning">Registrar Contratempo</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL 6: Visualizar Evidência (Foto) -->
+  <div class="modal-overlay" id="modal-evidence">
+    <div class="modal-card" style="max-width:680px;">
+      <div class="modal-header">
+        <h3 class="modal-title">🖼️ Evidência do Contratempo</h3>
+        <button class="modal-close">&times;</button>
+      </div>
+      <div style="text-align:center;">
+        <img id="evidence-modal-img"
+          style="max-width:100%; max-height:70vh; border-radius:var(--radius-md); border:1px solid var(--border-color);"
+          alt="Evidência em tamanho grande">
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary btn-modal-cancel">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 7: Agenda do Dia Específico do Calendário -->
+  <div class="modal-overlay" id="modal-calendar-day">
+    <div class="modal-card" style="max-width:650px;">
+      <div class="modal-header">
+        <h3 class="modal-title" id="calendar-day-modal-title">📅 Agenda do Dia</h3>
+        <button class="modal-close">&times;</button>
+      </div>
+
+      <div id="calendar-day-modal-body"></div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary btn-modal-cancel">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 8: Criar / Editar Projeto -->
+  <div class="modal-overlay" id="modal-project">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modal-project-title-header">📁 Novo Projeto</h3>
+        <button class="modal-close">&times;</button>
+      </div>
+
+      <form id="form-project">
+        <input type="hidden" id="project-id">
+        <div class="form-grid">
+          <div class="form-group full-width">
+            <label for="project-name" class="form-label">Nome do Projeto *</label>
+            <input type="text" id="project-name" class="input-control" required
+              placeholder="Ex: Implantação eSocial SST 2026">
+          </div>
+
+          <div class="form-group full-width">
+            <label for="project-desc" class="form-label">Descrição e Escopo do Projeto</label>
+            <textarea id="project-desc" class="input-control" rows="3"
+              placeholder="Objetivos, entregáveis e diretrizes gerais..."></textarea>
+          </div>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary btn-modal-cancel">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Salvar Projeto</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL 9: Gerenciar Membros do Grupo da Atividade -->
+  <div class="modal-overlay" id="modal-task-group">
+    <div class="modal-card" style="max-width:500px;">
+      <div class="modal-header">
+        <h3 class="modal-title">👥 Integrantes em Grupo da Atividade</h3>
+        <button class="modal-close">&times;</button>
+      </div>
+
+      <div style="margin-bottom:1rem;">
+        <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:0.75rem;">
+          Marque quais colaboradores adicionais participam desta atividade junto com o responsável principal:
+        </p>
+        <div id="task-group-members-list" style="max-height:240px; overflow-y:auto;"></div>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary btn-modal-cancel">Cancelar</button>
+        <button type="button" id="task-group-save-btn" class="btn btn-primary">Salvar Grupo</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Container de Toasts -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- Script Principal -->
+  <script type="module" src="js/app.js"></script>
 
 </body>
 
