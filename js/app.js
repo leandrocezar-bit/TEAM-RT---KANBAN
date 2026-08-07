@@ -59,7 +59,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         localStorage.setItem('logged_member_id', matchedMember.id);
         currentMemberFilter = matchedMember.id;
 
-        loginOverlay.classList.remove('active');
+        if (loginOverlay) loginOverlay.classList.remove('active');
         showToast(`Bem-vindo de volta, ${matchedMember.name}!`, 'success');
         refreshUI();
       } else {
@@ -80,7 +80,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   checkAuthentication();
-
 
   // Inicializa Banco de Dados Supabase (ou cache offline)
   await DB.init();
@@ -134,10 +133,36 @@ document.addEventListener('DOMContentLoaded', async () => {
    * Atualiza a Interface completa
    */
   async function refreshUI() {
-    await renderMemberTabs();
+    const loggedId = localStorage.getItem('logged_member_id');
+    const backupFilter = currentMemberFilter;
+
+    // Força temporariamente a leitura global antes de rodar a barra de notificações
+    currentMemberFilter = 'all';
     await renderTopNotificationBar();
 
-    // Reset dos botões de navegação
+    // Devolve o filtro seguro do usuário logado
+    currentMemberFilter = loggedId ? loggedId : backupFilter;
+
+    await renderMemberTabs();
+    const memberTabsBar = document.getElementById('member-tabs-bar');
+
+    // REGRA DE OURO: Oculta as abas dos colegas apenas se estiver no Kanban, deixando as outras abas livres
+    if (memberTabsBar) {
+      if (loggedId && activeView === 'kanban') {
+        memberTabsBar.style.display = 'none';
+        currentMemberFilter = loggedId; // Garante o foco apenas nos cards do usuário no Kanban
+      } else {
+        memberTabsBar.style.display = 'flex'; // Exibe as abas normalmente nas demais seções
+      }
+    }
+
+    // Exibe todos os botões de ferramentas das abas para livre navegação
+    const adminButtons = [btnViewManager, btnViewMap, btnViewSettings, btnViewProjects, btnNewMember, btnResetDb];
+    adminButtons.forEach(btn => {
+      if (btn) btn.style.display = 'inline-block';
+    });
+
+    // Reset visual dos botões de navegação
     [btnViewKanban, btnViewManager, btnViewMap, btnViewSettings, btnViewProjects].forEach(btn => {
       if (btn) {
         btn.classList.remove('btn-primary');
@@ -150,7 +175,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     if (activeView === 'kanban') {
-      sectionKanban.classList.add('active');
+      if (sectionKanban) sectionKanban.classList.add('active');
       if (btnViewKanban) {
         btnViewKanban.classList.add('btn-primary');
         btnViewKanban.classList.remove('btn-secondary');
@@ -162,7 +187,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         onOpenTaskDetails: openTaskDetailsModal
       });
     } else if (activeView === 'manager') {
-      sectionManager.classList.add('active');
+      if (sectionManager) sectionManager.classList.add('active');
       if (btnViewManager) {
         btnViewManager.classList.add('btn-primary');
         btnViewManager.classList.remove('btn-secondary');
@@ -170,7 +195,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       await ManagerEngine.renderDashboard(openEvidenceModal, handleDeleteMember, openCalendarDayModal);
     } else if (activeView === 'map') {
-      sectionMap.classList.add('active');
+      if (sectionMap) sectionMap.classList.add('active');
       if (btnViewMap) {
         btnViewMap.classList.add('btn-primary');
         btnViewMap.classList.remove('btn-secondary');
@@ -178,7 +203,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       await MapEngine.renderSectorMap();
     } else if (activeView === 'settings') {
-      sectionSettings.classList.add('active');
+      if (sectionSettings) sectionSettings.classList.add('active');
       if (btnViewSettings) {
         btnViewSettings.classList.add('btn-primary');
         btnViewSettings.classList.remove('btn-secondary');
@@ -186,7 +211,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       await SettingsEngine.renderSettingsSection(showToast, refreshUI);
     } else if (activeView === 'projects') {
-      sectionProjects.classList.add('active');
+      if (sectionProjects) sectionProjects.classList.add('active');
       if (btnViewProjects) {
         btnViewProjects.classList.add('btn-primary');
         btnViewProjects.classList.remove('btn-secondary');
@@ -234,7 +259,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     let html = `<div>`;
 
     if (pendingTransfers.length > 0) {
-      // CORREÇÃO: Adicionado o [0] para ler corretamente o primeiro item da lista filtrada
+      // Lendo corretamente o primeiro item da lista filtrada com [0]
       const firstTr = pendingTransfers[0];
       const task = tasks.find(t => t.id === firstTr.taskId) || { title: 'Atividade' };
       const fromMem = membersMap.get(firstTr.fromMemberId) || { name: 'Alguém' };
@@ -260,7 +285,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     html += `</div>`;
     container.innerHTML = html;
 
-    // Vinculação correta dos cliques
+    // Vinculação de cliques corrigida para usar requested_at do Supabase
     const btnAccept = container.querySelector('.btn-accept-transfer');
     if (btnAccept) {
       btnAccept.addEventListener('click', async () => {
@@ -268,7 +293,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const transfer = await DB.get('activity_transfers', transferId);
         if (transfer) {
           transfer.status = 'ACEITO';
-          transfer.respondedAt = new Date().toISOString();
+          transfer.requested_at = new Date().toISOString(); // Alinhado com a coluna do Supabase
           await DB.save('activity_transfers', transfer);
           const task = await DB.get('tasks', transfer.taskId);
           if (task) {
@@ -288,7 +313,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const transfer = await DB.get('activity_transfers', transferId);
         if (transfer) {
           transfer.status = 'REJEITADO';
-          transfer.respondedAt = new Date().toISOString();
+          transfer.requested_at = new Date().toISOString(); // Alinhado com a coluna do Supabase
           await DB.save('activity_transfers', transfer);
           showToast('Solicitação de transferência recusada.', 'info');
           await refreshUI();
@@ -296,7 +321,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
     }
   }
-
 
   /**
    * Renderiza a barra de abas de membros no topo
