@@ -234,7 +234,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     let html = `<div>`;
 
     if (pendingTransfers.length > 0) {
-      // CORREÇÃO EXATA: Pegando o primeiro item do array indexado com [0]
+      // CORREÇÃO: Adicionado o [0] para ler corretamente o primeiro item da lista filtrada
       const firstTr = pendingTransfers[0];
       const task = tasks.find(t => t.id === firstTr.taskId) || { title: 'Atividade' };
       const fromMem = membersMap.get(firstTr.fromMemberId) || { name: 'Alguém' };
@@ -260,7 +260,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     html += `</div>`;
     container.innerHTML = html;
 
-    // Vinculação correta dos cliques usando requested_at do Supabase
+    // Vinculação correta dos cliques
     const btnAccept = container.querySelector('.btn-accept-transfer');
     if (btnAccept) {
       btnAccept.addEventListener('click', async () => {
@@ -268,7 +268,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const transfer = await DB.get('activity_transfers', transferId);
         if (transfer) {
           transfer.status = 'ACEITO';
-          transfer.requested_at = new Date().toISOString(); // Alinhado com o banco
+          transfer.respondedAt = new Date().toISOString();
           await DB.save('activity_transfers', transfer);
           const task = await DB.get('tasks', transfer.taskId);
           if (task) {
@@ -288,7 +288,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const transfer = await DB.get('activity_transfers', transferId);
         if (transfer) {
           transfer.status = 'REJEITADO';
-          transfer.requested_at = new Date().toISOString(); // Alinhado com o banco
+          transfer.respondedAt = new Date().toISOString();
           await DB.save('activity_transfers', transfer);
           showToast('Solicitação de transferência recusada.', 'info');
           await refreshUI();
@@ -296,22 +296,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
     }
   }
-
-  const btnReject = container.querySelector('.btn-reject-transfer');
-  if (btnReject) {
-    btnReject.addEventListener('click', async () => {
-      const transferId = btnReject.dataset.id;
-      const transfer = await DB.get('activity_transfers', transferId);
-      if (transfer) {
-        transfer.status = 'REJEITADO';
-        transfer.respondedAt = new Date().toISOString();
-        await DB.save('activity_transfers', transfer);
-        showToast('Solicitação de transferência recusada.', 'info');
-        await refreshUI();
-      }
-    });
-  }
-}
 
 
   /**
@@ -567,343 +551,343 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   });
 
-if (btnNewMember) {
-  btnNewMember.addEventListener('click', () => {
-    formMember.reset();
-    document.getElementById('member-photo-preview').classList.remove('active');
-    openModal(modalMember);
-  });
-}
+  if (btnNewMember) {
+    btnNewMember.addEventListener('click', () => {
+      formMember.reset();
+      document.getElementById('member-photo-preview').classList.remove('active');
+      openModal(modalMember);
+    });
+  }
 
-if (btnNewTask) {
-  btnNewTask.addEventListener('click', async () => {
-    formTask.reset();
-    document.getElementById('task-id').value = '';
-    const headerTitle = document.getElementById('modal-task-title-header');
-    if (headerTitle) headerTitle.textContent = '📌 Nova Atividade';
-    await populateTaskMemberSelect();
-    await populateTaskProjectSelect();
-    document.getElementById('task-date').value = new Date().toISOString().slice(0, 10);
-    openModal(modalTask);
-  });
-}
+  if (btnNewTask) {
+    btnNewTask.addEventListener('click', async () => {
+      formTask.reset();
+      document.getElementById('task-id').value = '';
+      const headerTitle = document.getElementById('modal-task-title-header');
+      if (headerTitle) headerTitle.textContent = '📌 Nova Atividade';
+      await populateTaskMemberSelect();
+      await populateTaskProjectSelect();
+      document.getElementById('task-date').value = new Date().toISOString().slice(0, 10);
+      openModal(modalTask);
+    });
+  }
 
-if (btnViewManager) btnViewManager.addEventListener('click', () => { activeView = 'manager'; refreshUI(); });
-if (btnViewKanban) btnViewKanban.addEventListener('click', () => { activeView = 'kanban'; refreshUI(); });
-if (btnViewMap) btnViewMap.addEventListener('click', () => { activeView = 'map'; refreshUI(); });
-if (btnViewSettings) btnViewSettings.addEventListener('click', () => { activeView = 'settings'; refreshUI(); });
-if (btnViewProjects) btnViewProjects.addEventListener('click', () => { activeView = 'projects'; refreshUI(); });
+  if (btnViewManager) btnViewManager.addEventListener('click', () => { activeView = 'manager'; refreshUI(); });
+  if (btnViewKanban) btnViewKanban.addEventListener('click', () => { activeView = 'kanban'; refreshUI(); });
+  if (btnViewMap) btnViewMap.addEventListener('click', () => { activeView = 'map'; refreshUI(); });
+  if (btnViewSettings) btnViewSettings.addEventListener('click', () => { activeView = 'settings'; refreshUI(); });
+  if (btnViewProjects) btnViewProjects.addEventListener('click', () => { activeView = 'projects'; refreshUI(); });
 
-// Botões do Filtro de Período do Kanban
-document.querySelectorAll('.btn-period-filter').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.btn-period-filter').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    KanbanEngine.currentPeriodFilter = btn.dataset.period;
-    refreshUI();
-  });
-});
-
-async function populateTaskMemberSelect() {
-  const select = document.getElementById('task-member');
-  if (!select) return;
-  const members = await DB.getAll('members');
-  select.innerHTML = members.map(m => `<option value="${m.id}">${m.name} (${m.role || 'Membro'})</option>`).join('');
-}
-
-async function populateTaskProjectSelect() {
-  const select = document.getElementById('task-project');
-  if (!select) return;
-  const projects = await DB.getAll('projects');
-  select.innerHTML = `<option value="">-- Sem Projeto --</option>` + projects.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
-}
-
-// --- Previews de Imagem ---
-const memberPhotoInput = document.getElementById('member-photo');
-if (memberPhotoInput) {
-  memberPhotoInput.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (evt) => {
-        const preview = document.getElementById('member-photo-preview');
-        preview.src = evt.target.result;
-        preview.classList.add('active');
-      };
-      reader.readAsDataURL(file);
-    }
-  });
-}
-
-const editProfilePhotoInput = document.getElementById('edit-profile-photo');
-if (editProfilePhotoInput) {
-  editProfilePhotoInput.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (evt) => {
-        const preview = document.getElementById('edit-profile-preview');
-        preview.src = evt.target.result;
-        preview.classList.add('active');
-      };
-      reader.readAsDataURL(file);
-    }
-  });
-}
-
-const impedimentPhotoInput = document.getElementById('impediment-file');
-if (impedimentPhotoInput) {
-  impedimentPhotoInput.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (evt) => {
-        const preview = document.getElementById('impediment-preview');
-        preview.src = evt.target.result;
-        preview.classList.add('active');
-      };
-      reader.readAsDataURL(file);
-    }
-  });
-}
-
-// --- Submissão de Formulários ---
-
-if (formMember) {
-  formMember.addEventListener('submit', async (e) => {
-    e.preventDefault();
-
-    const name = document.getElementById('member-name').value;
-    const role = document.getElementById('member-role').value;
-    const contact = document.getElementById('member-contact').value;
-
-    const photoPreview = document.getElementById('member-photo-preview');
-    let photoData = photoPreview.src;
-
-    if (!photoPreview.classList.contains('active') || !photoData) {
-      const initials = name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
-      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><rect width="100" height="100" fill="#6366f1"/><text x="50%" y="55%" dominant-baseline="middle" text-anchor="middle" fill="#ffffff" font-family="sans-serif" font-size="40" font-weight="bold">${initials}</text></svg>`;
-      photoData = 'data:image/svg+xml;base64,' + btoa(svg);
-    }
-
-    const newMember = {
-      id: 'm-' + Date.now(),
-      name,
-      role,
-      contact,
-      email: contact,
-      photo: photoData
-    };
-
-    await DB.save('members', newMember);
-    showToast(`Membro ${name} cadastrado com sucesso!`, 'success');
-    closeModal(modalMember);
-    refreshUI();
-  });
-}
-
-if (formEditProfile) {
-  formEditProfile.addEventListener('submit', async (e) => {
-    e.preventDefault();
-
-    const memberId = document.getElementById('edit-profile-id').value;
-    const name = document.getElementById('edit-profile-name').value;
-    const role = document.getElementById('edit-profile-role').value;
-    const email = document.getElementById('edit-profile-email').value;
-    const preview = document.getElementById('edit-profile-preview');
-
-    const member = await DB.get('members', memberId);
-    if (member) {
-      member.name = name;
-      member.role = role;
-      member.email = email;
-      member.contact = email;
-      if (preview.src) member.photo = preview.src;
-
-      await DB.save('members', member);
-      showToast('Perfil atualizado com sucesso!', 'success');
-      closeModal(modalEditProfile);
+  // Botões do Filtro de Período do Kanban
+  document.querySelectorAll('.btn-period-filter').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.btn-period-filter').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      KanbanEngine.currentPeriodFilter = btn.dataset.period;
       refreshUI();
-    }
+    });
   });
-}
 
-if (formTask) {
-  formTask.addEventListener('submit', async (e) => {
-    e.preventDefault();
+  async function populateTaskMemberSelect() {
+    const select = document.getElementById('task-member');
+    if (!select) return;
+    const members = await DB.getAll('members');
+    select.innerHTML = members.map(m => `<option value="${m.id}">${m.name} (${m.role || 'Membro'})</option>`).join('');
+  }
 
-    const existingTaskId = document.getElementById('task-id').value;
-    const title = document.getElementById('task-title').value;
-    const description = document.getElementById('task-desc').value;
-    const memberId = document.getElementById('task-member').value;
-    const projectId = document.getElementById('task-project').value || null;
-    const priority = document.getElementById('task-priority').value;
-    const dueDate = document.getElementById('task-date').value;
+  async function populateTaskProjectSelect() {
+    const select = document.getElementById('task-project');
+    if (!select) return;
+    const projects = await DB.getAll('projects');
+    select.innerHTML = `<option value="">-- Sem Projeto --</option>` + projects.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+  }
 
-    if (existingTaskId) {
-      // Modo Edição de Atividade Existente
-      const task = await DB.get('tasks', existingTaskId);
-      if (task) {
-        const previousState = { ...task };
-        task.title = title;
-        task.description = description;
-        task.memberId = memberId;
-        task.projectId = projectId;
-        task.priority = priority;
-        task.dueDate = dueDate;
-
-        await DB.save('tasks', task);
-        UndoEngine.pushAction({
-          type: 'TASK_UPDATE',
-          previousState
-        });
-        showToast(`Atividade "${title}" atualizada com sucesso!`, 'success');
+  // --- Previews de Imagem ---
+  const memberPhotoInput = document.getElementById('member-photo');
+  if (memberPhotoInput) {
+    memberPhotoInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          const preview = document.getElementById('member-photo-preview');
+          preview.src = evt.target.result;
+          preview.classList.add('active');
+        };
+        reader.readAsDataURL(file);
       }
-    } else {
-      // Modo Criação de Nova Atividade
-      const newTask = {
-        id: 't-' + Date.now(),
-        title,
+    });
+  }
+
+  const editProfilePhotoInput = document.getElementById('edit-profile-photo');
+  if (editProfilePhotoInput) {
+    editProfilePhotoInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          const preview = document.getElementById('edit-profile-preview');
+          preview.src = evt.target.result;
+          preview.classList.add('active');
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+  }
+
+  const impedimentPhotoInput = document.getElementById('impediment-file');
+  if (impedimentPhotoInput) {
+    impedimentPhotoInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          const preview = document.getElementById('impediment-preview');
+          preview.src = evt.target.result;
+          preview.classList.add('active');
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+  }
+
+  // --- Submissão de Formulários ---
+
+  if (formMember) {
+    formMember.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const name = document.getElementById('member-name').value;
+      const role = document.getElementById('member-role').value;
+      const contact = document.getElementById('member-contact').value;
+
+      const photoPreview = document.getElementById('member-photo-preview');
+      let photoData = photoPreview.src;
+
+      if (!photoPreview.classList.contains('active') || !photoData) {
+        const initials = name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><rect width="100" height="100" fill="#6366f1"/><text x="50%" y="55%" dominant-baseline="middle" text-anchor="middle" fill="#ffffff" font-family="sans-serif" font-size="40" font-weight="bold">${initials}</text></svg>`;
+        photoData = 'data:image/svg+xml;base64,' + btoa(svg);
+      }
+
+      const newMember = {
+        id: 'm-' + Date.now(),
+        name,
+        role,
+        contact,
+        email: contact,
+        photo: photoData
+      };
+
+      await DB.save('members', newMember);
+      showToast(`Membro ${name} cadastrado com sucesso!`, 'success');
+      closeModal(modalMember);
+      refreshUI();
+    });
+  }
+
+  if (formEditProfile) {
+    formEditProfile.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const memberId = document.getElementById('edit-profile-id').value;
+      const name = document.getElementById('edit-profile-name').value;
+      const role = document.getElementById('edit-profile-role').value;
+      const email = document.getElementById('edit-profile-email').value;
+      const preview = document.getElementById('edit-profile-preview');
+
+      const member = await DB.get('members', memberId);
+      if (member) {
+        member.name = name;
+        member.role = role;
+        member.email = email;
+        member.contact = email;
+        if (preview.src) member.photo = preview.src;
+
+        await DB.save('members', member);
+        showToast('Perfil atualizado com sucesso!', 'success');
+        closeModal(modalEditProfile);
+        refreshUI();
+      }
+    });
+  }
+
+  if (formTask) {
+    formTask.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const existingTaskId = document.getElementById('task-id').value;
+      const title = document.getElementById('task-title').value;
+      const description = document.getElementById('task-desc').value;
+      const memberId = document.getElementById('task-member').value;
+      const projectId = document.getElementById('task-project').value || null;
+      const priority = document.getElementById('task-priority').value;
+      const dueDate = document.getElementById('task-date').value;
+
+      if (existingTaskId) {
+        // Modo Edição de Atividade Existente
+        const task = await DB.get('tasks', existingTaskId);
+        if (task) {
+          const previousState = { ...task };
+          task.title = title;
+          task.description = description;
+          task.memberId = memberId;
+          task.projectId = projectId;
+          task.priority = priority;
+          task.dueDate = dueDate;
+
+          await DB.save('tasks', task);
+          UndoEngine.pushAction({
+            type: 'TASK_UPDATE',
+            previousState
+          });
+          showToast(`Atividade "${title}" atualizada com sucesso!`, 'success');
+        }
+      } else {
+        // Modo Criação de Nova Atividade
+        const newTask = {
+          id: 't-' + Date.now(),
+          title,
+          description,
+          memberId,
+          projectId,
+          priority,
+          dueDate,
+          status: 'A FAZER',
+          elapsedSeconds: 0,
+          isTimerRunning: false,
+          lastTimerStartedAt: null,
+          sortOrder: Date.now(),
+          createdAt: new Date().toISOString()
+        };
+
+        await DB.save('tasks', newTask);
+
+        UndoEngine.pushAction({
+          type: 'TASK_CREATE',
+          taskId: newTask.id
+        });
+
+        showToast('Nova atividade criada e vinculada!', 'success');
+      }
+
+      closeModal(modalTask);
+      refreshUI();
+    });
+  }
+
+  if (formProject) {
+    formProject.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const name = document.getElementById('project-name').value;
+      const description = document.getElementById('project-desc').value;
+
+      const newProject = {
+        id: 'proj-' + Date.now(),
+        name,
         description,
-        memberId,
-        projectId,
-        priority,
-        dueDate,
-        status: 'A FAZER',
-        elapsedSeconds: 0,
-        isTimerRunning: false,
-        lastTimerStartedAt: null,
-        sortOrder: Date.now(),
+        status: 'EM ANDAMENTO',
         createdAt: new Date().toISOString()
       };
 
-      await DB.save('tasks', newTask);
+      await DB.save('projects', newProject);
+      showToast(`Projeto "${name}" criado com sucesso!`, 'success');
+      closeModal(modalProject);
+      refreshUI();
+    });
+  }
 
-      UndoEngine.pushAction({
-        type: 'TASK_CREATE',
-        taskId: newTask.id
-      });
+  if (formImpediment) {
+    formImpediment.addEventListener('submit', async (e) => {
+      e.preventDefault();
 
-      showToast('Nova atividade criada e vinculada!', 'success');
-    }
+      const desc = document.getElementById('impediment-desc').value;
+      const preview = document.getElementById('impediment-preview');
+      const evidenceImg = preview.classList.contains('active') ? preview.src : null;
 
-    closeModal(modalTask);
-    refreshUI();
-  });
-}
+      const newImpediment = {
+        id: 'imp-' + Date.now(),
+        taskId: reportingTaskId,
+        description: desc,
+        evidenceImage: evidenceImg,
+        createdAt: new Date().toISOString()
+      };
 
-if (formProject) {
-  formProject.addEventListener('submit', async (e) => {
-    e.preventDefault();
+      await DB.save('impediments', newImpediment);
+      showToast('Contratempo registrado para a tarefa!', 'warning');
+      closeModal(modalImpediment);
+      refreshUI();
+    });
+  }
 
-    const name = document.getElementById('project-name').value;
-    const description = document.getElementById('project-desc').value;
+  // Salvar Integrantes do Grupo da Atividade
+  const btnSaveTaskGroup = document.getElementById('task-group-save-btn');
+  if (btnSaveTaskGroup) {
+    btnSaveTaskGroup.addEventListener('click', async () => {
+      const taskId = btnSaveTaskGroup.dataset.taskId;
+      if (!taskId) return;
 
-    const newProject = {
-      id: 'proj-' + Date.now(),
-      name,
-      description,
-      status: 'EM ANDAMENTO',
-      createdAt: new Date().toISOString()
-    };
+      const checkboxes = document.querySelectorAll('.chk-group-member');
+      const existingTaskMembers = await DB.getAll('task_members');
 
-    await DB.save('projects', newProject);
-    showToast(`Projeto "${name}" criado com sucesso!`, 'success');
-    closeModal(modalProject);
-    refreshUI();
-  });
-}
-
-if (formImpediment) {
-  formImpediment.addEventListener('submit', async (e) => {
-    e.preventDefault();
-
-    const desc = document.getElementById('impediment-desc').value;
-    const preview = document.getElementById('impediment-preview');
-    const evidenceImg = preview.classList.contains('active') ? preview.src : null;
-
-    const newImpediment = {
-      id: 'imp-' + Date.now(),
-      taskId: reportingTaskId,
-      description: desc,
-      evidenceImage: evidenceImg,
-      createdAt: new Date().toISOString()
-    };
-
-    await DB.save('impediments', newImpediment);
-    showToast('Contratempo registrado para a tarefa!', 'warning');
-    closeModal(modalImpediment);
-    refreshUI();
-  });
-}
-
-// Salvar Integrantes do Grupo da Atividade
-const btnSaveTaskGroup = document.getElementById('task-group-save-btn');
-if (btnSaveTaskGroup) {
-  btnSaveTaskGroup.addEventListener('click', async () => {
-    const taskId = btnSaveTaskGroup.dataset.taskId;
-    if (!taskId) return;
-
-    const checkboxes = document.querySelectorAll('.chk-group-member');
-    const existingTaskMembers = await DB.getAll('task_members');
-
-    // Limpa os membros do grupo desta tarefa
-    const currentGroupTasks = existingTaskMembers.filter(tm => tm.taskId === taskId);
-    for (const tm of currentGroupTasks) {
-      await DB.delete('task_members', tm.id);
-    }
-
-    // Adiciona selecionados
-    for (const chk of checkboxes) {
-      if (chk.checked) {
-        const newTm = {
-          id: 'tm-' + Date.now() + Math.floor(Math.random() * 1000),
-          taskId,
-          memberId: chk.dataset.memberId,
-          roleInTask: 'Colaborador',
-          createdAt: new Date().toISOString()
-        };
-        await DB.save('task_members', newTm);
+      // Limpa os membros do grupo desta tarefa
+      const currentGroupTasks = existingTaskMembers.filter(tm => tm.taskId === taskId);
+      for (const tm of currentGroupTasks) {
+        await DB.delete('task_members', tm.id);
       }
-    }
 
-    showToast('Integrantes do grupo atualizados com sucesso!', 'success');
-    closeModal(modalTaskGroup);
+      // Adiciona selecionados
+      for (const chk of checkboxes) {
+        if (chk.checked) {
+          const newTm = {
+            id: 'tm-' + Date.now() + Math.floor(Math.random() * 1000),
+            taskId,
+            memberId: chk.dataset.memberId,
+            roleInTask: 'Colaborador',
+            createdAt: new Date().toISOString()
+          };
+          await DB.save('task_members', newTm);
+        }
+      }
+
+      showToast('Integrantes do grupo atualizados com sucesso!', 'success');
+      closeModal(modalTaskGroup);
+      refreshUI();
+    });
+  }
+
+  /**
+   * Sistema de Toasts
+   */
+  function showToast(message, type = 'info') {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    const icon = type === 'success' ? '✅' : type === 'warning' ? '⚠️' : 'ℹ️';
+    toast.innerHTML = `<span>${icon}</span> <span>${message}</span>`;
+
+    container.appendChild(toast);
+
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateX(100%)';
+      setTimeout(() => toast.remove(), 300);
+    }, 3500);
+  }
+
+  // Inicialização do Drag & Drop, Cronômetro e Atalho Ctrl+Z
+  KanbanEngine.initDragAndDrop(async (task, fromStatus, toStatus) => {
+    showToast(`Tarefa movida para ${toStatus}`, 'info');
     refreshUI();
   });
-}
 
-/**
- * Sistema de Toasts
- */
-function showToast(message, type = 'info') {
-  const container = document.getElementById('toast-container');
-  if (!container) return;
+  TimerEngine.startGlobalTicker();
+  UndoEngine.initKeyboardShortcut(refreshUI, showToast);
 
-  const toast = document.createElement('div');
-  toast.className = `toast toast-${type}`;
-  const icon = type === 'success' ? '✅' : type === 'warning' ? '⚠️' : 'ℹ️';
-  toast.innerHTML = `<span>${icon}</span> <span>${message}</span>`;
-
-  container.appendChild(toast);
-
-  setTimeout(() => {
-    toast.style.opacity = '0';
-    toast.style.transform = 'translateX(100%)';
-    setTimeout(() => toast.remove(), 300);
-  }, 3500);
-}
-
-// Inicialização do Drag & Drop, Cronômetro e Atalho Ctrl+Z
-KanbanEngine.initDragAndDrop(async (task, fromStatus, toStatus) => {
-  showToast(`Tarefa movida para ${toStatus}`, 'info');
-  refreshUI();
-});
-
-TimerEngine.startGlobalTicker();
-UndoEngine.initKeyboardShortcut(refreshUI, showToast);
-
-// Render inicial
-await refreshUI();
+  // Render inicial
+  await refreshUI();
 });
 
