@@ -16,8 +16,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   let currentMemberFilter = 'all';
   let reportingTaskId = null;
 
-  // --- 1. AUTENTICAÇÃO POR SENHA (LOGIN PASSCODE GATE) ---
-  const DEFAULT_PASSCODE = '1234';
+  // --- 1. AUTENTICAÇÃO POR SENHA COM FILTRO DE USUÁRIO ---
+  const MASTER_PASSCODE = 'RTESHOW';
   const loginOverlay = document.getElementById('login-overlay');
   const formLogin = document.getElementById('form-login');
 
@@ -25,33 +25,46 @@ document.addEventListener('DOMContentLoaded', async () => {
     const isAuth = localStorage.getItem('app_passcode_authenticated');
     if (isAuth === 'true') {
       if (loginOverlay) loginOverlay.classList.remove('active');
+
+      // Força o filtro global do painel no ID do usuário logado
+      const loggedId = localStorage.getItem('logged_member_id');
+      if (loggedId) {
+        currentMemberFilter = loggedId;
+      }
     } else {
       if (loginOverlay) loginOverlay.classList.add('active');
     }
   }
 
   if (formLogin) {
-    formLogin.addEventListener('submit', (e) => {
+    formLogin.addEventListener('submit', async (e) => {
       e.preventDefault();
+      const inputUser = document.getElementById('input-login-user').value.trim().toLowerCase();
       const inputPasscode = document.getElementById('input-passcode').value;
-      if (inputPasscode === DEFAULT_PASSCODE) {
+
+      if (inputPasscode !== MASTER_PASSCODE) {
+        showToast('Senha da equipe incorreta. Tente novamente.', 'warning');
+        return;
+      }
+
+      // Busca os colaboradores cadastrados para encontrar o correspondente
+      const members = await DB.getAll('members');
+      const matchedMember = members.find(m =>
+        (m.name && m.name.toLowerCase() === inputUser) ||
+        (m.email && m.email.toLowerCase() === inputUser)
+      );
+
+      if (matchedMember) {
         localStorage.setItem('app_passcode_authenticated', 'true');
+        localStorage.setItem('logged_member_id', matchedMember.id);
+        currentMemberFilter = matchedMember.id;
+
         loginOverlay.classList.remove('active');
-        showToast('Acesso liberado com sucesso!', 'success');
+        showToast(`Bem-vindo de volta, ${matchedMember.name}!`, 'success');
         refreshUI();
       } else {
-        showToast('Senha incorreta. Tente novamente.', 'warning');
+        showToast('Nome ou E-mail não encontrado na lista de colaboradores.', 'warning');
       }
-    });
-  }
-
-  const btnQuickLogin = document.getElementById('btn-quick-login');
-  if (btnQuickLogin) {
-    btnQuickLogin.addEventListener('click', () => {
-      localStorage.setItem('app_passcode_authenticated', 'true');
-      if (loginOverlay) loginOverlay.classList.remove('active');
-      showToast('Acesso liberado com sucesso!', 'success');
-      refreshUI();
     });
   }
 
@@ -59,12 +72,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (btnLogout) {
     btnLogout.addEventListener('click', () => {
       localStorage.removeItem('app_passcode_authenticated');
+      localStorage.removeItem('logged_member_id');
+      currentMemberFilter = 'all'; // Reseta o filtro ao deslogar
       checkAuthentication();
       showToast('Você saiu do aplicativo.', 'info');
     });
   }
 
   checkAuthentication();
+
 
   // Inicializa Banco de Dados Supabase (ou cache offline)
   await DB.init();
@@ -641,7 +657,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const name = document.getElementById('member-name').value;
       const role = document.getElementById('member-role').value;
       const contact = document.getElementById('member-contact').value;
-      
+
       const photoPreview = document.getElementById('member-photo-preview');
       let photoData = photoPreview.src;
 
@@ -811,7 +827,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       const checkboxes = document.querySelectorAll('.chk-group-member');
       const existingTaskMembers = await DB.getAll('task_members');
-      
+
       // Limpa os membros do grupo desta tarefa
       const currentGroupTasks = existingTaskMembers.filter(tm => tm.taskId === taskId);
       for (const tm of currentGroupTasks) {
