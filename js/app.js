@@ -134,37 +134,8 @@ document.addEventListener('DOMContentLoaded', async () => {
    * Atualiza a Interface completa
    */
   async function refreshUI() {
-    // 1. Primeiro reseta temporariamente o filtro para garantir que as notificações globais carreguem
-    const loggedId = localStorage.getItem('logged_member_id');
-    const backupFilter = currentMemberFilter;
-
-    // Força a leitura global apenas para renderizar a barra de aceite
-    currentMemberFilter = 'all';
-    await renderTopNotificationBar();
-
-    // Restaura o filtro correto do usuário
-    currentMemberFilter = loggedId ? loggedId : backupFilter;
-
-    // 2. Renderiza as abas de membros normalmente
     await renderMemberTabs();
-
-    const memberTabsBar = document.getElementById('member-tabs-bar');
-
-    // Se o usuário estiver logado e na tela do Kanban, esconde as abas dos colegas
-    if (memberTabsBar) {
-      if (loggedId && activeView === 'kanban') {
-        memberTabsBar.style.display = 'none';
-        currentMemberFilter = loggedId; // Trava o filtro no próprio usuário para o Kanban
-      } else {
-        memberTabsBar.style.display = 'flex'; // Mostra as abas normalmente nas outras seções
-      }
-    }
-
-    // Exibe TODOS os botões das outras abas normalmente para o usuário navegar
-    const adminButtons = [btnViewManager, btnViewMap, btnViewSettings, btnViewProjects, btnNewMember, btnResetDb];
-    adminButtons.forEach(btn => {
-      if (btn) btn.style.display = 'inline-block';
-    });
+    await renderTopNotificationBar();
 
     // Reset dos botões de navegação
     [btnViewKanban, btnViewManager, btnViewMap, btnViewSettings, btnViewProjects].forEach(btn => {
@@ -190,8 +161,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         onReportImpediment: openReportImpedimentModal,
         onOpenTaskDetails: openTaskDetailsModal
       });
-
-
     } else if (activeView === 'manager') {
       sectionManager.classList.add('active');
       if (btnViewManager) {
@@ -235,13 +204,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     const container = document.getElementById('top-notification-list');
     if (!bar || !container) return;
 
+    const loggedId = localStorage.getItem('logged_member_id');
     const transfers = await DB.getAll('activity_transfers');
-    const pendingTransfers = transfers.filter(t => t.status === 'PENDENTE');
+
+    // FILTRO DE SEGURANÇA: Só exibe a notificação se ela for destinada a quem está logado
+    const pendingTransfers = transfers.filter(t =>
+      t.status === 'PENDENTE' && (!loggedId || t.toMemberId === loggedId)
+    );
+
     const tasks = await DB.getAll('tasks');
     const members = await DB.getAll('members');
     const membersMap = new Map(members.map(m => [m.id, m]));
 
-    // Tarefas com vencimento em 2 dias
+    // Alertas de prazo de 2 dias
     const today = new Date();
     const urgentTasks = tasks.filter(t => {
       if (t.status === 'CONCLUÍDO' || !t.dueDate) return false;
@@ -250,7 +225,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       return diffDays >= 0 && diffDays <= 2;
     });
 
-    if (pendingTransfers.length === 0 && urgentTasks.length === 0) {
+    if (pendingTransfers.length === 0 && (urgentTasks.length === 0 || loggedId)) {
       bar.style.display = 'none';
       return;
     }
@@ -264,29 +239,27 @@ document.addEventListener('DOMContentLoaded', async () => {
       const fromMem = membersMap.get(firstTr.fromMemberId) || { name: 'Alguém' };
       const toMem = membersMap.get(firstTr.toMemberId) || { name: 'Você' };
 
-      html += `
-        <span style="margin-right:1rem;">
-          🔄 <strong>Solicitação de Transferência:</strong> "${task.title}" transferida por ${fromMem.name} para ${toMem.name}.
-        </span>
-        <button class="btn btn-primary btn-accept-transfer" data-id="${firstTr.id}" style="padding:0.2rem 0.6rem; font-size:0.75rem; background:#10b981; margin-right:0.4rem;">
-          ✅ Aceitar Transferência
-        </button>
-        <button class="btn btn-secondary btn-reject-transfer" data-id="${firstTr.id}" style="padding:0.2rem 0.6rem; font-size:0.75rem; background:#ef4444; color:#fff;">
-          ❌ Recusar
-        </button>
+      html += ` 
+        <div style="display:flex; justify-content:space-between; align-items:center; background:#1e1b4b; border:1px solid #4338ca; padding:0.6rem 1rem; border-radius:4px; color:#c7d2fe; font-size:0.85rem; margin-bottom:0.5rem;"> 
+          <span>🔄 <strong>Solicitação de Transferência:</strong> "${task.title}" enviada por ${fromMem.name} para ${toMem.name}.</span> 
+          <div style="display:flex; gap:0.5rem;"> 
+            <button class="btn btn-primary btn-accept-transfer" data-id="${firstTr.id}" style="padding:0.2rem 0.6rem; font-size:0.75rem; background:#10b981; border:none; color:white; font-weight:700; cursor:pointer; border-radius:4px;">Aceitar</button> 
+            <button class="btn btn-secondary btn-reject-transfer" data-id="${firstTr.id}" style="padding:0.2rem 0.6rem; font-size:0.75rem; background:#ef4444; border:none; color:white; font-weight:700; cursor:pointer; border-radius:4px;">Recusar</button> 
+          </div> 
+        </div> 
       `;
-    } else if (urgentTasks.length > 0) {
-      html += `
-        <span>
-          ⚠️ <strong>Alerta de Prazos:</strong> Existem ${urgentTasks.length} atividade(s) vencendo nos próximos 2 dias no calendário!
-        </span>
+    } else if (urgentTasks.length > 0 && !loggedId) {
+      html += ` 
+        <span> 
+          ⚠️ <strong>Alerta de Prazos:</strong> Existem ${urgentTasks.length} atividade(s) vencendo nos próximos 2 dias no calendário! 
+        </span> 
       `;
     }
 
     html += `</div>`;
     container.innerHTML = html;
 
-    // Attach eventos dos botões de aceite
+    // Vinculação correta dos cliques
     const btnAccept = container.querySelector('.btn-accept-transfer');
     if (btnAccept) {
       btnAccept.addEventListener('click', async () => {
@@ -296,16 +269,13 @@ document.addEventListener('DOMContentLoaded', async () => {
           transfer.status = 'ACEITO';
           transfer.respondedAt = new Date().toISOString();
           await DB.save('activity_transfers', transfer);
-
-          // Atualiza o responsável na tarefa
           const task = await DB.get('tasks', transfer.taskId);
           if (task) {
             task.memberId = transfer.toMemberId;
             await DB.save('tasks', task);
           }
-
           showToast('Transferência de atividade aceita!', 'success');
-          refreshUI();
+          await refreshUI();
         }
       });
     }
@@ -320,11 +290,12 @@ document.addEventListener('DOMContentLoaded', async () => {
           transfer.respondedAt = new Date().toISOString();
           await DB.save('activity_transfers', transfer);
           showToast('Solicitação de transferência recusada.', 'info');
-          refreshUI();
+          await refreshUI();
         }
       });
     }
   }
+
 
   /**
    * Renderiza a barra de abas de membros no topo
