@@ -137,8 +137,28 @@ document.addEventListener('DOMContentLoaded', async () => {
     await renderMemberTabs();
     await renderTopNotificationBar();
 
+    // Esconde a barra de abas dos outros membros se for usuário comum
+    const loggedId = localStorage.getItem('logged_member_id');
+    const memberTabsBar = document.getElementById('member-tabs-bar');
+    if (memberTabsBar) {
+      memberTabsBar.style.display = loggedId ? 'none' : 'flex';
+    }
+
+    // Esconde botões administrativos (Dashboard, Configurações, Novo Colaborador) para usuários comuns
+    const adminButtons = [btnViewManager, btnViewMap, btnViewSettings, btnViewProjects, btnNewMember, btnResetDb];
+    adminButtons.forEach(btn => {
+      if (btn) btn.style.display = loggedId ? 'none' : 'inline-block';
+    });
+
+    // Força a visão a ser sempre o Kanban caso um usuário comum tente burlar a URL
+    if (loggedId) {
+      activeView = 'kanban';
+      currentMemberFilter = loggedId;
+    }
+
     // Reset dos botões de navegação
     [btnViewKanban, btnViewManager, btnViewMap, btnViewSettings, btnViewProjects].forEach(btn => {
+
       if (btn) {
         btn.classList.remove('btn-primary');
         btn.classList.add('btn-secondary');
