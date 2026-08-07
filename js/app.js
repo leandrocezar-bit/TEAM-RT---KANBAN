@@ -209,7 +209,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // FILTRO DE SEGURANÇA: Só exibe a notificação se ela for destinada a quem está logado
     const pendingTransfers = transfers.filter(t =>
-      t.status === 'PENDENTE' && (!loggedId || t.toMemberId === loggedId)
+      t.status === 'PENDENTE' && (!loggedId || String(t.toMemberId) === String(loggedId))
     );
 
     const tasks = await DB.getAll('tasks');
@@ -234,7 +234,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     let html = `<div>`;
 
     if (pendingTransfers.length > 0) {
-      // CORREÇÃO: Pegando o primeiro item da lista usando [0] para não quebrar a leitura
+      // CORREÇÃO: Adicionado o [0] para ler corretamente o primeiro item da lista filtrada
       const firstTr = pendingTransfers[0];
       const task = tasks.find(t => t.id === firstTr.taskId) || { title: 'Atividade' };
       const fromMem = membersMap.get(firstTr.fromMemberId) || { name: 'Alguém' };
@@ -249,7 +249,6 @@ document.addEventListener('DOMContentLoaded', async () => {
           </div> 
         </div> 
       `;
-
     } else if (urgentTasks.length > 0 && !loggedId) {
       html += ` 
         <span> 
