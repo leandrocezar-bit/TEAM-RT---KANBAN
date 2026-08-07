@@ -134,17 +134,27 @@ document.addEventListener('DOMContentLoaded', async () => {
    * Atualiza a Interface completa
    */
   async function refreshUI() {
-    await renderMemberTabs();
+    // 1. Primeiro reseta temporariamente o filtro para garantir que as notificações globais carreguem
+    const loggedId = localStorage.getItem('logged_member_id');
+    const backupFilter = currentMemberFilter;
+
+    // Força a leitura global apenas para renderizar a barra de aceite
+    currentMemberFilter = 'all';
     await renderTopNotificationBar();
 
-    const loggedId = localStorage.getItem('logged_member_id');
+    // Restaura o filtro correto do usuário
+    currentMemberFilter = loggedId ? loggedId : backupFilter;
+
+    // 2. Renderiza as abas de membros normalmente
+    await renderMemberTabs();
+
     const memberTabsBar = document.getElementById('member-tabs-bar');
 
     // Se o usuário estiver logado e na tela do Kanban, esconde as abas dos colegas
     if (memberTabsBar) {
       if (loggedId && activeView === 'kanban') {
         memberTabsBar.style.display = 'none';
-        currentMemberFilter = loggedId; // Trava o filtro no próprio usuário
+        currentMemberFilter = loggedId; // Trava o filtro no próprio usuário para o Kanban
       } else {
         memberTabsBar.style.display = 'flex'; // Mostra as abas normalmente nas outras seções
       }
@@ -180,6 +190,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         onReportImpediment: openReportImpedimentModal,
         onOpenTaskDetails: openTaskDetailsModal
       });
+
 
     } else if (activeView === 'manager') {
       sectionManager.classList.add('active');
