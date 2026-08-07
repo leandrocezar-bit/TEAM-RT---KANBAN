@@ -17,7 +17,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   let reportingTaskId = null;
 
   // --- 1. AUTENTICAÇÃO POR SENHA (LOGIN PASSCODE GATE) ---
-  const DEFAULT_PASSCODE = '1234';
+  const DEFAULT_PASSCODE = 'RTESHOW';
   const loginOverlay = document.getElementById('login-overlay');
   const formLogin = document.getElementById('form-login');
 
@@ -641,7 +641,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const name = document.getElementById('member-name').value;
       const role = document.getElementById('member-role').value;
       const contact = document.getElementById('member-contact').value;
-      
+
       const photoPreview = document.getElementById('member-photo-preview');
       let photoData = photoPreview.src;
 
@@ -811,7 +811,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       const checkboxes = document.querySelectorAll('.chk-group-member');
       const existingTaskMembers = await DB.getAll('task_members');
-      
+
       // Limpa os membros do grupo desta tarefa
       const currentGroupTasks = existingTaskMembers.filter(tm => tm.taskId === taskId);
       for (const tm of currentGroupTasks) {
