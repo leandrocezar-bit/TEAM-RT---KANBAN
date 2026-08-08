@@ -1,6 +1,7 @@
 /**
- * Motor de Banco de Dados com Supabase Cloud Persistence
- * Versão ajustada para a estrutura atual do Supabase
+ * ============================================================
+ * MOTOR DE BANCO DE DADOS - SUPABASE
+ * ============================================================
  */
 
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
@@ -17,9 +18,9 @@ export const supabase = createClient(
 );
 
 
-/* =========================================================
+/* ============================================================
    CACHE LOCAL
-========================================================= */
+   ============================================================ */
 
 const memoryStore = {
   members: [],
@@ -37,9 +38,9 @@ const lastFetchTime = {};
 const CACHE_TTL_MS = 5000;
 
 
-/* =========================================================
+/* ============================================================
    MAPA DAS TABELAS
-========================================================= */
+   ============================================================ */
 
 const TABLE_MAP = {
 
@@ -64,9 +65,9 @@ const TABLE_MAP = {
 };
 
 
-/* =========================================================
-   BANCO DE DADOS
-========================================================= */
+/* ============================================================
+   BANCO
+   ============================================================ */
 
 export const DB = {
 
@@ -75,9 +76,9 @@ export const DB = {
   isCloudConnected: true,
 
 
-  /* =======================================================
-     INICIALIZAÇÃO
-  ======================================================= */
+  /* ==========================================================
+     INIT
+     ========================================================== */
 
   async init() {
 
@@ -91,7 +92,7 @@ export const DB = {
       if (error) {
 
         console.warn(
-          '[Supabase] Erro ao testar conexão:',
+          '[Supabase] Erro de conexão:',
           error.message
         );
 
@@ -117,9 +118,9 @@ export const DB = {
   },
 
 
-  /* =======================================================
+  /* ==========================================================
      NOME DA TABELA
-  ======================================================= */
+     ========================================================== */
 
   mapStoreName(storeName) {
 
@@ -128,11 +129,13 @@ export const DB = {
   },
 
 
-  /* =======================================================
+  /* ==========================================================
      CAMEL CASE -> SNAKE CASE
      
-     Usado somente nas tabelas normais.
-  ======================================================= */
+     IMPORTANTE:
+     NÃO usamos isso para activity_transfers,
+     porque essa tabela possui nomes misturados.
+     ========================================================== */
 
   toSnakeCase(obj) {
 
@@ -158,9 +161,9 @@ export const DB = {
   },
 
 
-  /* =======================================================
+  /* ==========================================================
      SNAKE CASE -> CAMEL CASE
-  ======================================================= */
+     ========================================================== */
 
   toCamelCase(obj) {
 
@@ -191,16 +194,13 @@ export const DB = {
   },
 
 
-  /* =======================================================
-     PREPARA ACTIVITY TRANSFERS
-     
-     IMPORTANTE:
-     
-     A tabela REAL do Supabase é:
-     
+  /* ==========================================================
+     CONVERSÃO ESPECÍFICA DA TABELA
      activity_transfers
      
-     E as colunas reais são:
+     AQUI ESTÁ A CORREÇÃO PRINCIPAL.
+     
+     Seu Supabase possui:
      
      id
      task_id
@@ -215,16 +215,16 @@ export const DB = {
      fromMemberId
      toMemberId
      de_id_do_membro
-  ======================================================= */
+     ========================================================== */
 
   prepareActivityTransfer(item) {
 
     const result = {};
 
 
-    /* =====================================================
+    /* --------------------------------------------------------
        ID
-    ===================================================== */
+       -------------------------------------------------------- */
 
     if (
       item.id !== undefined &&
@@ -237,14 +237,11 @@ export const DB = {
     }
 
 
-    /* =====================================================
-       ID DA TAREFA
+    /* --------------------------------------------------------
+       TASK ID
        
-       Mantemos as duas colunas existentes:
-       
-       task_id
-       taskId
-    ===================================================== */
+       Usaremos task_id como campo principal.
+       -------------------------------------------------------- */
 
     const taskId =
       item.taskId ??
@@ -258,19 +255,15 @@ export const DB = {
 
       result.task_id = String(taskId);
 
-      result.taskId = String(taskId);
-
     }
 
 
-    /* =====================================================
-       MEMBRO DE DESTINO
+    /* --------------------------------------------------------
+       TO MEMBER ID
        
-       Colunas existentes:
-       
+       Campo oficial:
        to_member_id
-       toMemberId
-    ===================================================== */
+       -------------------------------------------------------- */
 
     const toMemberId =
       item.toMemberId ??
@@ -284,29 +277,22 @@ export const DB = {
 
       result.to_member_id = String(toMemberId);
 
-      result.toMemberId = String(toMemberId);
-
     }
 
 
-    /* =====================================================
-       MEMBRO DE ORIGEM
+    /* --------------------------------------------------------
+       FROM MEMBER ID
        
-       IMPORTANTE:
-       
-       NÃO existe:
-       
-       from_member_id
-       
-       Existe:
+       CAMPO OFICIAL DA SUA TABELA:
        
        fromMemberId
-       de_id_do_membro
-    ===================================================== */
+       
+       NÃO enviar:
+       from_member_id
+       -------------------------------------------------------- */
 
     const fromMemberId =
       item.fromMemberId ??
-      item.from_member_id ??
       item.de_id_do_membro;
 
     if (
@@ -315,35 +301,25 @@ export const DB = {
       fromMemberId !== ''
     ) {
 
-      result.fromMemberId =
-        String(fromMemberId);
-
-      result.de_id_do_membro =
-        String(fromMemberId);
+      result.fromMemberId = String(fromMemberId);
 
     }
 
 
-    /* =====================================================
+    /* --------------------------------------------------------
        STATUS
-    ===================================================== */
+       -------------------------------------------------------- */
 
-    if (
-      item.status !== undefined &&
-      item.status !== null
-    ) {
+    if (item.status !== undefined) {
 
       result.status = item.status;
 
     }
 
 
-    /* =====================================================
-       DATA DE CRIAÇÃO
-       
-       Coluna:
-       created_at
-    ===================================================== */
+    /* --------------------------------------------------------
+       CREATED AT
+       -------------------------------------------------------- */
 
     const createdAt =
       item.createdAt ??
@@ -351,8 +327,7 @@ export const DB = {
 
     if (
       createdAt !== undefined &&
-      createdAt !== null &&
-      createdAt !== ''
+      createdAt !== null
     ) {
 
       result.created_at = createdAt;
@@ -360,12 +335,9 @@ export const DB = {
     }
 
 
-    /* =====================================================
-       DATA DA SOLICITAÇÃO
-       
-       Coluna:
-       requested_at
-    ===================================================== */
+    /* --------------------------------------------------------
+       REQUESTED AT
+       -------------------------------------------------------- */
 
     const requestedAt =
       item.requestedAt ??
@@ -373,8 +345,7 @@ export const DB = {
 
     if (
       requestedAt !== undefined &&
-      requestedAt !== null &&
-      requestedAt !== ''
+      requestedAt !== null
     ) {
 
       result.requested_at = requestedAt;
@@ -382,12 +353,9 @@ export const DB = {
     }
 
 
-    /* =====================================================
-       DATA DA RESPOSTA
-       
-       Coluna:
-       responded_at
-    ===================================================== */
+    /* --------------------------------------------------------
+       RESPONDED AT
+       -------------------------------------------------------- */
 
     const respondedAt =
       item.respondedAt ??
@@ -395,8 +363,7 @@ export const DB = {
 
     if (
       respondedAt !== undefined &&
-      respondedAt !== null &&
-      respondedAt !== ''
+      respondedAt !== null
     ) {
 
       result.responded_at = respondedAt;
@@ -404,14 +371,17 @@ export const DB = {
     }
 
 
-    /* =====================================================
-       CONFIRMAÇÃO DO REMETENTE
+    /* --------------------------------------------------------
+       SENDER ACKNOWLEDGED
        
-       Existem duas colunas:
-       
+       Sua tabela possui:
        senderAcknowledged
+       E também:
        sender_acknowledged
-    ===================================================== */
+       
+       Vamos gravar somente senderAcknowledged
+       para evitar duplicidade.
+       -------------------------------------------------------- */
 
     const senderAcknowledged =
       item.senderAcknowledged ??
@@ -425,9 +395,6 @@ export const DB = {
       result.senderAcknowledged =
         Boolean(senderAcknowledged);
 
-      result.sender_acknowledged =
-        Boolean(senderAcknowledged);
-
     }
 
 
@@ -435,16 +402,15 @@ export const DB = {
   },
 
 
-  /* =======================================================
+  /* ==========================================================
      GET ALL
-  ======================================================= */
+     ========================================================== */
 
   async getAll(storeName, options = {}) {
 
     const {
       forceRefresh = false
     } = options;
-
 
     const tableName =
       this.mapStoreName(storeName);
@@ -492,31 +458,10 @@ export const DB = {
       }
 
 
-      /*
-       * Para activity_transfers NÃO fazemos
-       * conversão automática snake_case -> camelCase,
-       * porque existem colunas camelCase reais
-       * no banco.
-       */
-
-      let formatted;
-
-
-      if (
-        storeName === 'activity_transfers' ||
-        storeName === 'transfers'
-      ) {
-
-        formatted = data || [];
-
-      } else {
-
-        formatted =
-          (data || []).map(item =>
-            this.toCamelCase(item)
-          );
-
-      }
+      const formatted =
+        (data || []).map(item =>
+          this.toCamelCase(item)
+        );
 
 
       memoryStore[storeName] =
@@ -541,13 +486,15 @@ export const DB = {
       return (
         memoryStore[storeName] || []
       );
+
     }
+
   },
 
 
-  /* =======================================================
+  /* ==========================================================
      GET POR ID
-  ======================================================= */
+     ========================================================== */
 
   async get(storeName, key) {
 
@@ -557,57 +504,19 @@ export const DB = {
 
     try {
 
-      let query;
-
-
-      /* ---------------------------------------------------
-         ACTIVITY TRANSFERS
-         
-         Chave primária = id
-      --------------------------------------------------- */
-
-      if (
-        storeName === 'activity_transfers' ||
-        storeName === 'transfers'
-      ) {
-
-        query = supabase
-          .from(tableName)
-          .select('*')
-          .eq('id', String(key))
-          .single();
-
-
-      } else {
-
-        query = supabase
-          .from(tableName)
-          .select('*')
-          .eq('id', key)
-          .single();
-
-      }
-
-
       const {
         data,
         error
-      } = await query;
+      } = await supabase
+        .from(tableName)
+        .select('*')
+        .eq('id', key)
+        .single();
 
 
       if (error) {
 
         throw error;
-
-      }
-
-
-      if (
-        storeName === 'activity_transfers' ||
-        storeName === 'transfers'
-      ) {
-
-        return data;
 
       }
 
@@ -621,17 +530,20 @@ export const DB = {
         memoryStore[storeName] || [];
 
 
-      return list.find(
-        item => String(item.id) === String(key)
-      ) || null;
+      return (
+        list.find(
+          item => item.id === key
+        ) || null
+      );
 
     }
+
   },
 
 
-  /* =======================================================
+  /* ==========================================================
      SAVE
-  ======================================================= */
+     ========================================================== */
 
   async save(storeName, item) {
 
@@ -639,9 +551,9 @@ export const DB = {
       this.mapStoreName(storeName);
 
 
-    /* =====================================================
+    /* ========================================================
        ACTIVITY TRANSFERS
-    ===================================================== */
+       ======================================================== */
 
     if (
       storeName === 'activity_transfers' ||
@@ -652,9 +564,9 @@ export const DB = {
         this.prepareActivityTransfer(item);
 
 
-      /* ---------------------------------------------------
+      /* ------------------------------------------------------
          CACHE
-      --------------------------------------------------- */
+         ------------------------------------------------------ */
 
       if (!memoryStore[storeName]) {
 
@@ -666,9 +578,7 @@ export const DB = {
       const idx =
         memoryStore[storeName]
           .findIndex(
-            i =>
-              String(i.id) ===
-              String(item.id)
+            i => i.id === item.id
           );
 
 
@@ -690,14 +600,13 @@ export const DB = {
       }
 
 
-      /* ---------------------------------------------------
+      /* ------------------------------------------------------
          SUPABASE
-      --------------------------------------------------- */
+         ------------------------------------------------------ */
 
       try {
 
         const {
-          data,
           error
         } = await supabase
           .from(tableName)
@@ -706,8 +615,7 @@ export const DB = {
             {
               onConflict: 'id'
             }
-          )
-          .select();
+          );
 
 
         if (error) {
@@ -717,15 +625,7 @@ export const DB = {
             error.message
           );
 
-        } else {
-
-          console.log(
-            '[Supabase] Transferência salva:',
-            data
-          );
-
         }
-
 
       } catch (err) {
 
@@ -738,20 +638,21 @@ export const DB = {
 
 
       return item;
+
     }
 
 
-    /* =====================================================
+    /* ========================================================
        TABELAS NORMAIS
-    ===================================================== */
+       ======================================================== */
 
     const dbItem =
       this.toSnakeCase(item);
 
 
-    /* ---------------------------------------------------
+    /* --------------------------------------------------------
        CACHE
-    --------------------------------------------------- */
+       -------------------------------------------------------- */
 
     if (!memoryStore[storeName]) {
 
@@ -763,9 +664,7 @@ export const DB = {
     const idx =
       memoryStore[storeName]
         .findIndex(
-          i =>
-            String(i.id) ===
-            String(item.id)
+          i => i.id === item.id
         );
 
 
@@ -787,9 +686,9 @@ export const DB = {
     }
 
 
-    /* ---------------------------------------------------
+    /* --------------------------------------------------------
        SUPABASE
-    --------------------------------------------------- */
+       -------------------------------------------------------- */
 
     try {
 
@@ -820,12 +719,13 @@ export const DB = {
 
 
     return item;
+
   },
 
 
-  /* =======================================================
+  /* ==========================================================
      DELETE
-  ======================================================= */
+     ========================================================== */
 
   async delete(storeName, key) {
 
@@ -833,26 +733,24 @@ export const DB = {
       this.mapStoreName(storeName);
 
 
-    /* ---------------------------------------------------
+    /* --------------------------------------------------------
        CACHE
-    --------------------------------------------------- */
+       -------------------------------------------------------- */
 
     if (memoryStore[storeName]) {
 
       memoryStore[storeName] =
         memoryStore[storeName]
           .filter(
-            i =>
-              String(i.id) !==
-              String(key)
+            i => i.id !== key
           );
 
     }
 
 
-    /* ---------------------------------------------------
+    /* --------------------------------------------------------
        SUPABASE
-    --------------------------------------------------- */
+       -------------------------------------------------------- */
 
     try {
 
@@ -861,7 +759,7 @@ export const DB = {
       } = await supabase
         .from(tableName)
         .delete()
-        .eq('id', String(key));
+        .eq('id', key);
 
 
       if (error) {
@@ -872,7 +770,6 @@ export const DB = {
         );
 
       }
-
 
     } catch (err) {
 
@@ -885,12 +782,13 @@ export const DB = {
 
 
     return true;
+
   },
 
 
-  /* =======================================================
+  /* ==========================================================
      DADOS INICIAIS
-  ======================================================= */
+     ========================================================== */
 
   async seedInitialDataIfEmpty() {
 
@@ -908,9 +806,9 @@ export const DB = {
     }
 
 
-    /* =====================================================
+    /* --------------------------------------------------------
        AVATAR
-    ===================================================== */
+       -------------------------------------------------------- */
 
     const createAvatarSvg =
       (bgColor, initials) => {
@@ -954,78 +852,46 @@ export const DB = {
       };
 
 
-    /* =====================================================
+    /* --------------------------------------------------------
        MEMBROS
-    ===================================================== */
+       -------------------------------------------------------- */
 
     const initialMembers = [
 
       {
         id: 'm-1',
-
-        name:
-          'Ana Silva',
-
-        role:
-          'Analista de Folha de Pagamento',
-
-        email:
-          'ana.dp@empresa.com',
-
-        photo:
-          createAvatarSvg(
-            '#6366f1',
-            'AS'
-          ),
-
-        contact:
-          '(11) 98765-4321'
+        name: 'Ana Silva',
+        role: 'Analista de Folha de Pagamento',
+        email: 'ana.dp@empresa.com',
+        photo: createAvatarSvg(
+          '#6366f1',
+          'AS'
+        ),
+        contact: '(11) 98765-4321'
       },
-
 
       {
         id: 'm-2',
-
-        name:
-          'Carlos Oliveira',
-
-        role:
-          'Assistente de Admissão e Benefícios',
-
-        email:
-          'carlos.dp@empresa.com',
-
-        photo:
-          createAvatarSvg(
-            '#10b981',
-            'CO'
-          ),
-
-        contact:
-          '(11) 97654-3210'
+        name: 'Carlos Oliveira',
+        role: 'Assistente de Admissão e Benefícios',
+        email: 'carlos.dp@empresa.com',
+        photo: createAvatarSvg(
+          '#10b981',
+          'CO'
+        ),
+        contact: '(11) 97654-3210'
       },
-
 
       {
         id: 'm-3',
-
-        name:
-          'Mariana Costa',
-
-        role:
-          'Especialista eSocial & Encargos',
-
-        email:
-          'mariana.dp@empresa.com',
-
-        photo:
-          createAvatarSvg(
-            '#d946ef',
-            'MC'
-          ),
-
-        contact:
-          '(11) 96543-2109'
+        name: 'Mariana Costa',
+        role: 'Especialista eSocial & Encargos',
+        email: 'mariana.dp@empresa.com',
+        photo: createAvatarSvg(
+          '#d946ef',
+          'MC'
+        ),
+        contact: '(11) 96543-2109'
       }
 
     ];
@@ -1043,9 +909,9 @@ export const DB = {
     }
 
 
-    /* =====================================================
+    /* --------------------------------------------------------
        TAREFAS
-    ===================================================== */
+       -------------------------------------------------------- */
 
     const todayStr =
       new Date()
@@ -1056,9 +922,7 @@ export const DB = {
     const initialTasks = [
 
       {
-
-        id:
-          't-dp-1',
+        id: 't-dp-1',
 
         title:
           'Fechamento da Folha de Pagamento Mensal (S-1200 / S-1210)',
@@ -1095,14 +959,11 @@ export const DB = {
 
         createdAt:
           new Date().toISOString()
-
       },
 
 
       {
-
-        id:
-          't-dp-2',
+        id: 't-dp-2',
 
         title:
           'Apuração e Fechamento do Espelho de Ponto Eletrônico',
@@ -1139,14 +1000,11 @@ export const DB = {
 
         createdAt:
           new Date().toISOString()
-
       },
 
 
       {
-
-        id:
-          't-dp-3',
+        id: 't-dp-3',
 
         title:
           'Emissão da Guia DCTFWeb (INSS / FGTS Digital)',
@@ -1183,7 +1041,6 @@ export const DB = {
 
         createdAt:
           new Date().toISOString()
-
       }
 
     ];
@@ -1201,14 +1058,13 @@ export const DB = {
     }
 
 
-    /* =====================================================
+    /* --------------------------------------------------------
        IMPEDIMENTO
-    ===================================================== */
+       -------------------------------------------------------- */
 
     const initialImpediment = {
 
-      id:
-        'imp-1',
+      id: 'imp-1',
 
       taskId:
         't-dp-1',
@@ -1233,9 +1089,9 @@ export const DB = {
   },
 
 
-  /* =======================================================
-     RESET DO BANCO
-  ======================================================= */
+  /* ==========================================================
+     RESET
+     ========================================================== */
 
   async resetDatabase() {
 
@@ -1279,7 +1135,6 @@ export const DB = {
           .from(tableName)
           .delete()
           .neq('id', '0');
-
 
       } catch (e) {
 
