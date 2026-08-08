@@ -164,13 +164,16 @@ export const ProjectsEngine = {
       }
     }
 
+    // Injeta o HTML PRIMEIRO
     container.innerHTML = html;
+
+    // Conecta os eventos DEPOIS que a página tem os elementos
     this.attachEvents(showToastCallback, onRefreshCallback);
     this.setupFormListeners(showToastCallback, onRefreshCallback);
   },
 
   attachEvents(showToast, onRefresh) {
-    // 1. Alternar abas
+    // 1. Troca de abas do projeto
     document.querySelectorAll('.btn-project-tab').forEach(btn => {
       btn.addEventListener('click', () => {
         this.activeProjectId = btn.dataset.id;
@@ -178,7 +181,7 @@ export const ProjectsEngine = {
       });
     });
 
-    // 2. Criar Projeto
+    // 2. Botão 'Criar Novo Projeto'
     const btnCreateProject = document.getElementById('btn-create-project');
     if (btnCreateProject) {
       btnCreateProject.addEventListener('click', () => {
@@ -194,7 +197,7 @@ export const ProjectsEngine = {
       });
     }
 
-    // 3. EDITAR PROJETO (Busca dinâmica de inputs)
+    // 3. Botão 'Editar Projeto'
     document.querySelectorAll('.btn-edit-project').forEach(btn => {
       btn.addEventListener('click', async () => {
         const projectId = btn.dataset.id;
@@ -205,21 +208,19 @@ export const ProjectsEngine = {
         const form = document.getElementById('form-project');
 
         if (modal && form) {
-          // Localiza inputs no formulário (independente do ID/name exato)
           const nameInput = form.querySelector('#project-name, [name="name"], [name="title"], input[type="text"]');
           const descInput = form.querySelector('#project-description, [name="description"], textarea');
 
           if (nameInput) nameInput.value = project.name || '';
           if (descInput) descInput.value = project.description || '';
 
-          // Atribui o ID para controle de edição
           form.dataset.editId = project.id;
           modal.classList.add('active');
         }
       });
     });
 
-    // 4. Adicionar Atividade
+    // 4. Botão '+ Atividade no Projeto'
     document.querySelectorAll('.btn-add-project-task').forEach(btn => {
       btn.addEventListener('click', () => {
         const projectId = btn.dataset.id;
@@ -235,7 +236,7 @@ export const ProjectsEngine = {
       });
     });
 
-    // 5. Gerenciar Grupo
+    // 5. Botão de gerenciar integrantes da tarefa
     document.querySelectorAll('.btn-manage-task-group').forEach(btn => {
       btn.addEventListener('click', async () => {
         const taskId = btn.dataset.taskId;
@@ -265,62 +266,92 @@ export const ProjectsEngine = {
     });
   },
 
-  /**
-   * Listener universal de gravação do formulário
-   */
   setupFormListeners(showToast, onRefresh) {
     const formProject = document.getElementById('form-project');
-    if (!formProject || formProject.dataset.listenerBound) return;
+    if (formProject && !formProject.dataset.listenerBound) {
+      formProject.dataset.listenerBound = 'true';
 
-    formProject.dataset.listenerBound = 'true';
+      formProject.addEventListener('submit', async (e) => {
+        e.preventDefault();
 
-    formProject.addEventListener('submit', async (e) => {
-      e.preventDefault();
+        const editId = formProject.dataset.editId;
+        const nameInput = formProject.querySelector('#project-name, [name="name"], [name="title"], input[type="text"]');
+        const descInput = formProject.querySelector('#project-description, [name="description"], textarea');
 
-      const editId = formProject.dataset.editId;
-      const nameInput = formProject.querySelector('#project-name, [name="name"], [name="title"], input[type="text"]');
-      const descInput = formProject.querySelector('#project-description, [name="description"], textarea');
+        const name = nameInput ? nameInput.value.trim() : '';
+        const description = descInput ? descInput.value.trim() : '';
 
-      const name = nameInput ? nameInput.value.trim() : '';
-      const description = descInput ? descInput.value.trim() : '';
-
-      if (!name) {
-        if (showToast) showToast('Por favor, informe o nome do projeto.', 'error');
-        return;
-      }
-
-      if (editId) {
-        // --- ATUALIZAÇÃO ---
-        const project = await DB.get('projects', editId);
-        if (project) {
-          project.name = name;
-          project.description = description;
-          project.updatedAt = new Date().toISOString();
-          await DB.save('projects', project);
+        if (!name) {
+          if (showToast) showToast('Por favor, informe o nome do projeto.', 'error');
+          return;
         }
-      } else {
-        // --- INSERÇÃO ---
-        const newProject = {
-          id: Date.now().toString(),
-          name,
-          description,
-          createdAt: new Date().toISOString()
-        };
-        await DB.save('projects', newProject);
-        this.activeProjectId = newProject.id;
-      }
 
-      // Fechar modal
-      const modal = document.getElementById('modal-project');
-      if (modal) modal.classList.remove('active');
+        if (editId) {
+          const project = await DB.get('projects', editId);
+          if (project) {
+            project.name = name;
+            project.description = description;
+            project.updatedAt = new Date().toISOString();
+            await DB.save('projects', project);
+          }
+        } else {
+          const newProject = {
+            id: Date.now().toString(),
+            name,
+            description,
+            createdAt: new Date().toISOString()
+          };
+          await DB.save('projects', newProject);
+          this.activeProjectId = newProject.id;
+        }
 
-      formProject.reset();
-      delete formProject.dataset.editId;
+        const modal = document.getElementById('modal-project');
+        if (modal) modal.classList.remove('active');
 
-      if (showToast) showToast(editId ? 'Projeto atualizado!' : 'Projeto criado!');
-      if (onRefresh) onRefresh();
+        formProject.reset();
+        delete formProject.dataset.editId;
 
-      await this.renderProjectsSection(showToast, onRefresh);
-    });
+        if (showToast) showToast(editId ? 'Projeto atualizado!' : 'Projeto criado!');
+        if (onRefresh) onRefresh();
+
+        await this.renderProjectsSection(showToast, onRefresh);
+      });
+    }
+
+    const btnSaveTaskGroup = document.getElementById('task-group-save-btn');
+    if (btnSaveTaskGroup && !btnSaveTaskGroup.dataset.listenerBound) {
+      btnSaveTaskGroup.dataset.listenerBound = 'true';
+
+      btnSaveTaskGroup.addEventListener('click', async () => {
+        const taskId = btnSaveTaskGroup.dataset.taskId;
+        if (!taskId) return;
+
+        const checkboxes = document.querySelectorAll('.chk-group-member');
+        const allTaskMembers = await DB.getAll('task_members');
+
+        for (const tm of allTaskMembers) {
+          if (tm.taskId === taskId) {
+            await DB.delete('task_members', tm.id);
+          }
+        }
+
+        for (const chk of checkboxes) {
+          if (chk.checked) {
+            await DB.save('task_members', {
+              id: `${taskId}_${chk.dataset.memberId}`,
+              taskId: taskId,
+              memberId: chk.dataset.memberId
+            });
+          }
+        }
+
+        const modal = document.getElementById('modal-task-group');
+        if (modal) modal.classList.remove('active');
+
+        if (showToast) showToast('Integrantes da equipe atualizados!');
+        if (onRefresh) onRefresh();
+        await this.renderProjectsSection(showToast, onRefresh);
+      });
+    }
   }
 };
