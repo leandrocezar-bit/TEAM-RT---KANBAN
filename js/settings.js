@@ -7,17 +7,36 @@ import { UndoEngine } from './undo.js';
 
 export const SettingsEngine = {
   selectedMemberId: 'all',
+  isManager: true,
+  loggedMemberId: null,
 
   /**
    * Renderiza a Tela de Configurações de Atividades
+   * @param {Function} showToastCallback
+   * @param {Function} onRefreshCallback
+   * @param {Object} accessOptions - { isManager: boolean, memberId: string }
    */
-  async renderSettingsSection(showToastCallback, onRefreshCallback) {
+  async renderSettingsSection(showToastCallback, onRefreshCallback, accessOptions = {}) {
     const container = document.getElementById('section-settings');
     if (!container) return;
+
+    // Guarda o contexto de acesso de quem está logado
+    this.isManager = accessOptions.isManager !== undefined ? accessOptions.isManager : true;
+    this.loggedMemberId = accessOptions.memberId || null;
+
+    // Colaborador comum: trava o filtro na própria conta, sem opção de ver os colegas
+    if (!this.isManager && this.loggedMemberId) {
+      this.selectedMemberId = this.loggedMemberId;
+    }
 
     const members = await DB.getAll('members');
     const tasks = await DB.getAll('tasks');
     const transfers = await DB.getAll('activity_transfers');
+
+    // Colaborador comum só enxerga a matriz das próprias atividades
+    const visibleTasks = this.isManager
+      ? tasks
+      : tasks.filter(t => String(t.memberId) === String(this.loggedMemberId));
 
     let html = `
       <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem; margin-bottom:1.5rem;">
@@ -26,29 +45,38 @@ export const SettingsEngine = {
             ⚙️ Configurações de Atividades e Responsabilidade
           </h2>
           <p style="font-size:0.8rem; color:var(--text-muted);">
-            Defina e gerencie quais atividades são de responsabilidade de cada membro da equipe.
+            ${this.isManager
+        ? 'Defina e gerencie quais atividades são de responsabilidade de cada membro da equipe.'
+        : 'Gerencie a responsabilidade e a transferência das suas próprias atividades.'}
           </p>
         </div>
       </div>
+    `;
 
-      <!-- Seleção de Membro para Filtrar Responsabilidades -->
-      <div style="display:flex; gap:0.5rem; overflow-x:auto; margin-bottom:1.5rem; padding-bottom:0.5rem;">
-        <button class="btn ${this.selectedMemberId === 'all' ? 'btn-primary' : 'btn-secondary'} btn-filter-settings-member" data-id="all">
-          👥 Todos os Membros (${tasks.length})
-        </button>
-        ${members.map(m => {
-          const count = tasks.filter(t => t.memberId === m.id).length;
-          return `
-            <button class="btn ${this.selectedMemberId === m.id ? 'btn-primary' : 'btn-secondary'} btn-filter-settings-member" data-id="${m.id}" style="display:flex; align-items:center; gap:0.4rem;">
-              <img src="${m.photo}" style="width:20px; height:20px; border-radius:50%; object-fit:cover;">
-              <span>${m.name}</span>
-              <span style="background:rgba(255,255,255,0.2); border-radius:10px; padding:0.1rem 0.4rem; font-size:0.7rem;">${count}</span>
-            </button>
-          `;
-        }).join('')}
-      </div>
+    // A barra de seleção "Todos os Membros / [nome]" só faz sentido para gestor.
+    // Colaborador comum já está travado na própria conta, então essa barra é omitida.
+    if (this.isManager) {
+      html += `
+        <div style="display:flex; gap:0.5rem; overflow-x:auto; margin-bottom:1.5rem; padding-bottom:0.5rem;">
+          <button class="btn ${this.selectedMemberId === 'all' ? 'btn-primary' : 'btn-secondary'} btn-filter-settings-member" data-id="all">
+            👥 Todos os Membros (${tasks.length})
+          </button>
+          ${members.map(m => {
+        const count = tasks.filter(t => t.memberId === m.id).length;
+        return `
+              <button class="btn ${this.selectedMemberId === m.id ? 'btn-primary' : 'btn-secondary'} btn-filter-settings-member" data-id="${m.id}" style="display:flex; align-items:center; gap:0.4rem;">
+                <img src="${m.photo}" style="width:20px; height:20px; border-radius:50%; object-fit:cover;">
+                <span>${m.name}</span>
+                <span style="background:rgba(255,255,255,0.2); border-radius:10px; padding:0.1rem 0.4rem; font-size:0.7rem;">${count}</span>
+              </button>
+            `;
+      }).join('')}
+        </div>
+      `;
+    }
 
-      <!-- Tabela Matriz de Atividades & Transferências -->
+    // Tabela Matriz de Atividades & Transferências
+    html += `
       <div class="card-panel">
         <div class="panel-header">
           <h3 class="panel-title">📋 Matriz de Responsabilidades de Atividades</h3>
@@ -67,7 +95,7 @@ export const SettingsEngine = {
               </tr>
             </thead>
             <tbody>
-              ${this.renderTableRows(tasks, members, transfers)}
+              ${this.renderTableRows(visibleTasks, members, transfers)}
             </tbody>
           </table>
         </div>
@@ -79,9 +107,11 @@ export const SettingsEngine = {
   },
 
   renderTableRows(tasks, members, transfers) {
-    const filteredTasks = this.selectedMemberId === 'all' 
-      ? tasks 
-      : tasks.filter(t => t.memberId === this.selectedMemberId);
+    // Quando é gestor, ainda respeita o filtro de membro selecionado na barra.
+    // Quando é colaborador comum, "tasks" já chega pré-filtrado só com as dele.
+    const filteredTasks = this.isManager
+      ? (this.selectedMemberId === 'all' ? tasks : tasks.filter(t => t.memberId === this.selectedMemberId))
+      : tasks;
 
     if (filteredTasks.length === 0) {
       return `
@@ -133,9 +163,11 @@ export const SettingsEngine = {
                   <option value="${m.id}">${m.name}</option>
                 `).join('')}
               </select>
-              <button class="btn btn-primary btn-direct-assign" data-task-id="${task.id}" style="padding:0.25rem 0.5rem; font-size:0.725rem; background:#6366f1;">
-                ⚡ Atribuir Direto
-              </button>
+              ${this.isManager ? `
+                <button class="btn btn-primary btn-direct-assign" data-task-id="${task.id}" style="padding:0.25rem 0.5rem; font-size:0.725rem; background:#6366f1;">
+                  ⚡ Atribuir Direto
+                </button>
+              ` : ''}
               <button class="btn btn-secondary btn-submit-transfer" data-task-id="${task.id}" style="padding:0.25rem 0.5rem; font-size:0.725rem;">
                 🔄 Solicitar Aceite
               </button>
@@ -147,17 +179,19 @@ export const SettingsEngine = {
   },
 
   attachEvents(showToast, onRefresh) {
-    // Filtro por membro
+    // Filtro por membro (só existe na tela quando é gestor)
     document.querySelectorAll('.btn-filter-settings-member').forEach(btn => {
       btn.addEventListener('click', () => {
         this.selectedMemberId = btn.dataset.id;
-        this.renderSettingsSection(showToast, onRefresh);
+        this.renderSettingsSection(showToast, onRefresh, { isManager: this.isManager, memberId: this.loggedMemberId });
       });
     });
 
-    // Atribuição Direta de Responsabilidade
+    // Atribuição Direta de Responsabilidade — exclusiva de gestor
     document.querySelectorAll('.btn-direct-assign').forEach(btn => {
       btn.addEventListener('click', async () => {
+        if (!this.isManager) return;
+
         const taskId = btn.dataset.taskId;
         const select = document.querySelector(`.select-transfer-member[data-task-id="${taskId}"]`);
         const targetMemberId = select ? select.value : '';
@@ -193,6 +227,16 @@ export const SettingsEngine = {
     document.querySelectorAll('.btn-submit-transfer').forEach(btn => {
       btn.addEventListener('click', async () => {
         const taskId = btn.dataset.taskId;
+
+        // Colaborador comum só pode solicitar transferência das próprias atividades
+        if (!this.isManager) {
+          const ownedTask = await DB.get('tasks', taskId);
+          if (!ownedTask || String(ownedTask.memberId) !== String(this.loggedMemberId)) {
+            if (showToast) showToast('Você só pode transferir suas próprias atividades.', 'warning');
+            return;
+          }
+        }
+
         const select = document.querySelector(`.select-transfer-member[data-task-id="${taskId}"]`);
         const targetMemberId = select ? select.value : '';
 
@@ -212,11 +256,12 @@ export const SettingsEngine = {
           fromMemberId: task.memberId,
           toMemberId: targetMemberId,
           status: 'PENDENTE',
+          senderAcknowledged: false,
           requestedAt: new Date().toISOString()
         };
 
         await DB.save('activity_transfers', newTransfer);
-        
+
         UndoEngine.pushAction({
           type: 'TRANSFER_REQUEST',
           transferId: newTransfer.id
