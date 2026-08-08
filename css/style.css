@@ -12,7 +12,7 @@
   --bg-card: rgba(30, 41, 59, 0.6);
   --bg-card-hover: rgba(30, 41, 59, 0.85);
   --bg-input: rgba(15, 23, 42, 0.6);
-  
+
   --border-color: rgba(255, 255, 255, 0.08);
   --border-focus: #6366f1;
   --border-glow: rgba(99, 102, 241, 0.35);
@@ -27,7 +27,7 @@
   --accent-emerald: linear-gradient(135deg, #10b981 0%, #059669 100%);
   --accent-amber: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
   --accent-cyan: linear-gradient(135deg, #06b6d4 0%, #0284c7 100%);
-  
+
   --status-pending: #f59e0b;
   --status-pending-bg: rgba(245, 158, 11, 0.15);
   --status-approved: #10b981;
@@ -58,7 +58,7 @@
   --bg-card: rgba(255, 255, 255, 0.9);
   --bg-card-hover: #ffffff;
   --bg-input: #f8fafc;
-  
+
   --border-color: rgba(0, 0, 0, 0.08);
   --border-focus: #4f46e5;
   --border-glow: rgba(79, 70, 229, 0.25);
@@ -74,7 +74,9 @@
 }
 
 /* Reset & Base Styles */
-*, *::before, *::after {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
@@ -87,7 +89,7 @@ body {
   min-height: 100vh;
   line-height: 1.5;
   overflow-x: hidden;
-  background-image: 
+  background-image:
     radial-gradient(circle at 10% 20%, rgba(99, 102, 241, 0.12) 0%, transparent 40%),
     radial-gradient(circle at 90% 80%, rgba(217, 70, 239, 0.1) 0%, transparent 40%);
   background-attachment: fixed;
@@ -99,13 +101,16 @@ body {
   width: 8px;
   height: 8px;
 }
+
 ::-webkit-scrollbar-track {
   background: var(--bg-primary);
 }
+
 ::-webkit-scrollbar-thumb {
   background: rgba(148, 163, 184, 0.25);
   border-radius: var(--radius-full);
 }
+
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(148, 163, 184, 0.4);
 }
@@ -195,6 +200,7 @@ body {
   color: #ffffff;
   box-shadow: var(--shadow-glow);
 }
+
 .btn-primary:hover {
   transform: translateY(-2px);
   box-shadow: 0 8px 20px rgba(99, 102, 241, 0.4);
@@ -205,6 +211,7 @@ body {
   color: var(--text-main);
   border-color: var(--border-color);
 }
+
 .btn-secondary:hover {
   background: var(--bg-card-hover);
   border-color: rgba(255, 255, 255, 0.2);
@@ -215,6 +222,7 @@ body {
   color: var(--text-main);
   border-color: var(--border-color);
 }
+
 .btn-outline:hover {
   border-color: var(--accent-primary);
   color: var(--accent-primary);
@@ -229,6 +237,7 @@ body {
   border: 1px solid var(--border-color);
   color: var(--text-main);
 }
+
 .btn-icon-only:hover {
   background: var(--bg-card-hover);
   color: var(--accent-primary);
@@ -311,8 +320,13 @@ body {
   gap: 0.35rem;
 }
 
-.metric-sub.positive { color: #10b981; }
-.metric-sub.warning { color: #f59e0b; }
+.metric-sub.positive {
+  color: #10b981;
+}
+
+.metric-sub.warning {
+  color: #f59e0b;
+}
 
 /* Control Panel Section (Filters & Action Bar) */
 .controls-bar {
@@ -335,7 +349,8 @@ body {
   gap: 0.75rem;
 }
 
-.input-control, .select-control {
+.input-control,
+.select-control {
   background: var(--bg-input);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
@@ -347,7 +362,8 @@ body {
   transition: all var(--transition-fast);
 }
 
-.input-control:focus, .select-control:focus {
+.input-control:focus,
+.select-control:focus {
   border-color: var(--border-focus);
   box-shadow: 0 0 0 3px var(--border-glow);
 }
@@ -446,14 +462,17 @@ body {
   background: var(--status-pending-bg);
   color: var(--status-pending);
 }
+
 .badge-approved {
   background: var(--status-approved-bg);
   color: var(--status-approved);
 }
+
 .badge-paid {
   background: var(--status-paid-bg);
   color: var(--status-paid);
 }
+
 .badge-bank {
   background: var(--status-bank-bg);
   color: var(--status-bank);
@@ -568,7 +587,10 @@ body {
   font-size: 1.25rem;
   cursor: pointer;
 }
-.modal-close:hover { color: var(--text-main); }
+
+.modal-close:hover {
+  color: var(--text-main);
+}
 
 .form-grid {
   display: grid;
@@ -652,8 +674,15 @@ body {
 }
 
 @keyframes slideIn {
-  from { transform: translateX(100%); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
 }
 
 /* Quick Summary Pill */
@@ -675,16 +704,51 @@ body {
     background: #ffffff !important;
     color: #000000 !important;
   }
-  .app-header, .controls-bar, .header-actions, .modal-overlay, .table-actions, .btn {
+
+  .app-header,
+  .controls-bar,
+  .header-actions,
+  .modal-overlay,
+  .table-actions,
+  .btn {
     display: none !important;
   }
+
   .main-container {
     padding: 0;
     max-width: 100%;
   }
+
   .card-panel {
     border: 1px solid #ccc !important;
     box-shadow: none !important;
     background: #fff !important;
   }
+}
+
+/* Container do perfil no topo */
+.user-profile-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0.75rem;
+  background-color: var(--bg-secondary, #1e293b);
+  border: 1px solid var(--border-color, #334155);
+  border-radius: var(--radius-md, 8px);
+}
+
+/* Foto redonda do usuário */
+.avatar-img {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+/* Texto do nome */
+.user-name-text {
+  font-size: 0.825rem;
+  font-weight: 600;
+  color: var(--text-main, #ffffff);
+  white-space: nowrap;
 }
