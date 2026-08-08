@@ -257,7 +257,7 @@ export const SettingsEngine = {
           toMemberId: targetMemberId,
           status: 'PENDENTE',
           senderAcknowledged: false,
-          requestedAt: new Date().toISOString()
+          requested_at: new Date().toISOString()
         };
 
         await DB.save('activity_transfers', newTransfer);

@@ -248,7 +248,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
 
       // Colaborador comum só deve ver as próprias atividades dentro de Configurações.
-      // O filtro real precisa ser aplicado dentro do settings.js (não incluso aqui).
       await SettingsEngine.renderSettingsSection(showToast, refreshUI, {
         isManager: manager,
         memberId: loggedId
@@ -1084,6 +1083,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   TimerEngine.startGlobalTicker();
   UndoEngine.initKeyboardShortcut(refreshUI, showToast);
+
+  // Atualiza a barra de notificações periodicamente, sem precisar recarregar a página.
+  // Só re-renderiza a barra (não a tela inteira) pra não atrapalhar quem está digitando em algum formulário.
+  setInterval(() => {
+    if (!loginOverlay || !loginOverlay.classList.contains('active')) {
+      renderTopNotificationBar();
+    }
+  }, 20000);
 
   // Render inicial
   await refreshUI();
