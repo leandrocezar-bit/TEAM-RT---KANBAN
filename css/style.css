@@ -726,7 +726,6 @@ body {
   }
 }
 
-/* Container do perfil no topo */
 .user-profile-bar {
   display: flex;
   align-items: center;
@@ -737,7 +736,6 @@ body {
   border-radius: var(--radius-md, 8px);
 }
 
-/* Foto redonda do usuário */
 .avatar-img {
   width: 28px;
   height: 28px;
@@ -745,7 +743,6 @@ body {
   object-fit: cover;
 }
 
-/* Texto do nome */
 .user-name-text {
   font-size: 0.825rem;
   font-weight: 600;
