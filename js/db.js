@@ -66,7 +66,7 @@ const TABLE_MAP = {
 
 
 /* ============================================================
-   BANCO
+   BANCO DE DADOS
    ============================================================ */
 
 export const DB = {
@@ -77,7 +77,7 @@ export const DB = {
 
 
   /* ==========================================================
-     INIT
+     INICIALIZAÇÃO
      ========================================================== */
 
   async init() {
@@ -92,7 +92,7 @@ export const DB = {
       if (error) {
 
         console.warn(
-          '[Supabase] Erro de conexão:',
+          '[Supabase] Erro ao testar conexão:',
           error.message
         );
 
@@ -112,9 +112,11 @@ export const DB = {
       );
 
       this.isCloudConnected = false;
+
     }
 
     await this.seedInitialDataIfEmpty();
+
   },
 
 
@@ -132,8 +134,9 @@ export const DB = {
   /* ==========================================================
      CAMEL CASE -> SNAKE CASE
      
-     IMPORTANTE:
-     NÃO usamos isso para activity_transfers,
+     Usado somente nas tabelas normais.
+     
+     NÃO usar em activity_transfers,
      porque essa tabela possui nomes misturados.
      ========================================================== */
 
@@ -158,6 +161,7 @@ export const DB = {
     }
 
     return result;
+
   },
 
 
@@ -191,16 +195,14 @@ export const DB = {
     }
 
     return result;
+
   },
 
 
   /* ==========================================================
-     CONVERSÃO ESPECÍFICA DA TABELA
-     activity_transfers
+     PREPARAR TRANSFERÊNCIA
      
-     AQUI ESTÁ A CORREÇÃO PRINCIPAL.
-     
-     Seu Supabase possui:
+     ESTRUTURA DA SUA TABELA activity_transfers:
      
      id
      task_id
@@ -215,6 +217,16 @@ export const DB = {
      fromMemberId
      toMemberId
      de_id_do_membro
+     
+     IMPORTANTE:
+     
+     NÃO vamos gerar:
+     
+     from_member_id
+     
+     O seu banco possui:
+     
+     fromMemberId
      ========================================================== */
 
   prepareActivityTransfer(item) {
@@ -240,7 +252,8 @@ export const DB = {
     /* --------------------------------------------------------
        TASK ID
        
-       Usaremos task_id como campo principal.
+       Coluna principal:
+       task_id
        -------------------------------------------------------- */
 
     const taskId =
@@ -259,9 +272,9 @@ export const DB = {
 
 
     /* --------------------------------------------------------
-       TO MEMBER ID
+       MEMBRO DE DESTINO
        
-       Campo oficial:
+       Coluna:
        to_member_id
        -------------------------------------------------------- */
 
@@ -275,19 +288,23 @@ export const DB = {
       toMemberId !== ''
     ) {
 
-      result.to_member_id = String(toMemberId);
+      result.to_member_id =
+        String(toMemberId);
 
     }
 
 
     /* --------------------------------------------------------
-       FROM MEMBER ID
+       MEMBRO DE ORIGEM
        
-       CAMPO OFICIAL DA SUA TABELA:
+       ATENÇÃO:
+       
+       A sua tabela possui:
        
        fromMemberId
        
-       NÃO enviar:
+       Portanto NÃO usamos:
+       
        from_member_id
        -------------------------------------------------------- */
 
@@ -301,7 +318,8 @@ export const DB = {
       fromMemberId !== ''
     ) {
 
-      result.fromMemberId = String(fromMemberId);
+      result.fromMemberId =
+        String(fromMemberId);
 
     }
 
@@ -310,7 +328,10 @@ export const DB = {
        STATUS
        -------------------------------------------------------- */
 
-    if (item.status !== undefined) {
+    if (
+      item.status !== undefined &&
+      item.status !== null
+    ) {
 
       result.status = item.status;
 
@@ -327,7 +348,8 @@ export const DB = {
 
     if (
       createdAt !== undefined &&
-      createdAt !== null
+      createdAt !== null &&
+      createdAt !== ''
     ) {
 
       result.created_at = createdAt;
@@ -345,7 +367,8 @@ export const DB = {
 
     if (
       requestedAt !== undefined &&
-      requestedAt !== null
+      requestedAt !== null &&
+      requestedAt !== ''
     ) {
 
       result.requested_at = requestedAt;
@@ -363,7 +386,8 @@ export const DB = {
 
     if (
       respondedAt !== undefined &&
-      respondedAt !== null
+      respondedAt !== null &&
+      respondedAt !== ''
     ) {
 
       result.responded_at = respondedAt;
@@ -374,13 +398,8 @@ export const DB = {
     /* --------------------------------------------------------
        SENDER ACKNOWLEDGED
        
-       Sua tabela possui:
-       senderAcknowledged
-       E também:
-       sender_acknowledged
-       
-       Vamos gravar somente senderAcknowledged
-       para evitar duplicidade.
+       Vamos usar senderAcknowledged porque
+       essa coluna existe na sua tabela.
        -------------------------------------------------------- */
 
     const senderAcknowledged =
@@ -398,7 +417,33 @@ export const DB = {
     }
 
 
+    /* ========================================================
+       DEBUG
+       
+       ESTES DOIS LOGS SÃO IMPORTANTES.
+       ======================================================== */
+
+    console.log(
+      '=============================================='
+    );
+
+    console.log(
+      'TRANSFERÊNCIA - OBJETO ORIGINAL:',
+      item
+    );
+
+    console.log(
+      'TRANSFERÊNCIA - OBJETO ENVIADO AO SUPABASE:',
+      result
+    );
+
+    console.log(
+      '=============================================='
+    );
+
+
     return result;
+
   },
 
 
@@ -474,7 +519,6 @@ export const DB = {
 
       return formatted;
 
-
     } catch (err) {
 
       console.warn(
@@ -522,7 +566,6 @@ export const DB = {
 
 
       return this.toCamelCase(data);
-
 
     } catch (err) {
 
@@ -601,12 +644,24 @@ export const DB = {
 
 
       /* ------------------------------------------------------
-         SUPABASE
+         ENVIO PARA SUPABASE
          ------------------------------------------------------ */
+
+      console.log(
+        '[SUPABASE] Tabela:',
+        tableName
+      );
+
+      console.log(
+        '[SUPABASE] Dados enviados:',
+        dbItem
+      );
+
 
       try {
 
         const {
+          data,
           error
         } = await supabase
           .from(tableName)
@@ -623,6 +678,18 @@ export const DB = {
           console.error(
             '[Supabase Save Error] activity_transfers:',
             error.message
+          );
+
+          console.error(
+            '[Supabase Save Error] Dados que causaram o erro:',
+            dbItem
+          );
+
+        } else {
+
+          console.log(
+            '[Supabase] Transferência salva com sucesso:',
+            data
           );
 
         }
@@ -1090,7 +1157,7 @@ export const DB = {
 
 
   /* ==========================================================
-     RESET
+     RESET DO BANCO
      ========================================================== */
 
   async resetDatabase() {
