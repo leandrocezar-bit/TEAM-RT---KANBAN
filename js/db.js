@@ -2,16 +2,23 @@
  * ============================================================
  * MOTOR DE BANCO DE DADOS - SUPABASE
  * ============================================================
- * Versão corrigida para a estrutura atual do Supabase
+ *
+ * Compatível com a estrutura atual do Supabase.
+ *
+ * IMPORTANTE:
+ * A tabela activity_transfers possui colunas com nomes
+ * diferentes das demais tabelas.
+ *
+ * Por isso ela possui tratamento próprio.
  * ============================================================
  */
 
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 
 
-/* ============================================================
-   CONFIGURAÇÃO SUPABASE
-   ============================================================ */
+// ============================================================
+// SUPABASE
+// ============================================================
 
 const SUPABASE_URL =
   'https://lspvdunxxxebzwyypqlx.supabase.co';
@@ -19,16 +26,15 @@ const SUPABASE_URL =
 const SUPABASE_ANON_KEY =
   'sb_publishable_jf69uVHlxULskHzGN__srA_oTi2LWPJ';
 
-
 export const supabase = createClient(
   SUPABASE_URL,
   SUPABASE_ANON_KEY
 );
 
 
-/* ============================================================
-   CACHE LOCAL
-   ============================================================ */
+// ============================================================
+// CACHE LOCAL
+// ============================================================
 
 const memoryStore = {
 
@@ -56,9 +62,9 @@ const lastFetchTime = {};
 const CACHE_TTL_MS = 5000;
 
 
-/* ============================================================
-   MAPA DAS TABELAS
-   ============================================================ */
+// ============================================================
+// MAPA DAS TABELAS
+// ============================================================
 
 const TABLE_MAP = {
 
@@ -83,9 +89,9 @@ const TABLE_MAP = {
 };
 
 
-/* ============================================================
-   BANCO DE DADOS
-   ============================================================ */
+// ============================================================
+// BANCO
+// ============================================================
 
 export const DB = {
 
@@ -94,9 +100,9 @@ export const DB = {
   isCloudConnected: true,
 
 
-  /* ==========================================================
-     INIT
-     ========================================================== */
+  // ==========================================================
+  // INIT
+  // ==========================================================
 
   async init() {
 
@@ -111,7 +117,7 @@ export const DB = {
       if (error) {
 
         console.warn(
-          '[Supabase] Erro ao testar conexão:',
+          '[Supabase] Erro de conexão:',
           error.message
         );
 
@@ -121,17 +127,13 @@ export const DB = {
 
         this.isCloudConnected = true;
 
-        console.log(
-          '[Supabase] Conectado com sucesso.'
-        );
-
       }
 
-    } catch (err) {
+    } catch (error) {
 
       console.warn(
         '[Supabase] Servidor indisponível:',
-        err
+        error
       );
 
       this.isCloudConnected = false;
@@ -144,9 +146,9 @@ export const DB = {
   },
 
 
-  /* ==========================================================
-     MAPEAR NOME DA STORE
-     ========================================================== */
+  // ==========================================================
+  // NOME DA TABELA
+  // ==========================================================
 
   mapStoreName(storeName) {
 
@@ -155,13 +157,9 @@ export const DB = {
   },
 
 
-  /* ==========================================================
-     CAMEL CASE -> SNAKE CASE
-     
-     USADO SOMENTE NAS TABELAS NORMAIS.
-     
-     NÃO USAR EM activity_transfers.
-     ========================================================== */
+  // ==========================================================
+  // CAMEL CASE -> SNAKE CASE
+  // ==========================================================
 
   toSnakeCase(obj) {
 
@@ -192,9 +190,9 @@ export const DB = {
   },
 
 
-  /* ==========================================================
-     SNAKE CASE -> CAMEL CASE
-     ========================================================== */
+  // ==========================================================
+  // SNAKE CASE -> CAMEL CASE
+  // ==========================================================
 
   toCamelCase(obj) {
 
@@ -230,50 +228,40 @@ export const DB = {
   },
 
 
-  /* ==========================================================
-     PREPARAR ACTIVITY TRANSFER
-     
-     ATENÇÃO:
-     
-     Esta função NÃO usa toSnakeCase.
-     
-     Ela envia os nomes EXATOS existentes no Supabase.
-     ========================================================== */
+  // ==========================================================
+  // CONVERTE ACTIVITY TRANSFER
+  //
+  // AQUI ESTÁ A CORREÇÃO PRINCIPAL
+  // ==========================================================
 
   prepareActivityTransfer(item) {
 
     const result = {};
 
 
-    /* --------------------------------------------------------
-       ID
-       -------------------------------------------------------- */
-
-    const id =
-      item.id ??
-      item['id'];
-
+    // --------------------------------------------------------
+    // ID
+    // --------------------------------------------------------
 
     if (
-      id !== undefined &&
-      id !== null &&
-      id !== ''
+      item.id !== undefined &&
+      item.id !== null &&
+      item.id !== ''
     ) {
 
-      result.id = String(id);
+      result.id = String(item.id);
 
     }
 
 
-    /* --------------------------------------------------------
-       TASK ID
-       
-       No Supabase existem:
-       task_id
-       taskId
-       
-       Vamos usar task_id como principal.
-       -------------------------------------------------------- */
+    // --------------------------------------------------------
+    // ID DA TAREFA
+    //
+    // Banco possui:
+    // task_id
+    //
+    // NÃO enviar taskId.
+    // --------------------------------------------------------
 
     const taskId =
       item.taskId ??
@@ -292,19 +280,20 @@ export const DB = {
     }
 
 
-    /* --------------------------------------------------------
-       TO MEMBER ID
-       
-       O Supabase possui:
-       to_member_id
-       toMemberId
-       -------------------------------------------------------- */
+    // --------------------------------------------------------
+    // MEMBRO DE DESTINO
+    //
+    // Banco possui:
+    // to_member_id
+    //
+    // NÃO enviar toMemberId.
+    // --------------------------------------------------------
 
     const toMemberId =
       item.toMemberId ??
       item.to_member_id ??
-      item['para ID do membro'] ??
-      item['para_id_do_membro'];
+      item.paraIdDoMembro ??
+      item.para_id_do_membro;
 
 
     if (
@@ -318,30 +307,25 @@ export const DB = {
     }
 
 
-    /* --------------------------------------------------------
-       FROM MEMBER ID
-       
-       MUITO IMPORTANTE:
-       
-       O seu banco NÃO possui:
-       
-       from_member_id
-       
-       O seu banco possui:
-       
-       fromMemberId
-       
-       Portanto enviamos EXATAMENTE:
-       
-       fromMemberId
-       -------------------------------------------------------- */
+    // --------------------------------------------------------
+    // MEMBRO DE ORIGEM
+    //
+    // CORREÇÃO:
+    //
+    // NÃO usar:
+    // from_member_id
+    //
+    // A tabela NÃO possui essa coluna.
+    //
+    // A tabela possui:
+    // fromMemberId
+    //
+    // --------------------------------------------------------
 
     const fromMemberId =
       item.fromMemberId ??
-      item.from_member_id ??
       item.deIdDoMembro ??
-      item.de_id_do_membro ??
-      item['do ID do membro'];
+      item.de_id_do_membro;
 
 
     if (
@@ -350,107 +334,97 @@ export const DB = {
       fromMemberId !== ''
     ) {
 
-      /*
-       * NÃO alterar para from_member_id.
-       */
-
-      result.fromMemberId =
-        String(fromMemberId);
+      // Coluna REAL existente no Supabase
+      result.fromMemberId = String(fromMemberId);
 
     }
 
 
-    /* --------------------------------------------------------
-       STATUS
-       -------------------------------------------------------- */
+    // --------------------------------------------------------
+    // TAMBÉM mantém de_id_do_membro
+    //
+    // Só envia se o item realmente possuir esse campo.
+    // --------------------------------------------------------
 
     if (
-      item.status !== undefined &&
-      item.status !== null
+      item.de_id_do_membro !== undefined &&
+      item.de_id_do_membro !== null &&
+      item.de_id_do_membro !== ''
     ) {
+
+      result.de_id_do_membro =
+        String(item.de_id_do_membro);
+
+    }
+
+
+    // --------------------------------------------------------
+    // STATUS
+    // --------------------------------------------------------
+
+    if (item.status !== undefined) {
 
       result.status = item.status;
 
     }
 
 
-    /* --------------------------------------------------------
-       CREATED AT
-       -------------------------------------------------------- */
+    // --------------------------------------------------------
+    // CREATED AT
+    // --------------------------------------------------------
 
     const createdAt =
       item.createdAt ??
-      item.created_at ??
-      item.criadoEm ??
-      item.criado_em;
+      item.created_at;
 
 
-    if (
-      createdAt !== undefined &&
-      createdAt !== null &&
-      createdAt !== ''
-    ) {
+    if (createdAt !== undefined && createdAt !== null) {
 
       result.created_at = createdAt;
 
     }
 
 
-    /* --------------------------------------------------------
-       REQUESTED AT
-       -------------------------------------------------------- */
+    // --------------------------------------------------------
+    // REQUESTED AT
+    // --------------------------------------------------------
 
     const requestedAt =
       item.requestedAt ??
-      item.requested_at ??
-      item.solicitadoEm ??
-      item.solicitado_em;
+      item.requested_at;
 
 
-    if (
-      requestedAt !== undefined &&
-      requestedAt !== null &&
-      requestedAt !== ''
-    ) {
+    if (requestedAt !== undefined && requestedAt !== null) {
 
       result.requested_at = requestedAt;
 
     }
 
 
-    /* --------------------------------------------------------
-       RESPONDED AT
-       -------------------------------------------------------- */
+    // --------------------------------------------------------
+    // RESPONDED AT
+    // --------------------------------------------------------
 
     const respondedAt =
       item.respondedAt ??
       item.responded_at ??
-      item.answeredAt ??
-      item.respondeuEm ??
-      item.respondeu_em;
+      item.answeredAt;
 
 
-    if (
-      respondedAt !== undefined &&
-      respondedAt !== null &&
-      respondedAt !== ''
-    ) {
+    if (respondedAt !== undefined && respondedAt !== null) {
 
       result.responded_at = respondedAt;
 
     }
 
 
-    /* --------------------------------------------------------
-       SENDER ACKNOWLEDGED
-       
-       Seu banco possui DUAS colunas:
-       
-       senderAcknowledged
-       sender_acknowledged
-       
-       Vamos gravar nas duas.
-       -------------------------------------------------------- */
+    // --------------------------------------------------------
+    // SENDER ACKNOWLEDGED
+    //
+    // O banco possui:
+    // sender_acknowledged
+    //
+    // --------------------------------------------------------
 
     const senderAcknowledged =
       item.senderAcknowledged ??
@@ -464,73 +438,10 @@ export const DB = {
       senderAcknowledged !== null
     ) {
 
-      const value =
+      result.sender_acknowledged =
         Boolean(senderAcknowledged);
 
-
-      result.senderAcknowledged =
-        value;
-
-
-      result.sender_acknowledged =
-        value;
-
     }
-
-
-    /* --------------------------------------------------------
-       TO MEMBER ID ORIGINAL
-       
-       Seu banco também possui:
-       
-       toMemberId
-       
-       Se o sistema estiver usando esse campo,
-       gravamos também.
-       -------------------------------------------------------- */
-
-    if (
-      toMemberId !== undefined &&
-      toMemberId !== null &&
-      toMemberId !== ''
-    ) {
-
-      result.toMemberId =
-        String(toMemberId);
-
-    }
-
-
-    /* --------------------------------------------------------
-       DE_ID_DO_MEMBRO
-       
-       Seu banco também possui essa coluna.
-       -------------------------------------------------------- */
-
-    if (
-      fromMemberId !== undefined &&
-      fromMemberId !== null &&
-      fromMemberId !== ''
-    ) {
-
-      result.de_id_do_membro =
-        String(fromMemberId);
-
-    }
-
-
-    /*
-     * IMPORTANTE:
-     *
-     * NÃO EXISTE:
-     *
-     * from_member_id
-     *
-     * portanto removemos explicitamente caso
-     * alguma informação tenha chegado com esse nome.
-     */
-
-    delete result.from_member_id;
 
 
     return result;
@@ -538,9 +449,158 @@ export const DB = {
   },
 
 
-  /* ==========================================================
-     GET ALL
-     ========================================================== */
+  // ==========================================================
+  // CONVERTE ACTIVITY TRANSFER DO SUPABASE PARA O SISTEMA
+  // ==========================================================
+
+  formatActivityTransfer(item) {
+
+    if (!item) {
+
+      return null;
+
+    }
+
+
+    const result = {};
+
+
+    // --------------------------------------------------------
+    // ID
+    // --------------------------------------------------------
+
+    if (item.id !== undefined) {
+
+      result.id = item.id;
+
+    }
+
+
+    // --------------------------------------------------------
+    // TASK ID
+    // --------------------------------------------------------
+
+    if (item.task_id !== undefined) {
+
+      result.taskId = item.task_id;
+
+    }
+
+
+    // Caso a tabela tenha taskId antigo
+    else if (item.taskId !== undefined) {
+
+      result.taskId = item.taskId;
+
+    }
+
+
+    // --------------------------------------------------------
+    // TO MEMBER
+    // --------------------------------------------------------
+
+    if (item.to_member_id !== undefined) {
+
+      result.toMemberId =
+        item.to_member_id;
+
+    }
+
+    else if (item.toMemberId !== undefined) {
+
+      result.toMemberId =
+        item.toMemberId;
+
+    }
+
+
+    // --------------------------------------------------------
+    // FROM MEMBER
+    // --------------------------------------------------------
+
+    if (item.fromMemberId !== undefined) {
+
+      result.fromMemberId =
+        item.fromMemberId;
+
+    }
+
+    else if (item.de_id_do_membro !== undefined) {
+
+      result.fromMemberId =
+        item.de_id_do_membro;
+
+    }
+
+
+    // --------------------------------------------------------
+    // STATUS
+    // --------------------------------------------------------
+
+    if (item.status !== undefined) {
+
+      result.status =
+        item.status;
+
+    }
+
+
+    // --------------------------------------------------------
+    // DATAS
+    // --------------------------------------------------------
+
+    if (item.created_at !== undefined) {
+
+      result.createdAt =
+        item.created_at;
+
+    }
+
+
+    if (item.requested_at !== undefined) {
+
+      result.requestedAt =
+        item.requested_at;
+
+    }
+
+
+    if (item.responded_at !== undefined) {
+
+      result.respondedAt =
+        item.responded_at;
+
+    }
+
+
+    // --------------------------------------------------------
+    // CONFIRMAÇÃO
+    // --------------------------------------------------------
+
+    if (item.sender_acknowledged !== undefined) {
+
+      result.senderAcknowledged =
+        item.sender_acknowledged;
+
+    }
+
+    // Compatibilidade com coluna antiga
+    else if (item.senderAcknowledged !== undefined) {
+
+      result.senderAcknowledged =
+        item.senderAcknowledged;
+
+    }
+
+
+    return result;
+
+  },
+
+
+  // ==========================================================
+  // GET ALL
+  // ==========================================================
 
   async getAll(storeName, options = {}) {
 
@@ -595,65 +655,27 @@ export const DB = {
       }
 
 
-      const formatted =
-        (data || []).map(item => {
-
-          /*
-           * Para activity_transfers mantemos
-           * os nomes do banco sem converter
-           * de forma perigosa.
-           */
-
-          if (
-            storeName === 'activity_transfers' ||
-            storeName === 'transfers'
-          ) {
-
-            return {
-              ...item,
-
-              id:
-                item.id,
-
-              taskId:
-                item.taskId ??
-                item.task_id,
-
-              fromMemberId:
-                item.fromMemberId ??
-                item.de_id_do_membro,
-
-              toMemberId:
-                item.toMemberId ??
-                item.to_member_id,
-
-              status:
-                item.status,
-
-              createdAt:
-                item.createdAt ??
-                item.created_at,
-
-              requestedAt:
-                item.requestedAt ??
-                item.requested_at,
-
-              respondedAt:
-                item.respondedAt ??
-                item.responded_at,
-
-              senderAcknowledged:
-                item.senderAcknowledged ??
-                item.sender_acknowledged
-
-            };
-
-          }
+      let formatted;
 
 
-          return this.toCamelCase(item);
+      // Activity transfers possui tratamento próprio
+      if (storeName === 'activity_transfers') {
 
-        });
+        formatted =
+          (data || []).map(item =>
+            this.formatActivityTransfer(item)
+          );
+
+      }
+
+      else {
+
+        formatted =
+          (data || []).map(item =>
+            this.toCamelCase(item)
+          );
+
+      }
 
 
       memoryStore[storeName] =
@@ -684,9 +706,9 @@ export const DB = {
   },
 
 
-  /* ==========================================================
-     GET POR ID
-     ========================================================== */
+  // ==========================================================
+  // GET POR ID
+  // ==========================================================
 
   async get(storeName, key) {
 
@@ -696,14 +718,21 @@ export const DB = {
 
     try {
 
-      const {
-        data,
-        error
-      } = await supabase
+      let query;
+
+
+      // Activity transfers usa id normal
+      query = supabase
         .from(tableName)
         .select('*')
         .eq('id', key)
         .single();
+
+
+      const {
+        data,
+        error
+      } = await query;
 
 
       if (error) {
@@ -713,50 +742,9 @@ export const DB = {
       }
 
 
-      if (
-        storeName === 'activity_transfers' ||
-        storeName === 'transfers'
-      ) {
+      if (storeName === 'activity_transfers') {
 
-        return {
-
-          ...data,
-
-          id:
-            data.id,
-
-          taskId:
-            data.taskId ??
-            data.task_id,
-
-          fromMemberId:
-            data.fromMemberId ??
-            data.de_id_do_membro,
-
-          toMemberId:
-            data.toMemberId ??
-            data.to_member_id,
-
-          status:
-            data.status,
-
-          createdAt:
-            data.createdAt ??
-            data.created_at,
-
-          requestedAt:
-            data.requestedAt ??
-            data.requested_at,
-
-          respondedAt:
-            data.respondedAt ??
-            data.responded_at,
-
-          senderAcknowledged:
-            data.senderAcknowledged ??
-            data.sender_acknowledged
-
-        };
+        return this.formatActivityTransfer(data);
 
       }
 
@@ -771,7 +759,7 @@ export const DB = {
 
 
       return list.find(
-        item => String(item.id) === String(key)
+        item => item.id === key
       ) || null;
 
     }
@@ -779,9 +767,9 @@ export const DB = {
   },
 
 
-  /* ==========================================================
-     SAVE
-     ========================================================== */
+  // ==========================================================
+  // SAVE
+  // ==========================================================
 
   async save(storeName, item) {
 
@@ -789,83 +777,68 @@ export const DB = {
       this.mapStoreName(storeName);
 
 
-    /* ========================================================
-       ACTIVITY TRANSFERS
-       ======================================================== */
+    // ========================================================
+    // ACTIVITY TRANSFERS
+    // ========================================================
 
-    if (
-      storeName === 'activity_transfers' ||
-      storeName === 'transfers' ||
-      tableName === 'activity_transfers'
-    ) {
+    if (storeName === 'activity_transfers') {
 
       const dbItem =
         this.prepareActivityTransfer(item);
 
 
-      console.log(
-        '[Supabase] Salvando transferência:',
-        dbItem
-      );
+      // ------------------------------------------------------
+      // CACHE
+      // ------------------------------------------------------
 
+      if (!memoryStore[storeName]) {
 
-      /* ------------------------------------------------------
-         CACHE
-         ------------------------------------------------------ */
-
-      if (!memoryStore.activity_transfers) {
-
-        memoryStore.activity_transfers = [];
+        memoryStore[storeName] = [];
 
       }
 
 
       const idx =
-        memoryStore.activity_transfers
-          .findIndex(
-            i =>
-              String(i.id) ===
-              String(item.id)
-          );
+        memoryStore[storeName].findIndex(
+          i => i.id === item.id
+        );
 
 
       if (idx >= 0) {
 
-        memoryStore.activity_transfers[idx] = {
+        memoryStore[storeName][idx] = {
 
-          ...memoryStore.activity_transfers[idx],
+          ...memoryStore[storeName][idx],
 
           ...item
 
         };
 
-      } else {
+      }
 
-        memoryStore.activity_transfers.push(
-          item
-        );
+      else {
+
+        memoryStore[storeName].push(item);
 
       }
 
 
-      /* ------------------------------------------------------
-         SUPABASE
-         ------------------------------------------------------ */
+      // ------------------------------------------------------
+      // SUPABASE
+      // ------------------------------------------------------
 
       try {
 
         const {
-          data,
           error
         } = await supabase
-          .from('activity_transfers')
+          .from(tableName)
           .upsert(
             dbItem,
             {
               onConflict: 'id'
             }
-          )
-          .select();
+          );
 
 
         if (error) {
@@ -875,23 +848,11 @@ export const DB = {
             error.message
           );
 
-
-          console.error(
-            '[Supabase Save Payload]:',
-            dbItem
-          );
-
-        } else {
-
-          console.log(
-            '[Supabase] Transferência salva:',
-            data
-          );
-
         }
 
+      }
 
-      } catch (err) {
+      catch (err) {
 
         console.error(
           '[Supabase Save Exception] activity_transfers:',
@@ -906,17 +867,17 @@ export const DB = {
     }
 
 
-    /* ========================================================
-       TABELAS NORMAIS
-       ======================================================== */
+    // ========================================================
+    // OUTRAS TABELAS
+    // ========================================================
 
     const dbItem =
       this.toSnakeCase(item);
 
 
-    /* --------------------------------------------------------
-       CACHE
-       -------------------------------------------------------- */
+    // --------------------------------------------------------
+    // CACHE
+    // --------------------------------------------------------
 
     if (!memoryStore[storeName]) {
 
@@ -926,12 +887,9 @@ export const DB = {
 
 
     const idx =
-      memoryStore[storeName]
-        .findIndex(
-          i =>
-            String(i.id) ===
-            String(item.id)
-        );
+      memoryStore[storeName].findIndex(
+        i => i.id === item.id
+      );
 
 
     if (idx >= 0) {
@@ -944,18 +902,18 @@ export const DB = {
 
       };
 
-    } else {
+    }
 
-      memoryStore[storeName].push(
-        item
-      );
+    else {
+
+      memoryStore[storeName].push(item);
 
     }
 
 
-    /* --------------------------------------------------------
-       SUPABASE
-       -------------------------------------------------------- */
+    // --------------------------------------------------------
+    // SUPABASE
+    // --------------------------------------------------------
 
     try {
 
@@ -975,8 +933,9 @@ export const DB = {
 
       }
 
+    }
 
-    } catch (err) {
+    catch (err) {
 
       console.warn(
         `[Supabase Save Fallback] ${storeName}:`,
@@ -991,9 +950,9 @@ export const DB = {
   },
 
 
-  /* ==========================================================
-     DELETE
-     ========================================================== */
+  // ==========================================================
+  // DELETE
+  // ==========================================================
 
   async delete(storeName, key) {
 
@@ -1001,25 +960,23 @@ export const DB = {
       this.mapStoreName(storeName);
 
 
-    /* --------------------------------------------------------
-       CACHE
-       -------------------------------------------------------- */
+    // --------------------------------------------------------
+    // CACHE
+    // --------------------------------------------------------
 
     if (memoryStore[storeName]) {
 
       memoryStore[storeName] =
         memoryStore[storeName].filter(
-          i =>
-            String(i.id) !==
-            String(key)
+          i => i.id !== key
         );
 
     }
 
 
-    /* --------------------------------------------------------
-       SUPABASE
-       -------------------------------------------------------- */
+    // --------------------------------------------------------
+    // SUPABASE
+    // --------------------------------------------------------
 
     try {
 
@@ -1040,8 +997,9 @@ export const DB = {
 
       }
 
+    }
 
-    } catch (err) {
+    catch (err) {
 
       console.warn(
         `[Supabase Delete Fallback] ${storeName}:`,
@@ -1056,9 +1014,9 @@ export const DB = {
   },
 
 
-  /* ==========================================================
-     DADOS INICIAIS
-     ========================================================== */
+  // ==========================================================
+  // DADOS INICIAIS
+  // ==========================================================
 
   async seedInitialDataIfEmpty() {
 
@@ -1076,9 +1034,9 @@ export const DB = {
     }
 
 
-    /* --------------------------------------------------------
-       AVATAR
-       -------------------------------------------------------- */
+    // --------------------------------------------------------
+    // AVATAR
+    // --------------------------------------------------------
 
     const createAvatarSvg =
       (bgColor, initials) => {
@@ -1122,78 +1080,46 @@ export const DB = {
       };
 
 
-    /* ========================================================
-       MEMBROS
-       ======================================================== */
+    // --------------------------------------------------------
+    // MEMBROS
+    // --------------------------------------------------------
 
     const initialMembers = [
 
       {
         id: 'm-1',
-
         name: 'Ana Silva',
-
-        role:
-          'Analista de Folha de Pagamento',
-
-        email:
-          'ana.dp@empresa.com',
-
-        photo:
-          createAvatarSvg(
-            '#6366f1',
-            'AS'
-          ),
-
-        contact:
-          '(11) 98765-4321'
-
+        role: 'Analista de Folha de Pagamento',
+        email: 'ana.dp@empresa.com',
+        photo: createAvatarSvg(
+          '#6366f1',
+          'AS'
+        ),
+        contact: '(11) 98765-4321'
       },
 
       {
         id: 'm-2',
-
-        name:
-          'Carlos Oliveira',
-
-        role:
-          'Assistente de Admissão e Benefícios',
-
-        email:
-          'carlos.dp@empresa.com',
-
-        photo:
-          createAvatarSvg(
-            '#10b981',
-            'CO'
-          ),
-
-        contact:
-          '(11) 97654-3210'
-
+        name: 'Carlos Oliveira',
+        role: 'Assistente de Admissão e Benefícios',
+        email: 'carlos.dp@empresa.com',
+        photo: createAvatarSvg(
+          '#10b981',
+          'CO'
+        ),
+        contact: '(11) 97654-3210'
       },
 
       {
         id: 'm-3',
-
-        name:
-          'Mariana Costa',
-
-        role:
-          'Especialista eSocial & Encargos',
-
-        email:
-          'mariana.dp@empresa.com',
-
-        photo:
-          createAvatarSvg(
-            '#d946ef',
-            'MC'
-          ),
-
-        contact:
-          '(11) 96543-2109'
-
+        name: 'Mariana Costa',
+        role: 'Especialista eSocial & Encargos',
+        email: 'mariana.dp@empresa.com',
+        photo: createAvatarSvg(
+          '#d946ef',
+          'MC'
+        ),
+        contact: '(11) 96543-2109'
       }
 
     ];
@@ -1211,9 +1137,9 @@ export const DB = {
     }
 
 
-    /* ========================================================
-       TAREFAS
-       ======================================================== */
+    // --------------------------------------------------------
+    // TAREFAS
+    // --------------------------------------------------------
 
     const todayStr =
       new Date()
@@ -1232,8 +1158,7 @@ export const DB = {
         description:
           'Conferência de proventos, descontos, cálculo de INSS, IRRF e geração de contracheques.',
 
-        memberId:
-          'm-1',
+        memberId: 'm-1',
 
         category:
           'Folha de Pagamento',
@@ -1261,7 +1186,6 @@ export const DB = {
 
         createdAt:
           new Date().toISOString()
-
       },
 
 
@@ -1303,7 +1227,6 @@ export const DB = {
 
         createdAt:
           new Date().toISOString()
-
       },
 
 
@@ -1345,7 +1268,6 @@ export const DB = {
 
         createdAt:
           new Date().toISOString()
-
       }
 
     ];
@@ -1363,14 +1285,13 @@ export const DB = {
     }
 
 
-    /* ========================================================
-       IMPEDIMENTO
-       ======================================================== */
+    // --------------------------------------------------------
+    // IMPEDIMENTO
+    // --------------------------------------------------------
 
     const initialImpediment = {
 
-      id:
-        'imp-1',
+      id: 'imp-1',
 
       taskId:
         't-dp-1',
@@ -1395,9 +1316,9 @@ export const DB = {
   },
 
 
-  /* ==========================================================
-     RESET DATABASE
-     ========================================================== */
+  // ==========================================================
+  // RESET DO BANCO
+  // ==========================================================
 
   async resetDatabase() {
 
@@ -1443,11 +1364,13 @@ export const DB = {
           .neq('id', '0');
 
 
-      } catch (e) {
+      }
+
+      catch (error) {
 
         console.warn(
           `[Reset] Erro em ${storeName}:`,
-          e
+          error
         );
 
       }
