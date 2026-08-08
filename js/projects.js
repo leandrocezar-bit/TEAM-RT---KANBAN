@@ -122,11 +122,11 @@ export const ProjectsEngine = {
                       </td>
                     </tr>
                   ` : projectTasks.map(t => {
-                    const mainMember = members.find(m => m.id === t.memberId) || { name: 'Não atribuído', photo: '' };
-                    const groupLinks = taskMembers.filter(tm => tm.taskId === t.id);
-                    const groupMembers = members.filter(m => groupLinks.some(gl => gl.memberId === m.id));
+          const mainMember = members.find(m => m.id === t.memberId) || { name: 'Não atribuído', photo: '' };
+          const groupLinks = taskMembers.filter(tm => tm.taskId === t.id);
+          const groupMembers = members.filter(m => groupLinks.some(gl => gl.memberId === m.id));
 
-                    return `
+          return `
                       <tr>
                         <td>
                           <strong>${t.title}</strong>
@@ -155,7 +155,7 @@ export const ProjectsEngine = {
                         <td>${t.dueDate ? t.dueDate.split('-').reverse().join('/') : '-'}</td>
                       </tr>
                     `;
-                  }).join('')}
+        }).join('')}
                 </tbody>
               </table>
             </div>
@@ -166,10 +166,11 @@ export const ProjectsEngine = {
 
     container.innerHTML = html;
     this.attachEvents(showToastCallback, onRefreshCallback);
+    this.setupFormListeners(showToastCallback, onRefreshCallback);
   },
 
   attachEvents(showToast, onRefresh) {
-    // Alternar abas de projeto
+    // 1. Alternar abas de projeto
     document.querySelectorAll('.btn-project-tab').forEach(btn => {
       btn.addEventListener('click', () => {
         this.activeProjectId = btn.dataset.id;
@@ -177,19 +178,68 @@ export const ProjectsEngine = {
       });
     });
 
-    // Abrir Modal de Criar Projeto
+    // 2. Abrir Modal para CRIAR Projeto
     const btnCreateProject = document.getElementById('btn-create-project');
     if (btnCreateProject) {
       btnCreateProject.addEventListener('click', () => {
         const modal = document.getElementById('modal-project');
+        const form = document.getElementById('form-project');
         if (modal) {
-          document.getElementById('form-project').reset();
+          if (form) {
+            form.reset();
+            delete form.dataset.editId;
+          }
+          const modalTitle = modal.querySelector('h3') || modal.querySelector('.modal-title');
+          if (modalTitle) modalTitle.innerText = '📁 Criar Novo Projeto';
           modal.classList.add('active');
         }
       });
     }
 
-    // Modal Gerenciar Integrantes do Grupo em Atividade
+    // 3. Abrir Modal para EDITAR Projeto
+    document.querySelectorAll('.btn-edit-project').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const projectId = btn.dataset.id;
+        const project = await DB.get('projects', projectId);
+        if (!project) return;
+
+        const modal = document.getElementById('modal-project');
+        const form = document.getElementById('form-project');
+
+        if (modal && form) {
+          const inputName = document.getElementById('project-name') || form.querySelector('[name="name"]');
+          const inputDesc = document.getElementById('project-description') || form.querySelector('[name="description"]');
+
+          if (inputName) inputName.value = project.name || '';
+          if (inputDesc) inputDesc.value = project.description || '';
+
+          form.dataset.editId = project.id;
+
+          const modalTitle = modal.querySelector('h3') || modal.querySelector('.modal-title');
+          if (modalTitle) modalTitle.innerText = '✏️ Editar Projeto';
+
+          modal.classList.add('active');
+        }
+      });
+    });
+
+    // 4. Abrir Modal para Adicionar Atividade ao Projeto
+    document.querySelectorAll('.btn-add-project-task').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const projectId = btn.dataset.id;
+        const modalTask = document.getElementById('modal-task');
+        const selectProject = document.getElementById('task-project-id');
+
+        if (modalTask) {
+          const formTask = document.getElementById('form-task');
+          if (formTask) formTask.reset();
+          if (selectProject) selectProject.value = projectId;
+          modalTask.classList.add('active');
+        }
+      });
+    });
+
+    // 5. Modal Gerenciar Integrantes do Grupo em Atividade
     document.querySelectorAll('.btn-manage-task-group').forEach(btn => {
       btn.addEventListener('click', async () => {
         const taskId = btn.dataset.taskId;
@@ -211,9 +261,108 @@ export const ProjectsEngine = {
           `).join('');
         }
 
-        document.getElementById('task-group-save-btn').dataset.taskId = taskId;
+        const btnSave = document.getElementById('task-group-save-btn');
+        if (btnSave) btnSave.dataset.taskId = taskId;
+
         modal.classList.add('active');
       });
     });
+  },
+
+  /**
+   * Registra os eventos de submissão do formulário do projeto e do grupo de atividades
+   */
+  setupFormListeners(showToast, onRefresh) {
+    const formProject = document.getElementById('form-project');
+    if (formProject && !formProject.dataset.listenerBound) {
+      formProject.dataset.listenerBound = 'true';
+
+      formProject.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const editId = formProject.dataset.editId;
+        const inputName = document.getElementById('project-name') || formProject.querySelector('[name="name"]');
+        const inputDesc = document.getElementById('project-description') || formProject.querySelector('[name="description"]');
+
+        const name = inputName ? inputName.value.trim() : '';
+        const description = inputDesc ? inputDesc.value.trim() : '';
+
+        if (!name) {
+          if (showToast) showToast('Por favor, preencha o nome do projeto.', 'error');
+          return;
+        }
+
+        if (editId) {
+          // --- EDIÇÃO DE PROJETO ---
+          const existingProject = await DB.get('projects', editId);
+          if (existingProject) {
+            existingProject.name = name;
+            existingProject.description = description;
+            existingProject.updatedAt = new Date().toISOString();
+            await DB.save('projects', existingProject);
+            if (showToast) showToast('Projeto atualizado com sucesso!');
+          }
+        } else {
+          // --- NOVO PROJETO ---
+          const newProject = {
+            id: Date.now().toString(),
+            name,
+            description,
+            createdAt: new Date().toISOString()
+          };
+          await DB.save('projects', newProject);
+          this.activeProjectId = newProject.id;
+          if (showToast) showToast('Projeto criado com sucesso!');
+        }
+
+        const modal = document.getElementById('modal-project');
+        if (modal) modal.classList.remove('active');
+
+        formProject.reset();
+        delete formProject.dataset.editId;
+
+        if (onRefresh) onRefresh();
+        await this.renderProjectsSection(showToast, onRefresh);
+      });
+    }
+
+    // Salvar integrantes do grupo da tarefa
+    const btnSaveTaskGroup = document.getElementById('task-group-save-btn');
+    if (btnSaveTaskGroup && !btnSaveTaskGroup.dataset.listenerBound) {
+      btnSaveTaskGroup.dataset.listenerBound = 'true';
+
+      btnSaveTaskGroup.addEventListener('click', async () => {
+        const taskId = btnSaveTaskGroup.dataset.taskId;
+        if (!taskId) return;
+
+        const checkboxes = document.querySelectorAll('.chk-group-member');
+        const allTaskMembers = await DB.getAll('task_members');
+
+        // Remove os vínculos antigos dessa tarefa
+        for (const tm of allTaskMembers) {
+          if (tm.taskId === taskId) {
+            await DB.delete('task_members', tm.id);
+          }
+        }
+
+        // Salva os novos vínculos selecionados
+        for (const chk of checkboxes) {
+          if (chk.checked) {
+            await DB.save('task_members', {
+              id: `${taskId}_${chk.dataset.memberId}`,
+              taskId: taskId,
+              memberId: chk.dataset.memberId
+            });
+          }
+        }
+
+        const modal = document.getElementById('modal-task-group');
+        if (modal) modal.classList.remove('active');
+
+        if (showToast) showToast('Integrantes da equipe atualizados!');
+        if (onRefresh) onRefresh();
+        await this.renderProjectsSection(showToast, onRefresh);
+      });
+    }
   }
 };
