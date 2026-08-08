@@ -103,6 +103,25 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   checkAuthentication();
 
+  async function updateHeaderUserProfile() {
+    const loggedId = getLoggedMemberId();
+    if (!loggedId) return;
+
+    const members = await DB.getAll('members');
+    const loggedMember = members.find(m => String(m.id) === String(loggedId));
+
+    if (loggedMember) {
+      const avatarEl = document.getElementById('user-avatar');
+      const nameEl = document.getElementById('user-name');
+
+      if (nameEl) nameEl.textContent = loggedMember.name;
+      if (avatarEl) {
+        avatarEl.src = loggedMember.photo ||
+          `https://ui-avatars.com/api/?name=${encodeURIComponent(loggedMember.name)}&background=6366f1&color=fff`;
+      }
+    }
+  }
+
   // Inicializa Banco de Dados Supabase (ou cache offline)
   await DB.init();
 
@@ -161,6 +180,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function refreshUI() {
     const loggedId = getLoggedMemberId();
     const manager = isManager();
+
+    // ⬇️ LINHA ADICIONADA: Atualiza a foto e o nome no topo
+    await updateHeaderUserProfile();
 
     // Colaborador comum não pode ficar preso numa view restrita (ex: veio de sessão anterior como gestor)
     if (!manager && MANAGER_ONLY_VIEWS.includes(activeView)) {
