@@ -1,5 +1,5 @@
 /**
- * Controladora Principal do Aplicativo Kanban de Equipe
+ * Controladora Principal do Aplicativo Kanban de Equipe (App Core Controller)
  */
 
 import { DB } from './db.js';
@@ -16,6 +16,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   let activeView = 'kanban';
   let currentMemberFilter = 'all';
   let reportingTaskId = null;
+
+  // ============================================================
+  // VIEWS RESTRITAS
+  // ============================================================
 
   const MANAGER_ONLY_VIEWS = [];
 
@@ -36,7 +40,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function checkAuthentication() {
 
-    const isAuth = localStorage.getItem('app_authenticated');
+    const isAuth =
+      localStorage.getItem('app_authenticated');
 
     if (isAuth === 'true') {
 
@@ -59,6 +64,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
+  // ============================================================
+  // LOGIN
+  // ============================================================
+
   if (formLogin) {
 
     formLogin.addEventListener('submit', async (e) => {
@@ -66,28 +75,36 @@ document.addEventListener('DOMContentLoaded', async () => {
       e.preventDefault();
 
       const inputEmail =
-        document.getElementById('input-login-user').value
+        document
+          .getElementById('input-login-user')
+          .value
           .trim()
           .toLowerCase();
 
       const inputPassword =
-        document.getElementById('input-passcode').value;
+        document
+          .getElementById('input-passcode')
+          .value;
 
       if (!inputEmail || !inputPassword) {
+
         showToast(
           'Informe e-mail e senha para entrar.',
           'warning'
         );
+
         return;
       }
 
-      const members = await DB.getAll('members');
+      const members =
+        await DB.getAll('members');
 
-      const matchedMember = members.find(
-        m =>
-          m.email &&
-          m.email.toLowerCase() === inputEmail
-      );
+      const matchedMember =
+        members.find(
+          m =>
+            m.email &&
+            m.email.toLowerCase() === inputEmail
+        );
 
       if (!matchedMember) {
 
@@ -132,7 +149,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         accessLevel
       );
 
-      currentMemberFilter = matchedMember.id;
+      currentMemberFilter =
+        matchedMember.id;
+
       activeView = 'kanban';
 
       if (loginOverlay) {
@@ -150,6 +169,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   }
 
+  // ============================================================
+  // LOGOUT
+  // ============================================================
+
   const btnLogout =
     document.getElementById('btn-logout');
 
@@ -157,9 +180,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     btnLogout.addEventListener('click', () => {
 
-      localStorage.removeItem('app_authenticated');
-      localStorage.removeItem('logged_member_id');
-      localStorage.removeItem('logged_access_level');
+      localStorage.removeItem(
+        'app_authenticated'
+      );
+
+      localStorage.removeItem(
+        'logged_member_id'
+      );
+
+      localStorage.removeItem(
+        'logged_access_level'
+      );
 
       currentMemberFilter = 'all';
       activeView = 'kanban';
@@ -178,12 +209,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   checkAuthentication();
 
   // ============================================================
-  // PERFIL DO USUÁRIO
+  // PERFIL DO USUÁRIO LOGADO
   // ============================================================
 
   async function updateHeaderUserProfile() {
 
-    const loggedId = getLoggedMemberId();
+    const loggedId =
+      getLoggedMemberId();
 
     if (!loggedId) return;
 
@@ -192,36 +224,40 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const loggedMember =
       members.find(
-        m => String(m.id) === String(loggedId)
+        m =>
+          String(m.id) ===
+          String(loggedId)
       );
 
-    if (!loggedMember) return;
+    if (loggedMember) {
 
-    const avatarEl =
-      document.getElementById('user-avatar');
+      const avatarEl =
+        document.getElementById('user-avatar');
 
-    const nameEl =
-      document.getElementById('user-name');
+      const nameEl =
+        document.getElementById('user-name');
 
-    if (nameEl) {
-      nameEl.textContent =
-        loggedMember.name;
-    }
+      if (nameEl) {
+        nameEl.textContent =
+          loggedMember.name;
+      }
 
-    if (avatarEl) {
+      if (avatarEl) {
 
-      avatarEl.src =
-        loggedMember.photo ||
-        `https://ui-avatars.com/api/?name=${encodeURIComponent(
-          loggedMember.name
-        )}&background=6366f1&color=fff`;
+        avatarEl.src =
+          loggedMember.photo ||
+          `https://ui-avatars.com/api/?name=${encodeURIComponent(
+            loggedMember.name
+          )}&background=6366f1&color=fff`;
+
+      }
 
     }
 
   }
 
   // ============================================================
-  // BANCO
+  // INICIALIZA BANCO
   // ============================================================
 
   await DB.init();
@@ -253,6 +289,54 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const btnResetDb =
     document.getElementById('btn-reset-db');
+
+  // ============================================================
+  // RESET DATABASE
+  // ============================================================
+
+  if (btnResetDb) {
+
+    btnResetDb.addEventListener(
+      'click',
+      async () => {
+
+        if (!isManager()) {
+
+          showToast(
+            'Apenas gestores podem restaurar os dados.',
+            'warning'
+          );
+
+          return;
+        }
+
+        if (
+          confirm(
+            'Deseja realmente restaurar os dados iniciais padrão no Supabase/App?'
+          )
+        ) {
+
+          await DB.resetDatabase();
+
+          currentMemberFilter = 'all';
+
+          showToast(
+            'Dados iniciais restaurados com sucesso!',
+            'success'
+          );
+
+          await refreshUI();
+
+        }
+
+      }
+    );
+
+  }
+
+  // ============================================================
+  // SEÇÕES
+  // ============================================================
 
   const sectionKanban =
     document.getElementById('section-kanban');
@@ -320,67 +404,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('form-project');
 
   // ============================================================
-  // RESET DATABASE
+  // FUNÇÕES DE COMPATIBILIDADE DAS TRANSFERÊNCIAS
+  //
+  // Supabase:
+  // from_member_id
+  // to_member_id
+  // task_id
+  // sender_acknowledged
+  // responded_at
+  //
+  // Código antigo:
+  // deIdDoMembro
+  // paraIdDoMembro
+  // idDaTarefa
+  // remetenteConfirmado
+  // respondeuEm
   // ============================================================
-
-  if (btnResetDb) {
-
-    btnResetDb.addEventListener('click', async () => {
-
-      if (!isManager()) {
-
-        showToast(
-          'Apenas gestores podem restaurar os dados.',
-          'warning'
-        );
-
-        return;
-      }
-
-      if (
-        confirm(
-          'Deseja realmente restaurar os dados iniciais padrão no Supabase/App?'
-        )
-      ) {
-
-        await DB.resetDatabase();
-
-        currentMemberFilter = 'all';
-
-        showToast(
-          'Dados iniciais restaurados com sucesso!',
-          'success'
-        );
-
-        await refreshUI();
-
-      }
-
-    });
-
-  }
-
-  // ============================================================
-  // FUNÇÕES AUXILIARES PARA TRANSFERÊNCIAS
-  // ============================================================
-
-  /**
-   * O banco possui atualmente campos em inglês e português.
-   *
-   * Esta função aceita os dois formatos para evitar problemas
-   * quando o Supabase ou a tradução da interface apresentar
-   * nomes diferentes.
-   */
-
-  function getTransferTaskId(transfer) {
-
-    return (
-      transfer.task_id ??
-      transfer.taskId ??
-      transfer.idDaTarefa
-    );
-
-  }
 
   function getTransferFromMemberId(transfer) {
 
@@ -388,7 +427,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       transfer.from_member_id ??
       transfer.fromMemberId ??
       transfer.de_id_do_membro ??
-      transfer.deIdDoMembro
+      transfer.deIdDoMembro ??
+      transfer['do ID do membro'] ??
+      null
     );
 
   }
@@ -399,59 +440,33 @@ document.addEventListener('DOMContentLoaded', async () => {
       transfer.to_member_id ??
       transfer.toMemberId ??
       transfer.para_id_do_membro ??
-      transfer.paraIdDoMembro
+      transfer.paraIdDoMembro ??
+      transfer['para ID do membro'] ??
+      null
     );
 
   }
 
-  function getTransferStatus(transfer) {
+  function getTransferTaskId(transfer) {
 
-    return transfer.status;
+    return (
+      transfer.task_id ??
+      transfer.taskId ??
+      transfer.id_da_tarefa ??
+      transfer.idDaTarefa ??
+      null
+    );
 
   }
 
-  function isSenderAcknowledged(transfer) {
+  function isTransferSenderAcknowledged(transfer) {
 
     return Boolean(
       transfer.sender_acknowledged ??
       transfer.senderAcknowledged ??
-      transfer.remetenteConfirmado
+      transfer.remetenteConfirmado ??
+      false
     );
-
-  }
-
-  function setSenderAcknowledged(transfer, value) {
-
-    /*
-     * Usa o campo que realmente existe no objeto.
-     */
-
-    if ('sender_acknowledged' in transfer) {
-      transfer.sender_acknowledged = value;
-    }
-
-    if ('senderAcknowledged' in transfer) {
-      transfer.senderAcknowledged = value;
-    }
-
-    if ('remetenteConfirmado' in transfer) {
-      transfer.remetenteConfirmado = value;
-    }
-
-  }
-
-  function setTransferResponseDate(transfer) {
-
-    const now =
-      new Date().toISOString();
-
-    if ('responded_at' in transfer) {
-      transfer.responded_at = now;
-    }
-
-    if ('respondeuEm' in transfer) {
-      transfer.respondeuEm = now;
-    }
 
   }
 
@@ -481,10 +496,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const backupFilter =
       currentMemberFilter;
 
-    /*
-     * IMPORTANTE:
-     * Renderiza notificações sem aplicar o filtro do Kanban.
-     */
+    // ============================================================
+    // NOTIFICAÇÕES
+    // ============================================================
 
     currentMemberFilter = 'all';
 
@@ -494,6 +508,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       loggedId
         ? loggedId
         : backupFilter;
+
+    // ============================================================
+    // ABAS
+    // ============================================================
 
     await renderMemberTabs();
 
@@ -521,11 +539,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     }
 
-    const managerOnlyButtons =
-      [
-        btnNewMember,
-        btnResetDb
-      ];
+    // ============================================================
+    // BOTÕES
+    // ============================================================
+
+    const managerOnlyButtons = [
+      btnNewMember,
+      btnResetDb
+    ];
 
     managerOnlyButtons.forEach(btn => {
 
@@ -538,15 +559,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     });
 
-    const openButtons =
-      [
-        btnViewKanban,
-        btnViewManager,
-        btnViewMap,
-        btnViewSettings,
-        btnViewProjects,
-        btnNewTask
-      ];
+    const openButtons = [
+      btnViewKanban,
+      btnViewManager,
+      btnViewMap,
+      btnViewSettings,
+      btnViewProjects,
+      btnNewTask
+    ];
 
     openButtons.forEach(btn => {
 
@@ -556,6 +576,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
 
     });
+
+    // ============================================================
+    // RESET NAVEGAÇÃO
+    // ============================================================
 
     [
       btnViewKanban,
@@ -593,6 +617,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     });
 
+    // ============================================================
+    // KANBAN
+    // ============================================================
+
     if (activeView === 'kanban') {
 
       if (sectionKanban) {
@@ -622,7 +650,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
       );
 
-    } else if (activeView === 'manager') {
+    }
+
+    // ============================================================
+    // MANAGER
+    // ============================================================
+
+    else if (activeView === 'manager') {
 
       if (sectionManager) {
         sectionManager.classList.add('active');
@@ -646,7 +680,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         openCalendarDayModal
       );
 
-    } else if (activeView === 'map') {
+    }
+
+    // ============================================================
+    // MAPA
+    // ============================================================
+
+    else if (activeView === 'map') {
 
       if (sectionMap) {
         sectionMap.classList.add('active');
@@ -666,7 +706,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       await MapEngine.renderSectorMap();
 
-    } else if (activeView === 'settings') {
+    }
+
+    // ============================================================
+    // CONFIGURAÇÕES
+    // ============================================================
+
+    else if (activeView === 'settings') {
 
       if (sectionSettings) {
         sectionSettings.classList.add('active');
@@ -693,7 +739,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
       );
 
-    } else if (activeView === 'projects') {
+    }
+
+    // ============================================================
+    // PROJETOS
+    // ============================================================
+
+    else if (activeView === 'projects') {
 
       if (sectionProjects) {
         sectionProjects.classList.add('active');
@@ -716,7 +768,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         refreshUI
       );
 
-    } else {
+    }
+
+    // ============================================================
+    // FALLBACK
+    // ============================================================
+
+    else {
 
       activeView = 'kanban';
 
@@ -779,395 +837,420 @@ document.addEventListener('DOMContentLoaded', async () => {
       bar.style.display = 'none';
 
       return;
+
     }
 
     const manager =
       isManager();
 
-    const transfers =
-      await DB.getAll(
-        'activity_transfers'
-      );
+    try {
 
-    console.log(
-      '[NOTIFICAÇÕES] Transferências:',
-      transfers
-    );
+      // ========================================================
+      // TRANSFERÊNCIAS
+      // ========================================================
 
-    /*
-     * ==========================================================
-     * RECEBIDAS
-     * ==========================================================
-     */
-
-    const pendingTransfers =
-      transfers.filter(transfer => {
-
-        const status =
-          getTransferStatus(transfer);
-
-        const toMemberId =
-          getTransferToMemberId(transfer);
-
-        return (
-          status === 'PENDENTE' &&
-          String(toMemberId) ===
-          String(loggedId)
+      const transfers =
+        await DB.getAll(
+          'activity_transfers'
         );
 
-      });
+      console.log(
+        '🔄 TRANSFERÊNCIAS CARREGADAS:',
+        transfers
+      );
 
-    /*
-     * ==========================================================
-     * RETORNOS PARA QUEM ENVIOU
-     * ==========================================================
-     */
+      console.log(
+        '👤 USUÁRIO LOGADO:',
+        loggedId
+      );
 
-    const senderNotices =
-      transfers.filter(transfer => {
+      // ========================================================
+      // RECEBIDAS
+      // ========================================================
 
-        const status =
-          getTransferStatus(transfer);
+      const pendingTransfers =
+        transfers.filter(transfer => {
 
-        const fromMemberId =
-          getTransferFromMemberId(transfer);
+          const toMemberId =
+            getTransferToMemberId(
+              transfer
+            );
 
-        return (
-          String(fromMemberId) ===
-          String(loggedId) &&
+          console.log(
+            '📥 Transferência:',
+            transfer.id,
+            'destinatário:',
+            toMemberId,
+            'usuário:',
+            loggedId,
+            'status:',
+            transfer.status
+          );
 
-          (
-            status === 'ACEITO' ||
-            status === 'REJEITADO'
-          ) &&
+          return (
+            String(toMemberId) ===
+            String(loggedId) &&
+            String(transfer.status)
+              .toUpperCase() ===
+            'PENDENTE'
+          );
 
-          !isSenderAcknowledged(
-            transfer
+        });
+
+      // ========================================================
+      // RESPOSTAS
+      // ========================================================
+
+      const senderNotices =
+        transfers.filter(transfer => {
+
+          const fromMemberId =
+            getTransferFromMemberId(
+              transfer
+            );
+
+          const acknowledged =
+            isTransferSenderAcknowledged(
+              transfer
+            );
+
+          return (
+            String(fromMemberId) ===
+            String(loggedId) &&
+            (
+              String(transfer.status)
+                .toUpperCase() ===
+              'ACEITO' ||
+
+              String(transfer.status)
+                .toUpperCase() ===
+              'REJEITADO'
+            ) &&
+            !acknowledged
+          );
+
+        });
+
+      // ========================================================
+      // TAREFAS
+      // ========================================================
+
+      const tasks =
+        await DB.getAll('tasks');
+
+      // ========================================================
+      // MEMBROS
+      // ========================================================
+
+      const members =
+        await DB.getAll('members');
+
+      const membersMap =
+        new Map(
+          members.map(
+            member => [
+              String(member.id),
+              member
+            ]
           )
         );
 
-      });
+      // ========================================================
+      // PRAZOS
+      // ========================================================
 
-    const tasks =
-      await DB.getAll('tasks');
+      const today =
+        new Date();
 
-    const members =
-      await DB.getAll('members');
-
-    const membersMap =
-      new Map(
-        members.map(
-          m => [String(m.id), m]
-        )
-      );
-
-    /*
-     * ==========================================================
-     * ALERTAS DE PRAZO
-     * ==========================================================
-     */
-
-    const today =
-      new Date();
-
-    const relevantTasks =
-      manager
-        ? tasks
-        : tasks.filter(
-          t =>
-            String(t.memberId) ===
-            String(loggedId)
-        );
-
-    const urgentTasks =
-      relevantTasks.filter(t => {
-
-        if (
-          t.status === 'CONCLUÍDO' ||
-          !t.dueDate
-        ) {
-          return false;
-        }
-
-        const due =
-          new Date(t.dueDate);
-
-        const diffDays =
-          Math.ceil(
-            (
-              due - today
-            ) /
-            (1000 * 60 * 60 * 24)
+      const relevantTasks =
+        manager
+          ? tasks
+          : tasks.filter(
+            task =>
+              String(task.memberId) ===
+              String(loggedId)
           );
 
-        return (
-          diffDays >= 0 &&
-          diffDays <= 2
-        );
+      const urgentTasks =
+        relevantTasks.filter(task => {
 
-      });
+          if (
+            String(task.status)
+              .toUpperCase() ===
+            'CONCLUÍDO' ||
+            !task.dueDate
+          ) {
 
-    /*
-     * ==========================================================
-     * NADA PARA MOSTRAR
-     * ==========================================================
-     */
+            return false;
 
-    if (
-      pendingTransfers.length === 0 &&
-      senderNotices.length === 0 &&
-      urgentTasks.length === 0
-    ) {
+          }
 
-      bar.style.display =
-        'none';
+          const due =
+            new Date(task.dueDate);
 
-      container.innerHTML = '';
+          const diffDays =
+            Math.ceil(
+              (
+                due - today
+              ) /
+              (1000 * 60 * 60 * 24)
+            );
 
-      return;
+          return (
+            diffDays >= 0 &&
+            diffDays <= 2
+          );
 
-    }
+        });
 
-    bar.style.display =
-      'block';
+      // ========================================================
+      // NADA PARA MOSTRAR
+      // ========================================================
 
-    let html =
-      `<div>`;
+      if (
+        pendingTransfers.length === 0 &&
+        senderNotices.length === 0 &&
+        urgentTasks.length === 0
+      ) {
 
-    /*
-     * ==========================================================
-     * TRANSFERÊNCIA RECEBIDA
-     * ==========================================================
-     */
+        bar.style.display = 'none';
 
-    if (
-      pendingTransfers.length > 0
-    ) {
+        container.innerHTML = '';
 
-      const firstTr =
-        pendingTransfers[0];
+        return;
 
-      const taskId =
-        getTransferTaskId(
-          firstTr
-        );
+      }
 
-      const fromMemberId =
-        getTransferFromMemberId(
-          firstTr
-        );
+      // ========================================================
+      // MOSTRA BARRA
+      // ========================================================
 
-      const toMemberId =
-        getTransferToMemberId(
-          firstTr
-        );
+      bar.style.display = 'block';
 
-      const task =
-        tasks.find(
-          t =>
-            String(t.id) ===
-            String(taskId)
-        ) ||
-        {
-          title: 'Atividade'
-        };
+      let html = '<div>';
 
-      const fromMem =
-        membersMap.get(
-          String(fromMemberId)
-        ) ||
-        {
-          name: 'Alguém'
-        };
+      // ========================================================
+      // TRANSFERÊNCIA RECEBIDA
+      // ========================================================
 
-      const toMem =
-        membersMap.get(
-          String(toMemberId)
-        ) ||
-        {
-          name: 'Você'
-        };
+      if (pendingTransfers.length > 0) {
 
-      html += `
+        const firstTr =
+          pendingTransfers[0];
 
-        <div
-          style="
-            display:flex;
-            justify-content:space-between;
-            align-items:center;
-            background:#1e1b4b;
-            border:1px solid #4338ca;
-            padding:0.6rem 1rem;
-            border-radius:4px;
-            color:#c7d2fe;
-            font-size:0.85rem;
-            margin-bottom:0.5rem;
-          "
-        >
+        const taskId =
+          getTransferTaskId(
+            firstTr
+          );
 
-          <span>
+        const fromMemberId =
+          getTransferFromMemberId(
+            firstTr
+          );
 
-            🔄
+        const toMemberId =
+          getTransferToMemberId(
+            firstTr
+          );
 
-            <strong>
-              Solicitação de Transferência:
-            </strong>
+        const task =
+          tasks.find(
+            t =>
+              String(t.id) ===
+              String(taskId)
+          ) || {
+            title: 'Atividade'
+          };
 
-            "${task.title}"
+        const fromMem =
+          membersMap.get(
+            String(fromMemberId)
+          ) || {
+            name: 'Alguém'
+          };
 
-            enviada por
-            ${fromMem.name}
+        const toMem =
+          membersMap.get(
+            String(toMemberId)
+          ) || {
+            name: 'Você'
+          };
 
-            para
-            ${toMem.name}.
-
-          </span>
+        html += `
 
           <div
             style="
               display:flex;
-              gap:0.5rem;
+              justify-content:space-between;
+              align-items:center;
+              background:#1e1b4b;
+              border:1px solid #4338ca;
+              padding:0.6rem 1rem;
+              border-radius:4px;
+              color:#c7d2fe;
+              font-size:0.85rem;
+              margin-bottom:0.5rem;
             "
           >
 
-            <button
-              class="btn btn-primary btn-accept-transfer"
-              data-id="${firstTr.id}"
-              style="
-                padding:0.2rem 0.6rem;
-                font-size:0.75rem;
-                background:#10b981;
-                border:none;
-                color:white;
-                font-weight:700;
-                cursor:pointer;
-                border-radius:4px;
-              "
-            >
-              Aceitar
-            </button>
+            <span>
 
-            <button
-              class="btn btn-secondary btn-reject-transfer"
-              data-id="${firstTr.id}"
+              🔄
+
+              <strong>
+                Solicitação de Transferência:
+              </strong>
+
+              "${task.title}"
+
+              enviada por
+              ${fromMem.name}
+
+              para
+              ${toMem.name}.
+
+            </span>
+
+            <div
               style="
-                padding:0.2rem 0.6rem;
-                font-size:0.75rem;
-                background:#ef4444;
-                border:none;
-                color:white;
-                font-weight:700;
-                cursor:pointer;
-                border-radius:4px;
+                display:flex;
+                gap:0.5rem;
               "
             >
-              Recusar
-            </button>
+
+              <button
+                class="btn btn-accept-transfer"
+                data-id="${firstTr.id}"
+                style="
+                  padding:0.2rem 0.6rem;
+                  font-size:0.75rem;
+                  background:#10b981;
+                  border:none;
+                  color:white;
+                  font-weight:700;
+                  cursor:pointer;
+                  border-radius:4px;
+                "
+              >
+                Aceitar
+              </button>
+
+              <button
+                class="btn btn-reject-transfer"
+                data-id="${firstTr.id}"
+                style="
+                  padding:0.2rem 0.6rem;
+                  font-size:0.75rem;
+                  background:#ef4444;
+                  border:none;
+                  color:white;
+                  font-weight:700;
+                  cursor:pointer;
+                  border-radius:4px;
+                "
+              >
+                Recusar
+              </button>
+
+            </div>
 
           </div>
 
-        </div>
+        `;
 
-      `;
+      }
 
-      /*
-       * ==========================================================
-       * RETORNO DA TRANSFERÊNCIA
-       * ==========================================================
-       */
+      // ========================================================
+      // RESPOSTA PARA REMETENTE
+      // ========================================================
 
-    } else if (
-      senderNotices.length > 0
-    ) {
+      else if (
+        senderNotices.length > 0
+      ) {
 
-      const firstNotice =
-        senderNotices[0];
+        const firstNotice =
+          senderNotices[0];
 
-      const taskId =
-        getTransferTaskId(
-          firstNotice
-        );
+        const taskId =
+          getTransferTaskId(
+            firstNotice
+          );
 
-      const toMemberId =
-        getTransferToMemberId(
-          firstNotice
-        );
+        const toMemberId =
+          getTransferToMemberId(
+            firstNotice
+          );
 
-      const task =
-        tasks.find(
-          t =>
-            String(t.id) ===
-            String(taskId)
-        ) ||
-        {
-          title: 'Atividade'
-        };
+        const task =
+          tasks.find(
+            t =>
+              String(t.id) ===
+              String(taskId)
+          ) || {
+            title: 'Atividade'
+          };
 
-      const toMem =
-        membersMap.get(
-          String(toMemberId)
-        ) ||
-        {
-          name: 'Colega'
-        };
+        const toMem =
+          membersMap.get(
+            String(toMemberId)
+          ) || {
+            name: 'Colega'
+          };
 
-      const statusLabel =
-        firstNotice.status ===
-          'ACEITO'
-          ? 'aceitou'
-          : 'recusou';
+        const accepted =
+          String(
+            firstNotice.status
+          ).toUpperCase() ===
+          'ACEITO';
 
-      const statusColor =
-        firstNotice.status ===
-          'ACEITO'
-          ? '#10b981'
-          : '#ef4444';
+        const statusLabel =
+          accepted
+            ? 'aceitou'
+            : 'recusou';
 
-      html += `
+        const statusColor =
+          accepted
+            ? '#10b981'
+            : '#ef4444';
 
-        <div
-          style="
-            display:flex;
-            justify-content:space-between;
-            align-items:center;
-            background:#1e1b4b;
-            border:1px solid #4338ca;
-            padding:0.6rem 1rem;
-            border-radius:4px;
-            color:#c7d2fe;
-            font-size:0.85rem;
-            margin-bottom:0.5rem;
-          "
-        >
-
-          <span>
-
-            🔄
-
-            <strong
-              style="
-                color:${statusColor};
-              "
-            >
-              ${toMem.name}
-              ${statusLabel}
-            </strong>
-
-            a transferência da atividade
-
-            "${task.title}".
-
-          </span>
+        html += `
 
           <div
             style="
               display:flex;
-              gap:0.5rem;
+              justify-content:space-between;
+              align-items:center;
+              background:#1e1b4b;
+              border:1px solid #4338ca;
+              padding:0.6rem 1rem;
+              border-radius:4px;
+              color:#c7d2fe;
+              font-size:0.85rem;
+              margin-bottom:0.5rem;
             "
           >
 
+            <span>
+
+              🔄
+
+              <strong
+                style="
+                  color:${statusColor};
+                "
+              >
+                ${toMem.name}
+                ${statusLabel}
+              </strong>
+
+              a transferência da atividade
+
+              "${task.title}".
+
+            </span>
+
             <button
-              class="btn btn-secondary btn-ack-sender-notice"
+              class="btn btn-ack-sender-notice"
               data-id="${firstNotice.id}"
               style="
                 padding:0.2rem 0.6rem;
@@ -1185,244 +1268,391 @@ document.addEventListener('DOMContentLoaded', async () => {
 
           </div>
 
-        </div>
+        `;
 
-      `;
+      }
 
-      /*
-       * ==========================================================
-       * PRAZOS
-       * ==========================================================
-       */
+      // ========================================================
+      // PRAZOS
+      // ========================================================
 
-    } else if (
-      urgentTasks.length > 0
-    ) {
+      else if (
+        urgentTasks.length > 0
+      ) {
 
-      html += `
+        html += `
 
-        <span>
+          <div
+            style="
+              padding:0.6rem 1rem;
+              background:#451a03;
+              border:1px solid #92400e;
+              border-radius:4px;
+              color:#fed7aa;
+              font-size:0.85rem;
+            "
+          >
 
-          ⚠️
+            ⚠️
 
-          <strong>
-            Alerta de Prazos:
-          </strong>
+            <strong>
+              Alerta de Prazos:
+            </strong>
 
-          Você tem
-          ${urgentTasks.length}
-          atividade(s) vencendo nos próximos 2 dias!
+            Você tem
 
-        </span>
+            ${urgentTasks.length}
 
-      `;
+            atividade(s)
 
-    }
+            vencendo nos próximos 2 dias!
 
-    html += `</div>`;
+          </div>
 
-    container.innerHTML =
-      html;
+        `;
 
-    // ==========================================================
-    // ACEITAR
-    // ==========================================================
+      }
 
-    const btnAccept =
-      container.querySelector(
-        '.btn-accept-transfer'
-      );
+      html += '</div>';
 
-    if (btnAccept) {
+      container.innerHTML =
+        html;
 
-      btnAccept.addEventListener(
-        'click',
-        async () => {
+      // ========================================================
+      // ACEITAR
+      // ========================================================
 
-          const transferId =
-            btnAccept.dataset.id;
+      const btnAccept =
+        container.querySelector(
+          '.btn-accept-transfer'
+        );
 
-          const transfer =
-            await DB.get(
-              'activity_transfers',
-              transferId
-            );
+      if (btnAccept) {
 
-          if (!transfer) {
-            return;
-          }
+        btnAccept.addEventListener(
+          'click',
+          async () => {
 
-          const toMemberId =
-            getTransferToMemberId(
+            const transferId =
+              btnAccept.dataset.id;
+
+            const transfer =
+              await DB.get(
+                'activity_transfers',
+                transferId
+              );
+
+            if (!transfer) {
+              return;
+            }
+
+            console.log(
+              '✅ ACEITANDO TRANSFERÊNCIA:',
               transfer
             );
 
-          const taskId =
-            getTransferTaskId(
-              transfer
-            );
+            transfer.status =
+              'ACEITO';
 
-          /*
-           * Atualiza status.
-           */
+            if (
+              'sender_acknowledged'
+              in transfer
+            ) {
 
-          transfer.status =
-            'ACEITO';
+              transfer.sender_acknowledged =
+                false;
 
-          setSenderAcknowledged(
-            transfer,
-            false
-          );
+            }
 
-          setTransferResponseDate(
-            transfer
-          );
+            if (
+              'senderAcknowledged'
+              in transfer
+            ) {
 
-          await DB.save(
-            'activity_transfers',
-            transfer
-          );
+              transfer.senderAcknowledged =
+                false;
 
-          /*
-           * Atualiza responsável da atividade.
-           */
+            }
 
-          const task =
-            await DB.get(
-              'tasks',
-              taskId
-            );
+            if (
+              'remetenteConfirmado'
+              in transfer
+            ) {
 
-          if (task) {
+              transfer.remetenteConfirmado =
+                false;
 
-            task.memberId =
-              toMemberId;
+            }
+
+            const now =
+              new Date()
+                .toISOString();
+
+            if (
+              'responded_at'
+              in transfer
+            ) {
+
+              transfer.responded_at =
+                now;
+
+            }
+
+            if (
+              'respondeuEm'
+              in transfer
+            ) {
+
+              transfer.respondeuEm =
+                now;
+
+            }
 
             await DB.save(
-              'tasks',
-              task
-            );
-
-          }
-
-          showToast(
-            'Transferência de atividade aceita!',
-            'success'
-          );
-
-          await refreshUI();
-
-        }
-      );
-
-    }
-
-    // ==========================================================
-    // RECUSAR
-    // ==========================================================
-
-    const btnReject =
-      container.querySelector(
-        '.btn-reject-transfer'
-      );
-
-    if (btnReject) {
-
-      btnReject.addEventListener(
-        'click',
-        async () => {
-
-          const transferId =
-            btnReject.dataset.id;
-
-          const transfer =
-            await DB.get(
               'activity_transfers',
-              transferId
+              transfer
             );
 
-          if (!transfer) {
-            return;
+            // Atualiza tarefa
+
+            const taskId =
+              getTransferTaskId(
+                transfer
+              );
+
+            const toMemberId =
+              getTransferToMemberId(
+                transfer
+              );
+
+            const task =
+              await DB.get(
+                'tasks',
+                taskId
+              );
+
+            if (task) {
+
+              task.memberId =
+                toMemberId;
+
+              await DB.save(
+                'tasks',
+                task
+              );
+
+            }
+
+            showToast(
+              'Transferência de atividade aceita!',
+              'success'
+            );
+
+            await refreshUI();
+
           }
+        );
 
-          transfer.status =
-            'REJEITADO';
+      }
 
-          setSenderAcknowledged(
-            transfer,
-            false
-          );
+      // ========================================================
+      // RECUSAR
+      // ========================================================
 
-          setTransferResponseDate(
-            transfer
-          );
+      const btnReject =
+        container.querySelector(
+          '.btn-reject-transfer'
+        );
 
-          await DB.save(
-            'activity_transfers',
-            transfer
-          );
+      if (btnReject) {
 
-          showToast(
-            'Solicitação de transferência recusada.',
-            'info'
-          );
+        btnReject.addEventListener(
+          'click',
+          async () => {
 
-          await refreshUI();
+            const transferId =
+              btnReject.dataset.id;
 
-        }
-      );
+            const transfer =
+              await DB.get(
+                'activity_transfers',
+                transferId
+              );
 
-    }
+            if (!transfer) {
+              return;
+            }
 
-    // ==========================================================
-    // OK DO REMETENTE
-    // ==========================================================
+            console.log(
+              '❌ RECUSANDO TRANSFERÊNCIA:',
+              transfer
+            );
 
-    const btnAckNotice =
-      container.querySelector(
-        '.btn-ack-sender-notice'
-      );
+            transfer.status =
+              'REJEITADO';
 
-    if (btnAckNotice) {
+            if (
+              'sender_acknowledged'
+              in transfer
+            ) {
 
-      btnAckNotice.addEventListener(
-        'click',
-        async () => {
+              transfer.sender_acknowledged =
+                false;
 
-          const transferId =
-            btnAckNotice.dataset.id;
+            }
 
-          const transfer =
-            await DB.get(
+            if (
+              'senderAcknowledged'
+              in transfer
+            ) {
+
+              transfer.senderAcknowledged =
+                false;
+
+            }
+
+            if (
+              'remetenteConfirmado'
+              in transfer
+            ) {
+
+              transfer.remetenteConfirmado =
+                false;
+
+            }
+
+            const now =
+              new Date()
+                .toISOString();
+
+            if (
+              'responded_at'
+              in transfer
+            ) {
+
+              transfer.responded_at =
+                now;
+
+            }
+
+            if (
+              'respondeuEm'
+              in transfer
+            ) {
+
+              transfer.respondeuEm =
+                now;
+
+            }
+
+            await DB.save(
               'activity_transfers',
-              transferId
+              transfer
             );
 
-          if (!transfer) {
-            return;
+            showToast(
+              'Solicitação de transferência recusada.',
+              'info'
+            );
+
+            await refreshUI();
+
           }
+        );
 
-          setSenderAcknowledged(
-            transfer,
-            true
-          );
+      }
 
-          await DB.save(
-            'activity_transfers',
-            transfer
-          );
+      // ========================================================
+      // OK REMETENTE
+      // ========================================================
 
-          await refreshUI();
+      const btnAckNotice =
+        container.querySelector(
+          '.btn-ack-sender-notice'
+        );
 
-        }
+      if (btnAckNotice) {
+
+        btnAckNotice.addEventListener(
+          'click',
+          async () => {
+
+            const transferId =
+              btnAckNotice.dataset.id;
+
+            const transfer =
+              await DB.get(
+                'activity_transfers',
+                transferId
+              );
+
+            if (!transfer) {
+              return;
+            }
+
+            console.log(
+              '👋 CONFIRMANDO NOTIFICAÇÃO:',
+              transfer
+            );
+
+            if (
+              'sender_acknowledged'
+              in transfer
+            ) {
+
+              transfer.sender_acknowledged =
+                true;
+
+            }
+
+            if (
+              'senderAcknowledged'
+              in transfer
+            ) {
+
+              transfer.senderAcknowledged =
+                true;
+
+            }
+
+            if (
+              'remetenteConfirmado'
+              in transfer
+            ) {
+
+              transfer.remetenteConfirmado =
+                true;
+
+            }
+
+            await DB.save(
+              'activity_transfers',
+              transfer
+            );
+
+            await refreshUI();
+
+          }
+        );
+
+      }
+
+    } catch (error) {
+
+      console.error(
+        '❌ ERRO AO CARREGAR NOTIFICAÇÕES:',
+        error
       );
+
+      bar.style.display =
+        'none';
 
     }
 
   }
 
   // ============================================================
-  // ABAS DE MEMBROS
+  // ABAS DOS MEMBROS
   // ============================================================
 
   async function renderMemberTabs() {
@@ -1432,13 +1662,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         'member-tabs-bar'
       );
 
-    if (!container) return;
+    if (!container) {
+      return;
+    }
 
     if (!isManager()) {
 
       container.innerHTML = '';
 
       return;
+
     }
 
     const members =
@@ -1458,26 +1691,26 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     `;
 
-    members.forEach(m => {
+    members.forEach(member => {
 
       html += `
 
         <button
-          class="tab-btn ${currentMemberFilter === m.id
+          class="tab-btn ${currentMemberFilter === member.id
           ? 'active'
           : ''
         }"
-          data-id="${m.id}"
+          data-id="${member.id}"
         >
 
           <img
-            src="${m.photo || ''}"
-            alt="${m.name}"
+            src="${member.photo}"
+            alt="${member.name}"
             class="tab-avatar"
           >
 
           <span>
-            ${m.name.split(' ')[0]}
+            ${member.name.split(' ')[0]}
           </span>
 
         </button>
@@ -1529,6 +1762,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       );
 
       return;
+
     }
 
     const member =
@@ -1553,12 +1787,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       const memberTasks =
         tasks.filter(
-          t =>
-            String(t.memberId) ===
-            String(memberId)
+          task =>
+            task.memberId ===
+            memberId
         );
 
-      for (const task of memberTasks) {
+      for (
+        const task
+        of memberTasks
+      ) {
 
         await DB.delete(
           'tasks',
@@ -1594,7 +1831,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ============================================================
-  // MODAL DE DETALHES
+  // DETALHES DA TAREFA
   // ============================================================
 
   async function openTaskDetailsModal(
@@ -1607,7 +1844,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         taskId
       );
 
-    if (!task) return;
+    if (!task) {
+      return;
+    }
 
     const loggedId =
       getLoggedMemberId();
@@ -1625,8 +1864,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const isInGroup =
         taskMembersAll.some(
           tm =>
-            String(tm.taskId) ===
-            String(task.id) &&
+            tm.taskId === task.id &&
             String(tm.memberId) ===
             String(loggedId)
         );
@@ -1652,21 +1890,24 @@ document.addEventListener('DOMContentLoaded', async () => {
       await DB.getAll('members');
 
     const impediments =
-      await DB.getAll('impediments');
+      await DB.getAll(
+        'impediments'
+      );
 
     const projects =
       await DB.getAll('projects');
 
     const taskMembers =
-      await DB.getAll('task_members');
+      await DB.getAll(
+        'task_members'
+      );
 
     const member =
       members.find(
         m =>
-          String(m.id) ===
-          String(task.memberId)
-      ) ||
-      {
+          m.id ===
+          task.memberId
+      ) || {
         name: 'Não atribuído',
         role: '',
         photo: ''
@@ -1675,22 +1916,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     const taskImpediments =
       impediments.filter(
         imp =>
-          String(imp.taskId) ===
-          String(task.id)
+          imp.taskId ===
+          task.id
       );
 
     const project =
       projects.find(
         p =>
-          String(p.id) ===
-          String(task.projectId)
+          p.id ===
+          task.projectId
       );
 
     const groupLinks =
       taskMembers.filter(
         tm =>
-          String(tm.taskId) ===
-          String(task.id)
+          tm.taskId ===
+          task.id
       );
 
     const groupMembers =
@@ -1698,15 +1939,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         m =>
           groupLinks.some(
             gl =>
-              String(gl.memberId) ===
-              String(m.id)
+              gl.memberId ===
+              m.id
           )
       );
 
     const elapsedSecs =
-      TimerEngine.getCurrentElapsedSeconds(
-        task
-      );
+      TimerEngine
+        .getCurrentElapsedSeconds(
+          task
+        );
 
     const timeFormatted =
       TimerEngine.formatTime(
@@ -1724,8 +1966,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       );
 
     if (titleEl) {
+
       titleEl.textContent =
         `📌 ${task.title}`;
+
     }
 
     if (bodyEl) {
@@ -1752,8 +1996,10 @@ document.addEventListener('DOMContentLoaded', async () => {
           >
 
             <span
-              class="badge-priority priority-${(task.priority || 'média')
-          .toLowerCase()
+              class="badge-priority priority-${(
+          task.priority ||
+          'média'
+        ).toLowerCase()
         }"
             >
               ${task.priority || 'Média'}
@@ -1795,13 +2041,17 @@ document.addEventListener('DOMContentLoaded', async () => {
           >
 
             <div>
-              <strong>👤 Responsável:</strong>
+              <strong>
+                👤 Responsável:
+              </strong>
               ${member.name}
               (${member.role || 'Membro'})
             </div>
 
             <div>
-              <strong>📅 Prazo:</strong>
+              <strong>
+                📅 Prazo:
+              </strong>
               ${task.dueDate
           ? task.dueDate
             .split('-')
@@ -1812,12 +2062,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             </div>
 
             <div>
-              <strong>⏱️ Tempo Trabalhado:</strong>
+              <strong>
+                ⏱️ Tempo Trabalhado:
+              </strong>
               ${timeFormatted}
             </div>
 
             <div>
-              <strong>📁 Projeto:</strong>
+              <strong>
+                📁 Projeto:
+              </strong>
               ${project
           ? project.name
           : 'Nenhum'
@@ -1828,6 +2082,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
           ${groupMembers.length > 0
           ? `
+
                 <div
                   style="
                     margin-top:0.75rem;
@@ -1850,39 +2105,45 @@ document.addEventListener('DOMContentLoaded', async () => {
                     "
                   >
 
-                    ${groupMembers.map(gm => `
+                    ${groupMembers
+            .map(
+              gm => `
 
-                      <span
-                        style="
-                          display:inline-flex;
-                          align-items:center;
-                          gap:0.3rem;
-                          background:rgba(255,255,255,0.06);
-                          padding:0.2rem 0.5rem;
-                          border-radius:var(--radius-full);
-                        "
-                      >
+                            <span
+                              style="
+                                display:inline-flex;
+                                align-items:center;
+                                gap:0.3rem;
+                                background:rgba(255,255,255,0.06);
+                                padding:0.2rem 0.5rem;
+                                border-radius:var(--radius-full);
+                              "
+                            >
 
-                        <img
-                          src="${gm.photo || ''}"
-                          style="
-                            width:18px;
-                            height:18px;
-                            border-radius:50%;
-                          "
-                        >
+                              <img
+                                src="${gm.photo}"
+                                style="
+                                  width:18px;
+                                  height:18px;
+                                  border-radius:50%;
+                                "
+                              >
 
-                        <span>
-                          ${gm.name}
-                        </span>
+                              <span>
+                                ${gm.name}
+                              </span>
 
-                      </span>
+                            </span>
 
-                    `).join('')}
+                          `
+            )
+            .join('')
+          }
 
                   </div>
 
                 </div>
+
               `
           : ''
         }
@@ -1902,6 +2163,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         ${taskImpediments.length === 0
           ? `
+
               <p
                 style="
                   font-size:0.8rem;
@@ -1911,44 +2173,52 @@ document.addEventListener('DOMContentLoaded', async () => {
                 Nenhum contratempo relatado
                 para esta atividade.
               </p>
+
             `
-          : taskImpediments.map(
-            imp => `
-                  <div
-                    style="
-                      background:rgba(239,68,68,0.08);
-                      border:1px solid rgba(239,68,68,0.2);
-                      border-radius:var(--radius-sm);
-                      padding:0.6rem;
-                      margin-bottom:0.5rem;
-                      font-size:0.8rem;
-                    "
-                  >
+          : taskImpediments
+            .map(
+              imp => `
 
-                    <p
+                    <div
                       style="
-                        color:#ef4444;
-                        font-weight:600;
+                        background:rgba(239,68,68,0.08);
+                        border:1px solid rgba(239,68,68,0.2);
+                        border-radius:var(--radius-sm);
+                        padding:0.6rem;
+                        margin-bottom:0.5rem;
+                        font-size:0.8rem;
                       "
                     >
-                      "${imp.description}"
-                    </p>
 
-                    <span
-                      style="
-                        font-size:0.7rem;
-                        color:var(--text-dim);
-                      "
-                    >
-                      Registrado em:
-                      ${new Date(
-              imp.createdAt
-            ).toLocaleString('pt-BR')}
-                    </span>
+                      <p
+                        style="
+                          color:#ef4444;
+                          font-weight:600;
+                        "
+                      >
+                        "${imp.description}"
+                      </p>
 
-                  </div>
-                `
-          ).join('')
+                      <span
+                        style="
+                          font-size:0.7rem;
+                          color:var(--text-dim);
+                        "
+                      >
+                        Registrado em:
+                        ${new Date(
+                imp.createdAt
+              ).toLocaleString(
+                'pt-BR'
+              )
+                }
+                      </span>
+
+                    </div>
+
+                  `
+            )
+            .join('')
         }
 
         <div
@@ -2042,11 +2312,15 @@ document.addEventListener('DOMContentLoaded', async () => {
               );
 
             if (headerTitle) {
+
               headerTitle.textContent =
                 '✏️ Editar Atividade';
+
             }
 
-            openModal(modalTask);
+            openModal(
+              modalTask
+            );
 
           }
         );
@@ -2123,14 +2397,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     const membersMap =
       new Map(
         members.map(
-          m => [String(m.id), m]
+          member => [
+            member.id,
+            member
+          ]
         )
       );
 
     const dayTasks =
       tasks.filter(
-        t =>
-          t.dueDate === dateStr
+        task =>
+          task.dueDate ===
+          dateStr
       );
 
     const dateFormatted =
@@ -2178,79 +2456,84 @@ document.addEventListener('DOMContentLoaded', async () => {
       } else {
 
         bodyEl.innerHTML =
-          dayTasks.map(t => {
+          dayTasks
+            .map(task => {
 
-            const m =
-              membersMap.get(
-                String(t.memberId)
-              ) ||
-              {
-                name: 'Desconhecido',
-                photo: ''
-              };
+              const member =
+                membersMap.get(
+                  task.memberId
+                ) || {
+                  name: 'Desconhecido',
+                  photo: ''
+                };
 
-            return `
+              return `
 
-              <div
-                style="
-                  background:var(--bg-input);
-                  border:1px solid var(--border-color);
-                  border-radius:var(--radius-md);
-                  padding:0.85rem;
-                  margin-bottom:0.75rem;
-                  display:flex;
-                  justify-content:space-between;
-                  align-items:center;
-                "
-              >
+                <div
+                  style="
+                    background:var(--bg-input);
+                    border:1px solid var(--border-color);
+                    border-radius:var(--radius-md);
+                    padding:0.85rem;
+                    margin-bottom:0.75rem;
+                    display:flex;
+                    justify-content:space-between;
+                    align-items:center;
+                  "
+                >
 
-                <div>
+                  <div>
 
-                  <strong
-                    style="
-                      font-size:0.9rem;
-                    "
-                  >
-                    ${t.title}
-                  </strong>
-
-                  <p
-                    style="
-                      font-size:0.75rem;
-                      color:var(--text-muted);
-                    "
-                  >
-                    ${t.description || ''}
-                  </p>
-
-                  <div
-                    style="
-                      font-size:0.75rem;
-                      color:var(--text-dim);
-                      margin-top:0.3rem;
-                    "
-                  >
-                    👤 Responsável:
-                    <strong>
-                      ${m.name}
+                    <strong
+                      style="
+                        font-size:0.9rem;
+                      "
+                    >
+                      ${task.title}
                     </strong>
+
+                    <p
+                      style="
+                        font-size:0.75rem;
+                        color:var(--text-muted);
+                      "
+                    >
+                      ${task.description ||
+                ''
+                }
+                    </p>
+
+                    <div
+                      style="
+                        font-size:0.75rem;
+                        color:var(--text-dim);
+                        margin-top:0.3rem;
+                      "
+                    >
+                      👤 Responsável:
+                      <strong>
+                        ${member.name}
+                      </strong>
+                    </div>
+
                   </div>
+
+                  <span
+                    class="badge-priority priority-${(
+                  task.priority ||
+                  'média'
+                ).toLowerCase()
+                }"
+                  >
+                    ${task.priority || 'Média'}
+                  </span>
 
                 </div>
 
-                <span
-                  class="badge-priority priority-${(t.priority || 'média')
-                .toLowerCase()
-              }"
-                >
-                  ${t.priority || 'Média'}
-                </span>
+              `;
 
-              </div>
-
-            `;
-
-          }).join('');
+            })
+            .join('');
 
       }
 
@@ -2279,9 +2562,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       .getElementById(
         'impediment-preview'
       )
-      .classList.remove(
-        'active'
-      );
+      .classList
+      .remove('active');
 
     openModal(
       modalImpediment
@@ -2322,9 +2604,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   function openModal(modal) {
 
     if (modal) {
-      modal.classList.add(
-        'active'
-      );
+      modal.classList.add('active');
     }
 
   }
@@ -2332,9 +2612,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   function closeModal(modal) {
 
     if (modal) {
-      modal.classList.remove(
-        'active'
-      );
+      modal.classList.remove('active');
     }
 
   }
@@ -2379,6 +2657,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           );
 
           return;
+
         }
 
         formMember.reset();
@@ -2387,9 +2666,8 @@ document.addEventListener('DOMContentLoaded', async () => {
           .getElementById(
             'member-photo-preview'
           )
-          .classList.remove(
-            'active'
-          );
+          .classList
+          .remove('active');
 
         openModal(
           modalMember
@@ -2429,6 +2707,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         await populateTaskMemberSelect();
+
         await populateTaskProjectSelect();
 
         document.getElementById(
@@ -2571,7 +2850,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
   // ============================================================
-  // SELECT DE MEMBROS
+  // SELECT MEMBRO DA TAREFA
   // ============================================================
 
   async function populateTaskMemberSelect() {
@@ -2581,7 +2860,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         'task-member'
       );
 
-    if (!select) return;
+    if (!select) {
+      return;
+    }
+
+    const manager =
+      isManager();
 
     const loggedId =
       getLoggedMemberId();
@@ -2589,27 +2873,36 @@ document.addEventListener('DOMContentLoaded', async () => {
     const members =
       await DB.getAll('members');
 
+    const options =
+      manager
+        ? members
+        : members;
+
     select.innerHTML =
-      members.map(m => `
+      options
+        .map(
+          member => `
 
-        <option
-          value="${m.id}"
-          ${String(m.id) ===
-          String(loggedId)
-          ? 'selected'
-          : ''
-        }
-        >
-          ${m.name}
-          (${m.role || 'Membro'})
-        </option>
+            <option
+              value="${member.id}"
+              ${!manager &&
+              member.id === loggedId
+              ? 'selected'
+              : ''
+            }
+            >
+              ${member.name}
+              (${member.role || 'Membro'})
+            </option>
 
-      `).join('');
+          `
+        )
+        .join('');
 
   }
 
   // ============================================================
-  // SELECT DE PROJETOS
+  // SELECT PROJETO
   // ============================================================
 
   async function populateTaskProjectSelect() {
@@ -2619,7 +2912,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         'task-project'
       );
 
-    if (!select) return;
+    if (!select) {
+      return;
+    }
 
     const projects =
       await DB.getAll('projects');
@@ -2629,18 +2924,24 @@ document.addEventListener('DOMContentLoaded', async () => {
         -- Sem Projeto --
       </option>` +
 
-      projects.map(
-        p => `
-          <option value="${p.id}">
-            ${p.name}
-          </option>
-        `
-      ).join('');
+      projects
+        .map(
+          project => `
+
+            <option
+              value="${project.id}"
+            >
+              ${project.name}
+            </option>
+
+          `
+        )
+        .join('');
 
   }
 
   // ============================================================
-  // FOTO MEMBRO
+  // FOTO DO MEMBRO
   // ============================================================
 
   const memberPhotoInput =
@@ -2657,31 +2958,33 @@ document.addEventListener('DOMContentLoaded', async () => {
         const file =
           e.target.files[0];
 
-        if (!file) return;
+        if (file) {
 
-        const reader =
-          new FileReader();
+          const reader =
+            new FileReader();
 
-        reader.onload =
-          evt => {
+          reader.onload =
+            evt => {
 
-            const preview =
-              document.getElementById(
-                'member-photo-preview'
+              const preview =
+                document.getElementById(
+                  'member-photo-preview'
+                );
+
+              preview.src =
+                evt.target.result;
+
+              preview.classList.add(
+                'active'
               );
 
-            preview.src =
-              evt.target.result;
+            };
 
-            preview.classList.add(
-              'active'
-            );
+          reader.readAsDataURL(
+            file
+          );
 
-          };
-
-        reader.readAsDataURL(
-          file
-        );
+        }
 
       }
     );
@@ -2689,7 +2992,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ============================================================
-  // FOTO PERFIL
+  // FOTO EDITAR PERFIL
   // ============================================================
 
   const editProfilePhotoInput =
@@ -2706,31 +3009,33 @@ document.addEventListener('DOMContentLoaded', async () => {
         const file =
           e.target.files[0];
 
-        if (!file) return;
+        if (file) {
 
-        const reader =
-          new FileReader();
+          const reader =
+            new FileReader();
 
-        reader.onload =
-          evt => {
+          reader.onload =
+            evt => {
 
-            const preview =
-              document.getElementById(
-                'edit-profile-preview'
+              const preview =
+                document.getElementById(
+                  'edit-profile-preview'
+                );
+
+              preview.src =
+                evt.target.result;
+
+              preview.classList.add(
+                'active'
               );
 
-            preview.src =
-              evt.target.result;
+            };
 
-            preview.classList.add(
-              'active'
-            );
+          reader.readAsDataURL(
+            file
+          );
 
-          };
-
-        reader.readAsDataURL(
-          file
-        );
+        }
 
       }
     );
@@ -2755,31 +3060,33 @@ document.addEventListener('DOMContentLoaded', async () => {
         const file =
           e.target.files[0];
 
-        if (!file) return;
+        if (file) {
 
-        const reader =
-          new FileReader();
+          const reader =
+            new FileReader();
 
-        reader.onload =
-          evt => {
+          reader.onload =
+            evt => {
 
-            const preview =
-              document.getElementById(
-                'impediment-preview'
+              const preview =
+                document.getElementById(
+                  'impediment-preview'
+                );
+
+              preview.src =
+                evt.target.result;
+
+              preview.classList.add(
+                'active'
               );
 
-            preview.src =
-              evt.target.result;
+            };
 
-            preview.classList.add(
-              'active'
-            );
+          reader.readAsDataURL(
+            file
+          );
 
-          };
-
-        reader.readAsDataURL(
-          file
-        );
+        }
 
       }
     );
@@ -2787,7 +3094,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ============================================================
-  // FORM MEMBRO
+  // CADASTRO DE MEMBRO
   // ============================================================
 
   if (formMember) {
@@ -2806,6 +3113,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           );
 
           return;
+
         }
 
         const name =
@@ -2861,6 +3169,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           );
 
           return;
+
         }
 
         const photoPreview =
@@ -2902,9 +3211,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             Date.now(),
 
           name,
+
           role,
+
           contact,
+
           email,
+
           password,
 
           accessLevel:
@@ -2939,7 +3252,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ============================================================
-  // FORM PERFIL
+  // EDITAR PERFIL
   // ============================================================
 
   if (formEditProfile) {
@@ -2991,84 +3304,81 @@ document.addEventListener('DOMContentLoaded', async () => {
             memberId
           );
 
-        if (!member) return;
+        if (member) {
 
-        member.name =
-          name;
+          member.name =
+            name;
 
-        member.role =
-          role;
+          member.role =
+            role;
 
-        member.email =
-          email;
+          member.email =
+            email;
 
-        member.contact =
-          email;
+          member.contact =
+            email;
 
-        if (
-          preview &&
-          preview.src
-        ) {
+          if (preview.src) {
+            member.photo =
+              preview.src;
+          }
 
-          member.photo =
-            preview.src;
+          if (
+            passwordField &&
+            passwordField.value
+          ) {
 
-        }
+            member.password =
+              passwordField.value;
 
-        if (
-          passwordField &&
-          passwordField.value
-        ) {
+          }
 
-          member.password =
-            passwordField.value;
+          if (
+            isManager() &&
+            accessLevelField &&
+            accessLevelField.value
+          ) {
 
-        }
+            member.accessLevel =
+              accessLevelField.value ===
+                'gestor'
+                ? 'gestor'
+                : 'colaborador';
 
-        if (
-          isManager() &&
-          accessLevelField &&
-          accessLevelField.value
-        ) {
+          }
 
-          member.accessLevel =
-            accessLevelField.value ===
-              'gestor'
-              ? 'gestor'
-              : 'colaborador';
-
-        }
-
-        await DB.save(
-          'members',
-          member
-        );
-
-        if (
-          String(memberId) ===
-          String(getLoggedMemberId())
-        ) {
-
-          localStorage.setItem(
-            'logged_access_level',
-            member.accessLevel ===
-              'gestor'
-              ? 'gestor'
-              : 'colaborador'
+          await DB.save(
+            'members',
+            member
           );
 
+          if (
+            String(memberId) ===
+            String(getLoggedMemberId())
+          ) {
+
+            localStorage.setItem(
+              'logged_access_level',
+              member.accessLevel ===
+                'gestor'
+                ? 'gestor'
+                : 'colaborador'
+            );
+
+          }
+
+          showToast(
+            'Perfil atualizado com sucesso!',
+            'success'
+          );
+
+          closeModal(
+            modalEditProfile
+          );
+
+          refreshUI();
+
         }
-
-        showToast(
-          'Perfil atualizado com sucesso!',
-          'success'
-        );
-
-        closeModal(
-          modalEditProfile
-        );
-
-        refreshUI();
 
       }
     );
@@ -3076,7 +3386,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ============================================================
-  // FORM TAREFA
+  // TAREFAS
   // ============================================================
 
   if (formTask) {
@@ -3144,6 +3454,7 @@ document.addEventListener('DOMContentLoaded', async () => {
               );
 
               return;
+
             }
 
             const previousState =
@@ -3175,7 +3486,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             );
 
             UndoEngine.pushAction({
-              type: 'TASK_UPDATE',
+              type:
+                'TASK_UPDATE',
               previousState
             });
 
@@ -3195,10 +3507,15 @@ document.addEventListener('DOMContentLoaded', async () => {
               Date.now(),
 
             title,
+
             description,
+
             memberId,
+
             projectId,
+
             priority,
+
             dueDate,
 
             status:
@@ -3217,7 +3534,8 @@ document.addEventListener('DOMContentLoaded', async () => {
               Date.now(),
 
             createdAt:
-              new Date().toISOString()
+              new Date()
+                .toISOString()
 
           };
 
@@ -3227,8 +3545,11 @@ document.addEventListener('DOMContentLoaded', async () => {
           );
 
           UndoEngine.pushAction({
-            type: 'TASK_CREATE',
-            taskId: newTask.id
+            type:
+              'TASK_CREATE',
+
+            taskId:
+              newTask.id
           });
 
           showToast(
@@ -3250,7 +3571,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ============================================================
-  // FORM PROJETO
+  // PROJETO
   // ============================================================
 
   if (formProject) {
@@ -3278,13 +3599,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             Date.now(),
 
           name,
+
           description,
 
           status:
             'EM ANDAMENTO',
 
           createdAt:
-            new Date().toISOString()
+            new Date()
+              .toISOString()
 
         };
 
@@ -3310,7 +3633,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ============================================================
-  // FORM CONTRATEMPO
+  // CONTRATEMPO
   // ============================================================
 
   if (formImpediment) {
@@ -3354,7 +3677,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             evidenceImg,
 
           createdAt:
-            new Date().toISOString()
+            new Date()
+              .toISOString()
 
         };
 
@@ -3397,7 +3721,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         const taskId =
           btnSaveTaskGroup.dataset.taskId;
 
-        if (!taskId) return;
+        if (!taskId) {
+          return;
+        }
 
         const checkboxes =
           document.querySelectorAll(
@@ -3412,8 +3738,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         const currentGroupTasks =
           existingTaskMembers.filter(
             tm =>
-              String(tm.taskId) ===
-              String(taskId)
+              tm.taskId ===
+              taskId
           );
 
         for (
@@ -3433,36 +3759,38 @@ document.addEventListener('DOMContentLoaded', async () => {
           of checkboxes
         ) {
 
-          if (!chk.checked) {
-            continue;
+          if (chk.checked) {
+
+            const newTm = {
+
+              id:
+                'tm-' +
+                Date.now() +
+                Math.floor(
+                  Math.random() *
+                  1000
+                ),
+
+              taskId,
+
+              memberId:
+                chk.dataset.memberId,
+
+              roleInTask:
+                'Colaborador',
+
+              createdAt:
+                new Date()
+                  .toISOString()
+
+            };
+
+            await DB.save(
+              'task_members',
+              newTm
+            );
+
           }
-
-          const newTm = {
-
-            id:
-              'tm-' +
-              Date.now() +
-              Math.floor(
-                Math.random() * 1000
-              ),
-
-            taskId,
-
-            memberId:
-              chk.dataset.memberId,
-
-            roleInTask:
-              'Colaborador',
-
-            createdAt:
-              new Date().toISOString()
-
-          };
-
-          await DB.save(
-            'task_members',
-            newTm
-          );
 
         }
 
@@ -3496,7 +3824,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         'toast-container'
       );
 
-    if (!container) return;
+    if (!container) {
+      return;
+    }
 
     const toast =
       document.createElement(
@@ -3530,7 +3860,8 @@ document.addEventListener('DOMContentLoaded', async () => {
           'translateX(100%)';
 
         setTimeout(
-          () => toast.remove(),
+          () =>
+            toast.remove(),
           300
         );
 
@@ -3541,7 +3872,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ============================================================
-  // INICIALIZAÇÃO
+  // DRAG AND DROP
   // ============================================================
 
   KanbanEngine.initDragAndDrop(
@@ -3561,16 +3892,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   );
 
+  // ============================================================
+  // CRONÔMETRO
+  // ============================================================
+
   TimerEngine.startGlobalTicker();
+
+  // ============================================================
+  // CTRL + Z
+  // ============================================================
 
   UndoEngine.initKeyboardShortcut(
     refreshUI,
     showToast
   );
 
-  /*
-   * Atualiza notificações a cada 20 segundos.
-   */
+  // ============================================================
+  // ATUALIZA NOTIFICAÇÕES
+  // A CADA 20 SEGUNDOS
+  // ============================================================
 
   setInterval(
     () => {
@@ -3589,6 +3929,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     },
     20000
   );
+
+  // ============================================================
+  // INICIALIZAÇÃO
+  // ============================================================
 
   await refreshUI();
 
