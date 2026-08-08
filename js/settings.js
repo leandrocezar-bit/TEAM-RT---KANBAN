@@ -125,12 +125,23 @@ export const SettingsEngine = {
 
     const membersMap = new Map(members.map(m => [m.id, m]));
     const pendingTransfersMap = new Map();
-    transfers.filter(t => t.status === 'PENDENTE').forEach(t => pendingTransfersMap.set(t.taskId, t));
+    // 1. Garanta que o 't' inicial de 'transfers' está presente
+    transfers
+      .filter(t => (t.status || '').toUpperCase() === 'PENDENTE')
+      .forEach(t => {
+        const taskId = t.taskId || t.task_id;
+        if (taskId) pendingTransfersMap.set(String(taskId), t);
+      });
 
     return filteredTasks.map(task => {
-      const currentMember = membersMap.get(task.memberId) || { name: 'Não atribuído', photo: '' };
-      const pendingTransfer = pendingTransfersMap.get(task.id);
-      const targetMember = pendingTransfer ? membersMap.get(pendingTransfer.toMemberId) : null;
+      const currentMember = membersMap.get(String(task.memberId)) || { name: 'Não atribuído', photo: '' };
+
+      // 2. Converta task.id para String na busca do Map
+      const pendingTransfer = pendingTransfersMap.get(String(task.id));
+
+      // 3. Suporte a ambos os nomes para pegar o recebedor
+      const targetMemberId = pendingTransfer ? (pendingTransfer.toMemberId || pendingTransfer.to_member_id) : null;
+      const targetMember = targetMemberId ? membersMap.get(String(targetMemberId)) : null;
 
       return `
         <tr>
