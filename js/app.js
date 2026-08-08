@@ -181,7 +181,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const loggedId = getLoggedMemberId();
     const manager = isManager();
 
-    // ⬇️ LINHA ADICIONADA: Atualiza a foto e o nome no topo
+    // Atualiza a foto e o nome no topo
     await updateHeaderUserProfile();
 
     // Colaborador comum não pode ficar preso numa view restrita (ex: veio de sessão anterior como gestor)
@@ -314,15 +314,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Notificações recebidas: transferências pendentes destinadas a mim
     const pendingTransfers = transfers.filter(t =>
-      t.status === 'PENDENTE' && loggedId && String(t.toMemberId) === String(loggedId)
+      t.status === 'PENDENTE' && loggedId && String(t.paraIdDoMembro) === String(loggedId)
     );
 
     // Notificações de retorno: transferências que eu enviei e já foram respondidas (aceitas/recusadas)
     const senderNotices = transfers.filter(t =>
       loggedId &&
-      String(t.fromMemberId) === String(loggedId) &&
+      String(t.deIdDoMembro) === String(loggedId) &&
       (t.status === 'ACEITO' || t.status === 'REJEITADO') &&
-      !t.senderAcknowledged
+      !t.remetenteConfirmado
     );
 
     const tasks = await DB.getAll('tasks');
@@ -349,9 +349,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (pendingTransfers.length > 0) {
       const firstTr = pendingTransfers[0];
-      const task = tasks.find(t => t.id === firstTr.taskId) || { title: 'Atividade' };
-      const fromMem = membersMap.get(firstTr.fromMemberId) || { name: 'Alguém' };
-      const toMem = membersMap.get(firstTr.toMemberId) || { name: 'Você' };
+      const task = tasks.find(t => t.id === firstTr.idDaTarefa) || { title: 'Atividade' };
+      const fromMem = membersMap.get(firstTr.deIdDoMembro) || { name: 'Alguém' };
+      const toMem = membersMap.get(firstTr.paraIdDoMembro) || { name: 'Você' };
 
       html += ` 
         <div style="display:flex; justify-content:space-between; align-items:center; background:#1e1b4b; border:1px solid #4338ca; padding:0.6rem 1rem; border-radius:4px; color:#c7d2fe; font-size:0.85rem; margin-bottom:0.5rem;"> 
@@ -364,8 +364,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       `;
     } else if (senderNotices.length > 0) {
       const firstNotice = senderNotices[0];
-      const task = tasks.find(t => t.id === firstNotice.taskId) || { title: 'Atividade' };
-      const toMem = membersMap.get(firstNotice.toMemberId) || { name: 'Colega' };
+      const task = tasks.find(t => t.id === firstNotice.idDaTarefa) || { title: 'Atividade' };
+      const toMem = membersMap.get(firstNotice.paraIdDoMembro) || { name: 'Colega' };
       const statusLabel = firstNotice.status === 'ACEITO' ? 'aceitou' : 'recusou';
       const statusColor = firstNotice.status === 'ACEITO' ? '#10b981' : '#ef4444';
 
@@ -395,12 +395,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         const transfer = await DB.get('activity_transfers', transferId);
         if (transfer) {
           transfer.status = 'ACEITO';
-          transfer.senderAcknowledged = false;
-          transfer.requested_at = new Date().toISOString();
+          transfer.remetenteConfirmado = false;
+          transfer.respondeuEm = new Date().toISOString();
           await DB.save('activity_transfers', transfer);
-          const task = await DB.get('tasks', transfer.taskId);
+          const task = await DB.get('tasks', transfer.idDaTarefa);
           if (task) {
-            task.memberId = transfer.toMemberId;
+            task.memberId = transfer.paraIdDoMembro;
             await DB.save('tasks', task);
           }
           showToast('Transferência de atividade aceita!', 'success');
@@ -416,8 +416,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         const transfer = await DB.get('activity_transfers', transferId);
         if (transfer) {
           transfer.status = 'REJEITADO';
-          transfer.senderAcknowledged = false;
-          transfer.requested_at = new Date().toISOString();
+          transfer.remetenteConfirmado = false;
+          transfer.respondeuEm = new Date().toISOString();
           await DB.save('activity_transfers', transfer);
           showToast('Solicitação de transferência recusada.', 'info');
           await refreshUI();
@@ -431,7 +431,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const transferId = btnAckNotice.dataset.id;
         const transfer = await DB.get('activity_transfers', transferId);
         if (transfer) {
-          transfer.senderAcknowledged = true;
+          transfer.remetenteConfirmado = true;
           await DB.save('activity_transfers', transfer);
           await refreshUI();
         }
