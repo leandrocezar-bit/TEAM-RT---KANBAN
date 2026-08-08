@@ -1,11 +1,14 @@
 /**
  * Motor de Banco de Dados com Supabase Cloud Persistence
+ * Versão compatível com a estrutura atual do Supabase
  */
 
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 
 const SUPABASE_URL = 'https://lspvdunxxxebzwyypqlx.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_jf69uVHlxULskHzGN__srA_oTi2LWPJ';
+
+const SUPABASE_ANON_KEY =
+  'sb_publishable_jf69uVHlxULskHzGN__srA_oTi2LWPJ';
 
 export const supabase = createClient(
   SUPABASE_URL,
@@ -13,9 +16,9 @@ export const supabase = createClient(
 );
 
 
-// ============================================================
-// CACHE LOCAL
-// ============================================================
+/* =========================================================
+   CACHE LOCAL
+   ========================================================= */
 
 const memoryStore = {
   members: [],
@@ -33,9 +36,43 @@ const lastFetchTime = {};
 const CACHE_TTL_MS = 5000;
 
 
-// ============================================================
-// BANCO DE DADOS
-// ============================================================
+/* =========================================================
+   CONFIGURAÇÃO DAS TABELAS
+   ========================================================= */
+
+const TABLE_MAP = {
+
+  members: 'members',
+
+  tasks: 'tasks',
+
+  impediments: 'impediments',
+
+  projects: 'projects',
+
+  task_members: 'task_members',
+
+  /*
+   * IMPORTANTE:
+   * No seu Supabase a tabela NÃO se chama
+   * activity_transfers.
+   *
+   * O nome real mostrado no seu print é:
+   * transferências_de_atividade
+   */
+  activity_transfers: 'transferências_de_atividade',
+
+  transfers: 'transferências_de_atividade',
+
+  cycle_templates: 'cycle_templates',
+
+  audit_logs: 'audit_logs'
+};
+
+
+/* =========================================================
+   BANCO DE DADOS
+   ========================================================= */
 
 export const DB = {
 
@@ -44,9 +81,9 @@ export const DB = {
   isCloudConnected: true,
 
 
-  // ==========================================================
-  // INICIALIZAÇÃO
-  // ==========================================================
+  /* =======================================================
+     INICIALIZAÇÃO
+     ======================================================= */
 
   async init() {
 
@@ -60,7 +97,7 @@ export const DB = {
       if (error) {
 
         console.warn(
-          '[Supabase] Erro na conexão:',
+          '[Supabase] Erro ao testar conexão:',
           error.message
         );
 
@@ -86,41 +123,19 @@ export const DB = {
   },
 
 
-  // ==========================================================
-  // MAPEAMENTO DE TABELAS
-  // ==========================================================
+  /* =======================================================
+     NOME DA TABELA
+     ======================================================= */
 
   mapStoreName(storeName) {
 
-    const map = {
-
-      members: 'members',
-
-      tasks: 'tasks',
-
-      impediments: 'impediments',
-
-      projects: 'projects',
-
-      task_members: 'task_members',
-
-      transfers: 'activity_transfers',
-
-      activity_transfers: 'activity_transfers',
-
-      cycle_templates: 'cycle_templates',
-
-      audit_logs: 'audit_logs'
-
-    };
-
-    return map[storeName] || storeName;
+    return TABLE_MAP[storeName] || storeName;
   },
 
 
-  // ==========================================================
-  // CAMEL CASE → SNAKE CASE
-  // ==========================================================
+  /* =======================================================
+     CAMEL CASE -> SNAKE CASE
+     ======================================================= */
 
   toSnakeCase(obj) {
 
@@ -143,9 +158,9 @@ export const DB = {
   },
 
 
-  // ==========================================================
-  // SNAKE CASE → CAMEL CASE
-  // ==========================================================
+  /* =======================================================
+     SNAKE CASE -> CAMEL CASE
+     ======================================================= */
 
   toCamelCase(obj) {
 
@@ -159,7 +174,9 @@ export const DB = {
 
       const camelKey = key.replace(
         /_([a-z])/g,
-        (_, letter) => letter.toUpperCase()
+        function (_, letter) {
+          return letter.toUpperCase();
+        }
       );
 
       result[camelKey] = obj[key];
@@ -169,9 +186,212 @@ export const DB = {
   },
 
 
-  // ==========================================================
-  // BUSCAR TODOS
-  // ==========================================================
+  /* =======================================================
+     ADAPTA TRANSFERÊNCIA DE ATIVIDADE
+     PARA A ESTRUTURA REAL DO SUPABASE
+     ======================================================= */
+
+  prepareActivityTransfer(item) {
+
+    const result = {};
+
+    /*
+     * ID
+     *
+     * No seu banco a primeira coluna está como:
+     * "eu ia"
+     *
+     * Como ela é a chave primária, usamos ela como ID.
+     */
+
+    if (
+      item.id !== undefined &&
+      item.id !== null
+    ) {
+
+      result['eu ia'] = String(item.id);
+
+    }
+
+
+    /*
+     * ID DA TAREFA
+     *
+     * Seu banco possui:
+     * id_da_tarefa
+     * ID da tarefa
+     *
+     * Vamos preencher as duas para manter
+     * compatibilidade com a estrutura atual.
+     */
+
+    const taskId =
+      item.taskId ??
+      item.id_da_tarefa ??
+      item['ID da tarefa'];
+
+    if (
+      taskId !== undefined &&
+      taskId !== null
+    ) {
+
+      result['id_da_tarefa'] = String(taskId);
+
+      result['ID da tarefa'] = String(taskId);
+
+    }
+
+
+    /*
+     * MEMBRO DE DESTINO
+     */
+
+    const toMemberId =
+      item.toMemberId ??
+      item.paraIdDoMembro ??
+      item.para_id_do_membro ??
+      item['paral do membro'];
+
+    if (
+      toMemberId !== undefined &&
+      toMemberId !== null
+    ) {
+
+      result['para_id_do_membro'] =
+        String(toMemberId);
+
+      result['paral do membro'] =
+        String(toMemberId);
+
+    }
+
+
+    /*
+     * MEMBRO DE ORIGEM
+     *
+     * O seu banco NÃO possui from_member_id.
+     *
+     * No print aparece:
+     * "do ID do membro"
+     *
+     * Então usamos essa coluna.
+     */
+
+    const fromMemberId =
+      item.fromMemberId ??
+      item.from_member_id ??
+      item.deIdDoMembro ??
+      item['do ID do membro'];
+
+    if (
+      fromMemberId !== undefined &&
+      fromMemberId !== null
+    ) {
+
+      result['do ID do membro'] =
+        String(fromMemberId);
+
+    }
+
+
+    /*
+     * STATUS
+     */
+
+    if (item.status !== undefined) {
+
+      result.status = item.status;
+
+    }
+
+
+    /*
+     * DATA DE CRIAÇÃO
+     */
+
+    const createdAt =
+      item.createdAt ??
+      item.criadoEm ??
+      item.criado_em;
+
+    if (createdAt !== undefined) {
+
+      result.criado_em = createdAt;
+
+    }
+
+
+    /*
+     * DATA DA SOLICITAÇÃO
+     */
+
+    const requestedAt =
+      item.requestedAt ??
+      item.solicitadoEm ??
+      item.solicitado_em;
+
+    if (requestedAt !== undefined) {
+
+      result.solicitado_em = requestedAt;
+
+    }
+
+
+    /*
+     * DATA DA RESPOSTA
+     */
+
+    const answeredAt =
+      item.answeredAt ??
+      item.respondeuEm ??
+      item.respondeu_em;
+
+    if (answeredAt !== undefined) {
+
+      result.respondeu_em = answeredAt;
+
+    }
+
+
+    /*
+     * CONFIRMAÇÃO DO REMETENTE
+     */
+
+    const senderConfirmed =
+      item.senderConfirmed ??
+      item.remetenteConfirmado ??
+      item.remetente_confirmado;
+
+    if (senderConfirmed !== undefined) {
+
+      result.remetenteConfirmado =
+        Boolean(senderConfirmed);
+
+      result.remetente_confirmado =
+        Boolean(senderConfirmed);
+
+    }
+
+
+    /*
+     * OUTROS CAMPOS QUE EXISTEM NO BANCO
+     */
+
+    if (item['de_id_do_sucesso'] !== undefined) {
+
+      result['de_id_do_sucesso'] =
+        item['de_id_do_sucesso'];
+
+    }
+
+
+    return result;
+  },
+
+
+  /* =======================================================
+     GET ALL
+     ======================================================= */
 
   async getAll(storeName, options = {}) {
 
@@ -179,20 +399,24 @@ export const DB = {
       forceRefresh = false
     } = options;
 
-    const tableName = this.mapStoreName(storeName);
+    const tableName =
+      this.mapStoreName(storeName);
+
 
     const lastFetch =
       lastFetchTime[storeName] || 0;
 
+
     const cacheIsFresh =
-      (Date.now() - lastFetch) < CACHE_TTL_MS;
+      (Date.now() - lastFetch) <
+      CACHE_TTL_MS;
+
 
     const hasCachedData =
-      Array.isArray(memoryStore[storeName]) &&
+      memoryStore[storeName] &&
       memoryStore[storeName].length > 0;
 
 
-    // Usa cache quando possível
     if (
       !forceRefresh &&
       cacheIsFresh &&
@@ -214,7 +438,9 @@ export const DB = {
 
 
       if (error) {
+
         throw error;
+
       }
 
 
@@ -224,7 +450,9 @@ export const DB = {
         );
 
 
-      memoryStore[storeName] = formatted;
+      memoryStore[storeName] =
+        formatted;
+
 
       lastFetchTime[storeName] =
         Date.now();
@@ -241,14 +469,16 @@ export const DB = {
       );
 
 
-      return memoryStore[storeName] || [];
+      return (
+        memoryStore[storeName] || []
+      );
     }
   },
 
 
-  // ==========================================================
-  // BUSCAR UM REGISTRO
-  // ==========================================================
+  /* =======================================================
+     GET POR ID
+     ======================================================= */
 
   async get(storeName, key) {
 
@@ -258,18 +488,46 @@ export const DB = {
 
     try {
 
+      let query;
+
+
+      /*
+       * Transferências usam "eu ia"
+       * como chave primária.
+       */
+
+      if (
+        storeName === 'activity_transfers' ||
+        storeName === 'transfers'
+      ) {
+
+        query = supabase
+          .from(tableName)
+          .select('*')
+          .eq('eu ia', key)
+          .single();
+
+      } else {
+
+        query = supabase
+          .from(tableName)
+          .select('*')
+          .eq('id', key)
+          .single();
+
+      }
+
+
       const {
         data,
         error
-      } = await supabase
-        .from(tableName)
-        .select('*')
-        .eq('id', key)
-        .single();
+      } = await query;
 
 
       if (error) {
+
         throw error;
+
       }
 
 
@@ -282,48 +540,16 @@ export const DB = {
         memoryStore[storeName] || [];
 
 
-      return (
-        list.find(item => item.id === key) ||
-        null
-      );
+      return list.find(
+        item => item.id === key
+      ) || null;
     }
   },
 
 
-  // ==========================================================
-  // PREPARA DADOS PARA ACTIVITY_TRANSFERS
-  // ==========================================================
-
-  prepareActivityTransfer(item) {
-
-    const dbItem =
-      this.toSnakeCase(item);
-
-
-    /*
-     * IMPORTANTE:
-     *
-     * O Supabase informou que a tabela
-     * activity_transfers NÃO possui
-     * a coluna from_member_id.
-     *
-     * Portanto removemos essa coluna
-     * antes do envio.
-     *
-     * Isso impede que um erro nessa tabela
-     * derrube o restante do sistema.
-     */
-
-    delete dbItem.from_member_id;
-
-
-    return dbItem;
-  },
-
-
-  // ==========================================================
-  // SALVAR
-  // ==========================================================
+  /* =======================================================
+     SAVE
+     ======================================================= */
 
   async save(storeName, item) {
 
@@ -331,35 +557,119 @@ export const DB = {
       this.mapStoreName(storeName);
 
 
-    let dbItem =
-      this.toSnakeCase(item);
+    /*
+     * ================================================
+     * TRANSFERÊNCIA DE ATIVIDADE
+     * ================================================
+     */
 
+    if (
+      storeName === 'activity_transfers' ||
+      storeName === 'transfers'
+    ) {
 
-    // --------------------------------------------------------
-    // AJUSTE ESPECÍFICO DA ACTIVITY_TRANSFERS
-    // --------------------------------------------------------
-
-    if (storeName === 'activity_transfers') {
-
-      dbItem =
+      const dbItem =
         this.prepareActivityTransfer(item);
+
+
+      /*
+       * Atualiza cache
+       */
+
+      if (!memoryStore[storeName]) {
+
+        memoryStore[storeName] = [];
+
+      }
+
+
+      const idx =
+        memoryStore[storeName]
+          .findIndex(
+            i => i.id === item.id
+          );
+
+
+      if (idx >= 0) {
+
+        memoryStore[storeName][idx] = {
+          ...memoryStore[storeName][idx],
+          ...item
+        };
+
+      } else {
+
+        memoryStore[storeName]
+          .push(item);
+
+      }
+
+
+      try {
+
+        const {
+          data,
+          error
+        } = await supabase
+          .from(tableName)
+          .upsert(
+            dbItem,
+            {
+              onConflict: 'eu ia'
+            }
+          );
+
+
+        if (error) {
+
+          console.error(
+            '[Supabase Save Error] activity_transfers:',
+            error.message
+          );
+
+        }
+
+
+      } catch (err) {
+
+        console.error(
+          '[Supabase Save Exception] activity_transfers:',
+          err
+        );
+
+      }
+
+
+      return item;
     }
 
 
-    // --------------------------------------------------------
-    // ATUALIZA CACHE LOCAL IMEDIATAMENTE
-    // --------------------------------------------------------
+    /*
+     * ================================================
+     * TABELAS NORMAIS
+     * ================================================
+     */
+
+    const dbItem =
+      this.toSnakeCase(item);
+
+
+    /*
+     * Atualiza cache imediatamente
+     */
 
     if (!memoryStore[storeName]) {
 
       memoryStore[storeName] = [];
+
     }
 
 
     const idx =
-      memoryStore[storeName].findIndex(
-        i => i.id === item.id
-      );
+      memoryStore[storeName]
+        .findIndex(
+          i => i.id === item.id
+        );
 
 
     if (idx >= 0) {
@@ -371,18 +681,15 @@ export const DB = {
 
     } else {
 
-      memoryStore[storeName].push(item);
+      memoryStore[storeName]
+        .push(item);
+
     }
 
-
-    // --------------------------------------------------------
-    // SALVA NO SUPABASE
-    // --------------------------------------------------------
 
     try {
 
       const {
-        data,
         error
       } = await supabase
         .from(tableName)
@@ -396,11 +703,7 @@ export const DB = {
           error.message
         );
 
-      } else {
-
-        this.isCloudConnected = true;
       }
-
 
     } catch (err) {
 
@@ -408,6 +711,7 @@ export const DB = {
         `[Supabase Save Fallback] ${storeName}:`,
         err
       );
+
     }
 
 
@@ -415,9 +719,9 @@ export const DB = {
   },
 
 
-  // ==========================================================
-  // EXCLUIR
-  // ==========================================================
+  /* =======================================================
+     DELETE
+     ======================================================= */
 
   async delete(storeName, key) {
 
@@ -425,23 +729,54 @@ export const DB = {
       this.mapStoreName(storeName);
 
 
-    // Atualiza cache
+    /*
+     * Remove do cache
+     */
+
     if (memoryStore[storeName]) {
 
       memoryStore[storeName] =
-        memoryStore[storeName].filter(
-          i => i.id !== key
-        );
+        memoryStore[storeName]
+          .filter(
+            i => i.id !== key
+          );
+
     }
 
 
     try {
 
-      const { error } =
-        await supabase
+      let query;
+
+
+      /*
+       * Transferência:
+       * chave = "eu ia"
+       */
+
+      if (
+        storeName === 'activity_transfers' ||
+        storeName === 'transfers'
+      ) {
+
+        query = supabase
+          .from(tableName)
+          .delete()
+          .eq('eu ia', key);
+
+      } else {
+
+        query = supabase
           .from(tableName)
           .delete()
           .eq('id', key);
+
+      }
+
+
+      const {
+        error
+      } = await query;
 
 
       if (error) {
@@ -450,6 +785,7 @@ export const DB = {
           `[Supabase Delete Error] ${storeName}:`,
           error.message
         );
+
       }
 
 
@@ -459,6 +795,7 @@ export const DB = {
         `[Supabase Delete Fallback] ${storeName}:`,
         err
       );
+
     }
 
 
@@ -466,9 +803,9 @@ export const DB = {
   },
 
 
-  // ==========================================================
-  // DADOS INICIAIS
-  // ==========================================================
+  /* =======================================================
+     DADOS INICIAIS
+     ======================================================= */
 
   async seedInitialDataIfEmpty() {
 
@@ -482,12 +819,13 @@ export const DB = {
     ) {
 
       return;
+
     }
 
 
-    // --------------------------------------------------------
-    // AVATAR
-    // --------------------------------------------------------
+    /*
+     * Avatar
+     */
 
     const createAvatarSvg =
       (bgColor, initials) => {
@@ -499,7 +837,6 @@ export const DB = {
             height="100"
             viewBox="0 0 100 100"
           >
-
             <rect
               width="100"
               height="100"
@@ -530,9 +867,9 @@ export const DB = {
       };
 
 
-    // --------------------------------------------------------
-    // MEMBROS
-    // --------------------------------------------------------
+    /* =====================================================
+       MEMBROS
+       ===================================================== */
 
     const initialMembers = [
 
@@ -575,18 +912,21 @@ export const DB = {
     ];
 
 
-    for (const member of initialMembers) {
+    for (
+      const member of initialMembers
+    ) {
 
       await this.save(
         'members',
         member
       );
+
     }
 
 
-    // --------------------------------------------------------
-    // TAREFAS
-    // --------------------------------------------------------
+    /* =====================================================
+       TAREFAS
+       ===================================================== */
 
     const todayStr =
       new Date()
@@ -720,18 +1060,21 @@ export const DB = {
     ];
 
 
-    for (const task of initialTasks) {
+    for (
+      const task of initialTasks
+    ) {
 
       await this.save(
         'tasks',
         task
       );
+
     }
 
 
-    // --------------------------------------------------------
-    // IMPEDIMENTO
-    // --------------------------------------------------------
+    /* =====================================================
+       IMPEDIMENTO
+       ===================================================== */
 
     const initialImpediment = {
 
@@ -748,6 +1091,7 @@ export const DB = {
 
       evidenceImage:
         null
+
     };
 
 
@@ -758,9 +1102,9 @@ export const DB = {
   },
 
 
-  // ==========================================================
-  // RESET DO BANCO
-  // ==========================================================
+  /* =======================================================
+     RESET DO BANCO
+     ======================================================= */
 
   async resetDatabase() {
 
@@ -785,7 +1129,9 @@ export const DB = {
     ];
 
 
-    for (const storeName of stores) {
+    for (
+      const storeName of stores
+    ) {
 
       memoryStore[storeName] = [];
 
@@ -798,17 +1144,35 @@ export const DB = {
 
       try {
 
-        await supabase
-          .from(tableName)
-          .delete()
-          .neq('id', '0');
+        /*
+         * Transferências usam "eu ia"
+         */
+
+        if (
+          storeName === 'activity_transfers'
+        ) {
+
+          await supabase
+            .from(tableName)
+            .delete()
+            .neq('eu ia', '0');
+
+        } else {
+
+          await supabase
+            .from(tableName)
+            .delete()
+            .neq('id', '0');
+
+        }
 
       } catch (e) {
 
         console.warn(
-          `[Reset] Erro em ${tableName}:`,
-          e.message
+          `[Reset] Erro em ${storeName}:`,
+          e
         );
+
       }
     }
 
