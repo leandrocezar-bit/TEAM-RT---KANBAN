@@ -25,12 +25,12 @@ export const ProjectsEngine = {
           <h2 style="font-size:1.25rem; font-weight:800; display:flex; align-items:center; gap:0.5rem;">
             📁 Gestão de Projetos e Atividades em Grupo
           </h2>
-          <p style="font-size:0.8rem; color:var(--text-muted);">
+          <p style="font-size:0.8rem; color:var(--text-muted, #aaa);">
             Crie projetos, atribua múltiplos colaboradores e acompanhe entregáveis da equipe em tempo real.
           </p>
         </div>
 
-        <button id="btn-create-project" class="btn btn-primary" style="box-shadow:var(--shadow-glow);">
+        <button id="btn-create-project" class="btn btn-primary" onclick="window.ProjectsEngine.openCreateModal()">
           + Criar Novo Projeto
         </button>
       </div>
@@ -41,17 +41,16 @@ export const ProjectsEngine = {
         <div class="card-panel" style="text-align:center; padding:3rem 1.5rem;">
           <div style="font-size:3rem; margin-bottom:1rem;">📂</div>
           <h3 style="font-size:1.1rem; font-weight:700; margin-bottom:0.5rem;">Nenhum projeto cadastrado no momento</h3>
-          <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:1.5rem;">
-            Clique no botão acima para abrir um novo projeto e incluir atividades em grupo com a equipe.
+          <p style="font-size:0.85rem; color:var(--text-muted, #aaa); margin-bottom:1.5rem;">
+            Clique no botão acima para abrir um novo projeto.
           </p>
         </div>
       `;
     } else {
       html += `
-        <!-- Abas dos Projetos Ativos -->
-        <div style="display:flex; gap:0.5rem; overflow-x:auto; margin-bottom:1.5rem; border-bottom:1px solid var(--border-color); padding-bottom:0.5rem;">
+        <div style="display:flex; gap:0.5rem; overflow-x:auto; margin-bottom:1.5rem; border-bottom:1px solid var(--border-color, #333); padding-bottom:0.5rem;">
           ${projects.map(p => `
-            <button class="btn ${this.activeProjectId === p.id ? 'btn-primary' : 'btn-secondary'} btn-project-tab" data-id="${p.id}">
+            <button class="btn ${this.activeProjectId === p.id ? 'btn-primary' : 'btn-secondary'} btn-project-tab" onclick="window.ProjectsEngine.selectProject('${p.id}')">
               📂 ${p.name}
             </button>
           `).join('')}
@@ -66,39 +65,36 @@ export const ProjectsEngine = {
         const progress = projectTasks.length > 0 ? Math.round((doneTasks.length / projectTasks.length) * 100) : 0;
 
         html += `
-          <!-- Painel Detalhado do Projeto Selecionado -->
-          <div class="card-panel" style="border-top:4px solid var(--accent-primary); margin-bottom:1.5rem;">
+          <div class="card-panel" style="border-top:4px solid var(--accent-primary, #7c3aed); margin-bottom:1.5rem;">
             <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:1rem; margin-bottom:1rem;">
               <div>
-                <h3 style="font-size:1.3rem; font-weight:800; color:var(--text-main); margin-bottom:0.25rem;">
+                <h3 style="font-size:1.3rem; font-weight:800; margin-bottom:0.25rem;">
                   ${activeProject.name}
                 </h3>
-                <p style="font-size:0.85rem; color:var(--text-muted);">${activeProject.description || 'Sem descrição cadastrada.'}</p>
+                <p style="font-size:0.85rem; color:var(--text-muted, #aaa);">${activeProject.description || 'Sem descrição cadastrada.'}</p>
               </div>
 
               <div style="display:flex; align-items:center; gap:0.5rem;">
-                <button class="btn btn-secondary btn-edit-project" data-id="${activeProject.id}" style="font-size:0.75rem;">
+                <button class="btn btn-secondary" onclick="window.ProjectsEngine.openEditModal('${activeProject.id}')" style="font-size:0.75rem;">
                   ✏️ Editar Projeto
                 </button>
-                <button class="btn btn-primary btn-add-project-task" data-id="${activeProject.id}" style="font-size:0.75rem;">
+                <button class="btn btn-primary" onclick="window.ProjectsEngine.openAddTaskModal('${activeProject.id}')" style="font-size:0.75rem;">
                   + Atividade no Projeto
                 </button>
               </div>
             </div>
 
-            <!-- Barra de Progresso do Projeto -->
-            <div style="background:var(--bg-input); padding:1rem; border-radius:var(--radius-md); margin-bottom:1.5rem; border:1px solid var(--border-color);">
+            <div style="background:var(--bg-input, #222); padding:1rem; border-radius:8px; margin-bottom:1.5rem;">
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.4rem; font-size:0.85rem;">
                 <span>Progresso das Entregas</span>
                 <strong>${progress}% Concluído (${doneTasks.length}/${projectTasks.length})</strong>
               </div>
               <div style="background:rgba(255,255,255,0.1); border-radius:10px; height:10px; overflow:hidden;">
-                <div style="background:var(--accent-gradient); width:${progress}%; height:100%; border-radius:10px; transition:width 0.3s ease;"></div>
+                <div style="background:var(--accent-gradient, #7c3aed); width:${progress}%; height:100%;"></div>
               </div>
             </div>
 
-            <!-- Tabela de Tarefas e Colaboradores do Projeto -->
-            <h4 style="font-size:1rem; font-weight:700; margin-bottom:0.75rem; display:flex; align-items:center; gap:0.4rem;">
+            <h4 style="font-size:1rem; font-weight:700; margin-bottom:0.75rem;">
               📌 Atividades em Grupo do Projeto
             </h4>
 
@@ -107,8 +103,8 @@ export const ProjectsEngine = {
                 <thead>
                   <tr>
                     <th>Atividade</th>
-                    <th>Responsável Principal</th>
-                    <th>Equipe / Grupo Participante</th>
+                    <th>Responsável</th>
+                    <th>Grupo</th>
                     <th>Prioridade</th>
                     <th>Status</th>
                     <th>Prazo</th>
@@ -117,7 +113,7 @@ export const ProjectsEngine = {
                 <tbody>
                   ${projectTasks.length === 0 ? `
                     <tr>
-                      <td colspan="6" style="text-align:center; padding:1.5rem; color:var(--text-dim);">
+                      <td colspan="6" style="text-align:center; padding:1.5rem; color:var(--text-dim, #777);">
                         Nenhuma atividade cadastrada neste projeto ainda.
                       </td>
                     </tr>
@@ -130,27 +126,16 @@ export const ProjectsEngine = {
                       <tr>
                         <td>
                           <strong>${t.title}</strong>
-                          <div style="font-size:0.75rem; color:var(--text-dim); max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
-                            ${t.description || ''}
-                          </div>
+                          <div style="font-size:0.75rem; color:var(--text-dim, #777);">${t.description || ''}</div>
                         </td>
+                        <td>${mainMember.name}</td>
                         <td>
-                          <div style="display:flex; align-items:center; gap:0.4rem;">
-                            ${mainMember.photo ? `<img src="${mainMember.photo}" style="width:24px; height:24px; border-radius:50%;">` : '👤'}
-                            <span>${mainMember.name}</span>
+                          <div style="display:flex; align-items:center;">
+                            ${groupMembers.map(gm => `<img src="${gm.photo}" title="${gm.name}" style="width:20px; height:20px; border-radius:50%;">`).join('')}
+                            <button class="btn btn-secondary" onclick="window.ProjectsEngine.openManageGroupModal('${t.id}')" style="padding:0.1rem 0.3rem; font-size:0.65rem; margin-left:4px;">+👥</button>
                           </div>
                         </td>
-                        <td>
-                          <div style="display:flex; align-items:center; gap:-0.3rem;">
-                            ${groupMembers.length === 0 ? '<span style="font-size:0.75rem; color:var(--text-dim);">-</span>' : groupMembers.map(gm => `
-                              <img src="${gm.photo}" title="${gm.name}" style="width:24px; height:24px; border-radius:50%; border:2px solid var(--bg-card); margin-right:-6px;">
-                            `).join('')}
-                            <button class="btn btn-secondary btn-manage-task-group" data-task-id="${t.id}" title="Editar Integrantes do Grupo" style="padding:0.15rem 0.4rem; font-size:0.65rem; border-radius:50%; margin-left:8px;">
-                              +👥
-                            </button>
-                          </div>
-                        </td>
-                        <td><span class="badge-priority priority-${(t.priority || 'média').toLowerCase()}">${t.priority || 'Média'}</span></td>
+                        <td>${t.priority || 'Média'}</td>
                         <td><strong>${t.status}</strong></td>
                         <td>${t.dueDate ? t.dueDate.split('-').reverse().join('/') : '-'}</td>
                       </tr>
@@ -166,121 +151,109 @@ export const ProjectsEngine = {
 
     container.innerHTML = html;
 
-    // Configura os ouvintes de forma delegada e global
-    this.attachEvents(container, showToastCallback, onRefreshCallback);
-    this.setupFormListeners(showToastCallback, onRefreshCallback);
+    // Salva os callbacks para reaproveitá-los nos eventos
+    this._showToast = showToastCallback;
+    this._onRefresh = onRefreshCallback;
+
+    this.setupFormListeners();
   },
 
-  /**
-   * Usa Delegação de Eventos no container pai (#section-projects)
-   */
-  attachEvents(container, showToast, onRefresh) {
-    if (container.dataset.eventsBound) return;
-    container.dataset.eventsBound = 'true';
-
-    container.addEventListener('click', async (e) => {
-      // 1. Troca de Abas
-      const tabBtn = e.target.closest('.btn-project-tab');
-      if (tabBtn) {
-        this.activeProjectId = tabBtn.dataset.id;
-        this.renderProjectsSection(showToast, onRefresh);
-        return;
-      }
-
-      // 2. Botão 'Criar Novo Projeto'
-      const createBtn = e.target.closest('#btn-create-project');
-      if (createBtn) {
-        const modal = document.getElementById('modal-project');
-        const titleHeader = document.getElementById('modal-project-title-header');
-        const form = modal ? modal.querySelector('form') : null;
-
-        if (modal) {
-          if (titleHeader) titleHeader.innerHTML = '📁 Novo Projeto';
-          if (form) {
-            form.reset();
-            delete form.dataset.editId;
-          }
-          modal.classList.add('active');
-        }
-        return;
-      }
-
-      // 3. Botão 'Editar Projeto'
-      const editBtn = e.target.closest('.btn-edit-project');
-      if (editBtn) {
-        const projectId = editBtn.dataset.id;
-        const project = await DB.get('projects', projectId);
-        if (!project) return;
-
-        const modal = document.getElementById('modal-project');
-        const titleHeader = document.getElementById('modal-project-title-header');
-        const form = modal ? modal.querySelector('form') : null;
-
-        if (modal) {
-          if (titleHeader) titleHeader.innerHTML = '✏️ Editar Projeto';
-
-          if (form) {
-            const nameInput = form.querySelector('input[type="text"], [name="name"], [name="title"], #project-name');
-            const descInput = form.querySelector('textarea, [name="description"], #project-description');
-
-            if (nameInput) nameInput.value = project.name || '';
-            if (descInput) descInput.value = project.description || '';
-
-            form.dataset.editId = project.id;
-          }
-
-          modal.classList.add('active');
-        }
-        return;
-      }
-
-      // 4. Botão '+ Atividade no Projeto'
-      const addTaskBtn = e.target.closest('.btn-add-project-task');
-      if (addTaskBtn) {
-        const projectId = addTaskBtn.dataset.id;
-        const modalTask = document.getElementById('modal-task');
-        const selectProject = document.getElementById('task-project-id') || document.querySelector('[name="projectId"]');
-
-        if (modalTask) {
-          const formTask = modalTask.querySelector('form');
-          if (formTask) formTask.reset();
-          if (selectProject) selectProject.value = projectId;
-          modalTask.classList.add('active');
-        }
-        return;
-      }
-
-      // 5. Botão de Gerenciar Integrantes
-      const manageGroupBtn = e.target.closest('.btn-manage-task-group');
-      if (manageGroupBtn) {
-        const taskId = manageGroupBtn.dataset.taskId;
-        const modal = document.getElementById('modal-task-group');
-        if (!modal) return;
-
-        const members = await DB.getAll('members');
-        const taskMembers = await DB.getAll('task_members');
-        const currentGroup = taskMembers.filter(tm => tm.taskId === taskId).map(tm => tm.memberId);
-
-        const listContainer = document.getElementById('task-group-members-list');
-        if (listContainer) {
-          listContainer.innerHTML = members.map(m => `
-            <label style="display:flex; align-items:center; gap:0.6rem; padding:0.4rem 0.6rem; background:var(--bg-input); border-radius:var(--radius-sm); margin-bottom:0.4rem; cursor:pointer;">
-              <input type="checkbox" class="chk-group-member" data-member-id="${m.id}" ${currentGroup.includes(m.id) ? 'checked' : ''}>
-              <img src="${m.photo}" style="width:24px; height:24px; border-radius:50%;">
-              <span style="font-size:0.85rem;">${m.name} (${m.role || 'Membro'})</span>
-            </label>
-          `).join('');
-        }
-
-        const btnSave = document.getElementById('task-group-save-btn');
-        if (btnSave) btnSave.dataset.taskId = taskId;
-
-        modal.classList.add('active');
-      }
-    });
+  // Seleciona uma aba de projeto
+  selectProject(projectId) {
+    this.activeProjectId = projectId;
+    this.renderProjectsSection(this._showToast, this._onRefresh);
   },
 
-  setupFormListeners(showToast, onRefresh) {
+  // Abre modal para criar novo projeto
+  openCreateModal() {
+    const modal = document.getElementById('modal-project');
+    if (!modal) return;
+
+    const form = modal.querySelector('form');
+    if (form) {
+      form.reset();
+      delete form.dataset.editId;
+    }
+
+    const header = modal.querySelector('#modal-project-title-header, .modal-title');
+    if (header) header.textContent = '📁 Novo Projeto';
+
+    modal.classList.add('active');
+    modal.style.display = 'flex';
+  },
+
+  // Abre modal para editar projeto
+  async openEditModal(projectId) {
+    const idToEdit = projectId || this.activeProjectId;
+    if (!idToEdit) return;
+
+    const project = await DB.get('projects', idToEdit);
+    const modal = document.getElementById('modal-project');
+    if (!modal || !project) return;
+
+    const header = modal.querySelector('#modal-project-title-header, .modal-title');
+    if (header) header.textContent = '✏️ Editar Projeto';
+
+    const form = modal.querySelector('form');
+    if (form) {
+      form.dataset.editId = project.id;
+      const nameInput = form.querySelector('input[type="text"], [name="name"], [name="title"], #project-name');
+      const descInput = form.querySelector('textarea, [name="description"], #project-description');
+
+      if (nameInput) nameInput.value = project.name || '';
+      if (descInput) descInput.value = project.description || '';
+    }
+
+    modal.classList.add('active');
+    modal.style.display = 'flex';
+  },
+
+  // Abre modal para adicionar atividade no projeto
+  openAddTaskModal(projectId) {
+    const idToUse = projectId || this.activeProjectId;
+    const modalTask = document.getElementById('modal-task') || document.getElementById('modal-activity') || document.getElementById('modal-nova-tarefa');
+    if (!modalTask) return;
+
+    const form = modalTask.querySelector('form');
+    if (form) form.reset();
+
+    const selectProject = modalTask.querySelector('#task-project-id, [name="projectId"], select[name="project"]');
+    if (selectProject && idToUse) {
+      selectProject.value = idToUse;
+    }
+
+    modalTask.classList.add('active');
+    modalTask.style.display = 'flex';
+  },
+
+  // Abre modal de integrantes
+  async openManageGroupModal(taskId) {
+    const modal = document.getElementById('modal-task-group');
+    if (!modal) return;
+
+    const members = await DB.getAll('members');
+    const taskMembers = await DB.getAll('task_members');
+    const currentGroup = taskMembers.filter(tm => tm.taskId === taskId).map(tm => tm.memberId);
+
+    const listContainer = modal.querySelector('#task-group-members-list, .members-list');
+    if (listContainer) {
+      listContainer.innerHTML = members.map(m => `
+        <label style="display:flex; align-items:center; gap:0.6rem; padding:0.4rem; cursor:pointer;">
+          <input type="checkbox" class="chk-group-member" data-member-id="${m.id}" ${currentGroup.includes(m.id) ? 'checked' : ''}>
+          <span>${m.name}</span>
+        </label>
+      `).join('');
+    }
+
+    const btnSave = modal.querySelector('#task-group-save-btn, .btn-save-group');
+    if (btnSave) btnSave.dataset.taskId = taskId;
+
+    modal.classList.add('active');
+    modal.style.display = 'flex';
+  },
+
+  // Configura a submissão dos formulários
+  setupFormListeners() {
     const modalProject = document.getElementById('modal-project');
     const formProject = modalProject ? modalProject.querySelector('form') : null;
 
@@ -298,7 +271,7 @@ export const ProjectsEngine = {
         const description = descInput ? descInput.value.trim() : '';
 
         if (!name) {
-          if (showToast) showToast('Por favor, informe o nome do projeto.', 'error');
+          if (this._showToast) this._showToast('Por favor, informe o nome do projeto.', 'error');
           return;
         }
 
@@ -321,52 +294,20 @@ export const ProjectsEngine = {
           this.activeProjectId = newProject.id;
         }
 
-        if (modalProject) modalProject.classList.remove('active');
+        modalProject.classList.remove('active');
+        modalProject.style.display = 'none';
 
         formProject.reset();
         delete formProject.dataset.editId;
 
-        if (showToast) showToast(editId ? 'Projeto atualizado!' : 'Projeto criado!');
-        if (onRefresh) onRefresh();
+        if (this._showToast) this._showToast(editId ? 'Projeto atualizado!' : 'Projeto criado!');
+        if (this._onRefresh) this._onRefresh();
 
-        await this.renderProjectsSection(showToast, onRefresh);
-      });
-    }
-
-    const btnSaveTaskGroup = document.getElementById('task-group-save-btn');
-    if (btnSaveTaskGroup && !btnSaveTaskGroup.dataset.listenerBound) {
-      btnSaveTaskGroup.dataset.listenerBound = 'true';
-
-      btnSaveTaskGroup.addEventListener('click', async () => {
-        const taskId = btnSaveTaskGroup.dataset.taskId;
-        if (!taskId) return;
-
-        const checkboxes = document.querySelectorAll('.chk-group-member');
-        const allTaskMembers = await DB.getAll('task_members');
-
-        for (const tm of allTaskMembers) {
-          if (tm.taskId === taskId) {
-            await DB.delete('task_members', tm.id);
-          }
-        }
-
-        for (const chk of checkboxes) {
-          if (chk.checked) {
-            await DB.save('task_members', {
-              id: `${taskId}_${chk.dataset.memberId}`,
-              taskId: taskId,
-              memberId: chk.dataset.memberId
-            });
-          }
-        }
-
-        const modal = document.getElementById('modal-task-group');
-        if (modal) modal.classList.remove('active');
-
-        if (showToast) showToast('Integrantes da equipe atualizados!');
-        if (onRefresh) onRefresh();
-        await this.renderProjectsSection(showToast, onRefresh);
+        await this.renderProjectsSection(this._showToast, this._onRefresh);
       });
     }
   }
 };
+
+// Torna o engine acessível globalmente para os comandos onclick
+window.ProjectsEngine = ProjectsEngine;
