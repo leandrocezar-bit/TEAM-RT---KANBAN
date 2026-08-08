@@ -12,8 +12,9 @@ export const supabase = createClient(
   SUPABASE_ANON_KEY
 );
 
+
 // ============================================================
-// ARMAZENAMENTO LOCAL DE FALLBACK / CACHE
+// CACHE LOCAL
 // ============================================================
 
 const memoryStore = {
@@ -27,8 +28,8 @@ const memoryStore = {
   audit_logs: []
 };
 
-// Controle de cache
 const lastFetchTime = {};
+
 const CACHE_TTL_MS = 5000;
 
 
@@ -56,21 +57,25 @@ export const DB = {
         .select('id')
         .limit(1);
 
-      if (error && error.code === '42P01') {
+      if (error) {
 
         console.warn(
-          'Tabelas no Supabase não encontradas. Usando cache com semeio inicial.'
+          '[Supabase] Erro na conexão:',
+          error.message
         );
 
-      }
+        this.isCloudConnected = false;
 
-      this.isCloudConnected =
-        !error || error.code === '42P01';
+      } else {
+
+        this.isCloudConnected = true;
+
+      }
 
     } catch (err) {
 
       console.warn(
-        'Servidor Supabase indisponível no momento. Operando em modo cache offline:',
+        '[Supabase] Servidor indisponível:',
         err
       );
 
@@ -114,83 +119,16 @@ export const DB = {
 
 
   // ==========================================================
-  // CONVERSÃO JS -> SUPABASE
+  // CAMEL CASE → SNAKE CASE
   // ==========================================================
 
-  toSnakeCase(obj, storeName = null) {
+  toSnakeCase(obj) {
 
     if (!obj || typeof obj !== 'object') {
       return obj;
     }
 
     const result = {};
-
-
-    // ----------------------------------------------------------
-    // ACTIVITY TRANSFERS
-    // ----------------------------------------------------------
-    // Esta tabela possui nomes específicos no Supabase.
-    //
-    // JS:
-    // deIdDoMembro
-    // paraIdDoMembro
-    // idDaTarefa
-    //
-    // Supabase:
-    // from_member_id
-    // to_member_id
-    // task_id
-    // ----------------------------------------------------------
-
-    if (
-      storeName === 'activity_transfers' ||
-      storeName === 'transfers'
-    ) {
-
-      const transferMap = {
-
-        id: 'id',
-
-        idDaTarefa: 'task_id',
-
-        deIdDoMembro: 'from_member_id',
-
-        paraIdDoMembro: 'to_member_id',
-
-        status: 'status',
-
-        remetenteConfirmado: 'sender_confirmed',
-
-        respondeuEm: 'responded_at',
-
-        createdAt: 'created_at'
-
-      };
-
-
-      for (const key in obj) {
-
-        const dbKey = transferMap[key];
-
-        if (dbKey) {
-
-          result[dbKey] = obj[key];
-
-        } else {
-
-          // Mantém campos desconhecidos sem alteração
-          result[key] = obj[key];
-
-        }
-      }
-
-      return result;
-    }
-
-
-    // ----------------------------------------------------------
-    // CONVERSÃO PADRÃO
-    // ----------------------------------------------------------
 
     for (const key in obj) {
 
@@ -206,70 +144,16 @@ export const DB = {
 
 
   // ==========================================================
-  // CONVERSÃO SUPABASE -> JS
+  // SNAKE CASE → CAMEL CASE
   // ==========================================================
 
-  toCamelCase(obj, storeName = null) {
+  toCamelCase(obj) {
 
     if (!obj || typeof obj !== 'object') {
       return obj;
     }
 
     const result = {};
-
-
-    // ----------------------------------------------------------
-    // ACTIVITY TRANSFERS
-    // ----------------------------------------------------------
-
-    if (
-      storeName === 'activity_transfers' ||
-      storeName === 'transfers'
-    ) {
-
-      const transferMap = {
-
-        id: 'id',
-
-        task_id: 'idDaTarefa',
-
-        from_member_id: 'deIdDoMembro',
-
-        to_member_id: 'paraIdDoMembro',
-
-        status: 'status',
-
-        sender_confirmed: 'remetenteConfirmado',
-
-        responded_at: 'respondeuEm',
-
-        created_at: 'createdAt'
-
-      };
-
-
-      for (const key in obj) {
-
-        const jsKey = transferMap[key];
-
-        if (jsKey) {
-
-          result[jsKey] = obj[key];
-
-        } else {
-
-          result[key] = obj[key];
-
-        }
-      }
-
-      return result;
-    }
-
-
-    // ----------------------------------------------------------
-    // CONVERSÃO PADRÃO
-    // ----------------------------------------------------------
 
     for (const key in obj) {
 
@@ -286,7 +170,7 @@ export const DB = {
 
 
   // ==========================================================
-  // GET ALL
+  // BUSCAR TODOS
   // ==========================================================
 
   async getAll(storeName, options = {}) {
@@ -297,9 +181,6 @@ export const DB = {
 
     const tableName = this.mapStoreName(storeName);
 
-
-    // Cache
-
     const lastFetch =
       lastFetchTime[storeName] || 0;
 
@@ -307,10 +188,11 @@ export const DB = {
       (Date.now() - lastFetch) < CACHE_TTL_MS;
 
     const hasCachedData =
-      memoryStore[storeName] &&
+      Array.isArray(memoryStore[storeName]) &&
       memoryStore[storeName].length > 0;
 
 
+    // Usa cache quando possível
     if (
       !forceRefresh &&
       cacheIsFresh &&
@@ -320,8 +202,6 @@ export const DB = {
       return memoryStore[storeName];
     }
 
-
-    // Supabase
 
     try {
 
@@ -340,15 +220,18 @@ export const DB = {
 
       const formatted =
         (data || []).map(item =>
-          this.toCamelCase(item, storeName)
+          this.toCamelCase(item)
         );
 
 
       memoryStore[storeName] = formatted;
 
-      lastFetchTime[storeName] = Date.now();
+      lastFetchTime[storeName] =
+        Date.now();
+
 
       return formatted;
+
 
     } catch (err) {
 
@@ -357,13 +240,14 @@ export const DB = {
         err.message
       );
 
+
       return memoryStore[storeName] || [];
     }
   },
 
 
   // ==========================================================
-  // GET POR ID
+  // BUSCAR UM REGISTRO
   // ==========================================================
 
   async get(storeName, key) {
@@ -389,27 +273,56 @@ export const DB = {
       }
 
 
-      return this.toCamelCase(
-        data,
-        storeName
-      );
+      return this.toCamelCase(data);
+
 
     } catch (err) {
 
       const list =
         memoryStore[storeName] || [];
 
+
       return (
-        list.find(item =>
-          String(item.id) === String(key)
-        ) || null
+        list.find(item => item.id === key) ||
+        null
       );
     }
   },
 
 
   // ==========================================================
-  // SAVE / UPSERT
+  // PREPARA DADOS PARA ACTIVITY_TRANSFERS
+  // ==========================================================
+
+  prepareActivityTransfer(item) {
+
+    const dbItem =
+      this.toSnakeCase(item);
+
+
+    /*
+     * IMPORTANTE:
+     *
+     * O Supabase informou que a tabela
+     * activity_transfers NÃO possui
+     * a coluna from_member_id.
+     *
+     * Portanto removemos essa coluna
+     * antes do envio.
+     *
+     * Isso impede que um erro nessa tabela
+     * derrube o restante do sistema.
+     */
+
+    delete dbItem.from_member_id;
+
+
+    return dbItem;
+  },
+
+
+  // ==========================================================
+  // SALVAR
   // ==========================================================
 
   async save(storeName, item) {
@@ -418,27 +331,35 @@ export const DB = {
       this.mapStoreName(storeName);
 
 
-    // IMPORTANTE:
-    // passa o storeName para saber se é activity_transfers
-
-    const dbItem =
-      this.toSnakeCase(item, storeName);
+    let dbItem =
+      this.toSnakeCase(item);
 
 
-    // ----------------------------------------------------------
-    // ATUALIZA CACHE IMEDIATAMENTE
-    // ----------------------------------------------------------
+    // --------------------------------------------------------
+    // AJUSTE ESPECÍFICO DA ACTIVITY_TRANSFERS
+    // --------------------------------------------------------
+
+    if (storeName === 'activity_transfers') {
+
+      dbItem =
+        this.prepareActivityTransfer(item);
+    }
+
+
+    // --------------------------------------------------------
+    // ATUALIZA CACHE LOCAL IMEDIATAMENTE
+    // --------------------------------------------------------
 
     if (!memoryStore[storeName]) {
+
       memoryStore[storeName] = [];
     }
 
 
     const idx =
-      memoryStore[storeName]
-        .findIndex(i =>
-          String(i.id) === String(item.id)
-        );
+      memoryStore[storeName].findIndex(
+        i => i.id === item.id
+      );
 
 
     if (idx >= 0) {
@@ -454,9 +375,9 @@ export const DB = {
     }
 
 
-    // ----------------------------------------------------------
+    // --------------------------------------------------------
     // SALVA NO SUPABASE
-    // ----------------------------------------------------------
+    // --------------------------------------------------------
 
     try {
 
@@ -475,7 +396,11 @@ export const DB = {
           error.message
         );
 
+      } else {
+
+        this.isCloudConnected = true;
       }
+
 
     } catch (err) {
 
@@ -491,7 +416,7 @@ export const DB = {
 
 
   // ==========================================================
-  // DELETE
+  // EXCLUIR
   // ==========================================================
 
   async delete(storeName, key) {
@@ -500,27 +425,23 @@ export const DB = {
       this.mapStoreName(storeName);
 
 
-    // Remove do cache
-
+    // Atualiza cache
     if (memoryStore[storeName]) {
 
       memoryStore[storeName] =
         memoryStore[storeName].filter(
-          i => String(i.id) !== String(key)
+          i => i.id !== key
         );
     }
 
 
-    // Remove do Supabase
-
     try {
 
-      const {
-        error
-      } = await supabase
-        .from(tableName)
-        .delete()
-        .eq('id', key);
+      const { error } =
+        await supabase
+          .from(tableName)
+          .delete()
+          .eq('id', key);
 
 
       if (error) {
@@ -530,6 +451,7 @@ export const DB = {
           error.message
         );
       }
+
 
     } catch (err) {
 
@@ -545,7 +467,7 @@ export const DB = {
 
 
   // ==========================================================
-  // SEMEIA DADOS INICIAIS
+  // DADOS INICIAIS
   // ==========================================================
 
   async seedInitialDataIfEmpty() {
@@ -558,13 +480,14 @@ export const DB = {
       members &&
       members.length > 0
     ) {
+
       return;
     }
 
 
-    // ----------------------------------------------------------
+    // --------------------------------------------------------
     // AVATAR
-    // ----------------------------------------------------------
+    // --------------------------------------------------------
 
     const createAvatarSvg =
       (bgColor, initials) => {
@@ -576,6 +499,7 @@ export const DB = {
             height="100"
             viewBox="0 0 100 100"
           >
+
             <rect
               width="100"
               height="100"
@@ -594,8 +518,10 @@ export const DB = {
             >
               ${initials}
             </text>
+
           </svg>
         `;
+
 
         return (
           'data:image/svg+xml;base64,' +
@@ -604,9 +530,9 @@ export const DB = {
       };
 
 
-    // ----------------------------------------------------------
+    // --------------------------------------------------------
     // MEMBROS
-    // ----------------------------------------------------------
+    // --------------------------------------------------------
 
     const initialMembers = [
 
@@ -615,7 +541,10 @@ export const DB = {
         name: 'Ana Silva',
         role: 'Analista de Folha de Pagamento',
         email: 'ana.dp@empresa.com',
-        photo: createAvatarSvg('#6366f1', 'AS'),
+        photo: createAvatarSvg(
+          '#6366f1',
+          'AS'
+        ),
         contact: '(11) 98765-4321'
       },
 
@@ -624,7 +553,10 @@ export const DB = {
         name: 'Carlos Oliveira',
         role: 'Assistente de Admissão e Benefícios',
         email: 'carlos.dp@empresa.com',
-        photo: createAvatarSvg('#10b981', 'CO'),
+        photo: createAvatarSvg(
+          '#10b981',
+          'CO'
+        ),
         contact: '(11) 97654-3210'
       },
 
@@ -633,25 +565,28 @@ export const DB = {
         name: 'Mariana Costa',
         role: 'Especialista eSocial & Encargos',
         email: 'mariana.dp@empresa.com',
-        photo: createAvatarSvg('#d946ef', 'MC'),
+        photo: createAvatarSvg(
+          '#d946ef',
+          'MC'
+        ),
         contact: '(11) 96543-2109'
       }
 
     ];
 
 
-    for (const m of initialMembers) {
+    for (const member of initialMembers) {
 
       await this.save(
         'members',
-        m
+        member
       );
     }
 
 
-    // ----------------------------------------------------------
+    // --------------------------------------------------------
     // TAREFAS
-    // ----------------------------------------------------------
+    // --------------------------------------------------------
 
     const todayStr =
       new Date()
@@ -743,8 +678,7 @@ export const DB = {
 
 
       {
-        id:
-          't-dp-3',
+        id: 't-dp-3',
 
         title:
           'Emissão da Guia DCTFWeb (INSS / FGTS Digital)',
@@ -786,23 +720,22 @@ export const DB = {
     ];
 
 
-    for (const t of initialTasks) {
+    for (const task of initialTasks) {
 
       await this.save(
         'tasks',
-        t
+        task
       );
     }
 
 
-    // ----------------------------------------------------------
+    // --------------------------------------------------------
     // IMPEDIMENTO
-    // ----------------------------------------------------------
+    // --------------------------------------------------------
 
     const initialImpediment = {
 
-      id:
-        'imp-1',
+      id: 'imp-1',
 
       taskId:
         't-dp-1',
@@ -826,7 +759,7 @@ export const DB = {
 
 
   // ==========================================================
-  // RESET DATABASE
+  // RESET DO BANCO
   // ==========================================================
 
   async resetDatabase() {
@@ -873,8 +806,8 @@ export const DB = {
       } catch (e) {
 
         console.warn(
-          `Não foi possível limpar ${tableName}:`,
-          e
+          `[Reset] Erro em ${tableName}:`,
+          e.message
         );
       }
     }
