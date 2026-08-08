@@ -164,15 +164,23 @@ export const ProjectsEngine = {
       }
     }
 
-    // Injeta o HTML PRIMEIRO
+    // Insere o HTML dinâmico no DOM
     container.innerHTML = html;
 
-    // Conecta os eventos DEPOIS que a página tem os elementos
+    // Associa eventos nos botões e formulários
     this.attachEvents(showToastCallback, onRefreshCallback);
     this.setupFormListeners(showToastCallback, onRefreshCallback);
   },
 
   attachEvents(showToast, onRefresh) {
+    // Evento para fechar modais ao clicar no 'X'
+    document.querySelectorAll('#modal-project .modal-close, #modal-project .btn-close-modal').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const modal = document.getElementById('modal-project');
+        if (modal) modal.classList.remove('active');
+      });
+    });
+
     // 1. Troca de abas do projeto
     document.querySelectorAll('.btn-project-tab').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -186,8 +194,11 @@ export const ProjectsEngine = {
     if (btnCreateProject) {
       btnCreateProject.addEventListener('click', () => {
         const modal = document.getElementById('modal-project');
-        const form = document.getElementById('form-project');
+        const titleHeader = document.getElementById('modal-project-title-header');
+        const form = modal ? modal.querySelector('form') : null;
+
         if (modal) {
+          if (titleHeader) titleHeader.innerHTML = '📁 Novo Projeto';
           if (form) {
             form.reset();
             delete form.dataset.editId;
@@ -205,16 +216,23 @@ export const ProjectsEngine = {
         if (!project) return;
 
         const modal = document.getElementById('modal-project');
-        const form = document.getElementById('form-project');
+        const titleHeader = document.getElementById('modal-project-title-header');
+        const form = modal ? modal.querySelector('form') : null;
 
-        if (modal && form) {
-          const nameInput = form.querySelector('#project-name, [name="name"], [name="title"], input[type="text"]');
-          const descInput = form.querySelector('#project-description, [name="description"], textarea');
+        if (modal) {
+          if (titleHeader) titleHeader.innerHTML = '✏️ Editar Projeto';
 
-          if (nameInput) nameInput.value = project.name || '';
-          if (descInput) descInput.value = project.description || '';
+          if (form) {
+            // Busca campos no formulário de forma universal
+            const nameInput = form.querySelector('input[type="text"], [name="name"], [name="title"], #project-name');
+            const descInput = form.querySelector('textarea, [name="description"], #project-description');
 
-          form.dataset.editId = project.id;
+            if (nameInput) nameInput.value = project.name || '';
+            if (descInput) descInput.value = project.description || '';
+
+            form.dataset.editId = project.id;
+          }
+
           modal.classList.add('active');
         }
       });
@@ -228,7 +246,7 @@ export const ProjectsEngine = {
         const selectProject = document.getElementById('task-project-id') || document.querySelector('[name="projectId"]');
 
         if (modalTask) {
-          const formTask = document.getElementById('form-task');
+          const formTask = modalTask.querySelector('form');
           if (formTask) formTask.reset();
           if (selectProject) selectProject.value = projectId;
           modalTask.classList.add('active');
@@ -267,7 +285,9 @@ export const ProjectsEngine = {
   },
 
   setupFormListeners(showToast, onRefresh) {
-    const formProject = document.getElementById('form-project');
+    const modalProject = document.getElementById('modal-project');
+    const formProject = modalProject ? modalProject.querySelector('form') : null;
+
     if (formProject && !formProject.dataset.listenerBound) {
       formProject.dataset.listenerBound = 'true';
 
@@ -275,8 +295,8 @@ export const ProjectsEngine = {
         e.preventDefault();
 
         const editId = formProject.dataset.editId;
-        const nameInput = formProject.querySelector('#project-name, [name="name"], [name="title"], input[type="text"]');
-        const descInput = formProject.querySelector('#project-description, [name="description"], textarea');
+        const nameInput = formProject.querySelector('input[type="text"], [name="name"], [name="title"], #project-name');
+        const descInput = formProject.querySelector('textarea, [name="description"], #project-description');
 
         const name = nameInput ? nameInput.value.trim() : '';
         const description = descInput ? descInput.value.trim() : '';
@@ -287,6 +307,7 @@ export const ProjectsEngine = {
         }
 
         if (editId) {
+          // --- MODO EDIÇÃO ---
           const project = await DB.get('projects', editId);
           if (project) {
             project.name = name;
@@ -295,6 +316,7 @@ export const ProjectsEngine = {
             await DB.save('projects', project);
           }
         } else {
+          // --- MODO CRIAÇÃO ---
           const newProject = {
             id: Date.now().toString(),
             name,
@@ -305,8 +327,7 @@ export const ProjectsEngine = {
           this.activeProjectId = newProject.id;
         }
 
-        const modal = document.getElementById('modal-project');
-        if (modal) modal.classList.remove('active');
+        if (modalProject) modalProject.classList.remove('active');
 
         formProject.reset();
         delete formProject.dataset.editId;
@@ -318,6 +339,7 @@ export const ProjectsEngine = {
       });
     }
 
+    // Salvar integrantes da tarefa
     const btnSaveTaskGroup = document.getElementById('task-group-save-btn');
     if (btnSaveTaskGroup && !btnSaveTaskGroup.dataset.listenerBound) {
       btnSaveTaskGroup.dataset.listenerBound = 'true';
