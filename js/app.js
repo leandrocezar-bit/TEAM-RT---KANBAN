@@ -16,18 +16,28 @@ document.addEventListener('DOMContentLoaded', async () => {
   let currentMemberFilter = 'all';
   let reportingTaskId = null;
 
-  // --- 1. AUTENTICAÇÃO POR SENHA COM FILTRO DE USUÁRIO ---
-  const MASTER_PASSCODE = 'RTESHOW';
+  // Views restritas a usuários com nível de acesso "gestor"
+  const MANAGER_ONLY_VIEWS = ['manager', 'map', 'settings'];
+
+  // --- 1. AUTENTICAÇÃO INDIVIDUAL POR E-MAIL + SENHA ---
   const loginOverlay = document.getElementById('login-overlay');
   const formLogin = document.getElementById('form-login');
 
+  function isManager() {
+    return localStorage.getItem('logged_access_level') === 'gestor';
+  }
+
+  function getLoggedMemberId() {
+    return localStorage.getItem('logged_member_id');
+  }
+
   function checkAuthentication() {
-    const isAuth = localStorage.getItem('app_passcode_authenticated');
+    const isAuth = localStorage.getItem('app_authenticated');
     if (isAuth === 'true') {
       if (loginOverlay) loginOverlay.classList.remove('active');
 
       // Força o filtro global do painel no ID do usuário logado
-      const loggedId = localStorage.getItem('logged_member_id');
+      const loggedId = getLoggedMemberId();
       if (loggedId) {
         currentMemberFilter = loggedId;
       }
@@ -39,41 +49,52 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (formLogin) {
     formLogin.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const inputUser = document.getElementById('input-login-user').value.trim().toLowerCase();
-      const inputPasscode = document.getElementById('input-passcode').value;
+      const inputEmail = document.getElementById('input-login-user').value.trim().toLowerCase();
+      const inputPassword = document.getElementById('input-passcode').value;
 
-      if (inputPasscode !== MASTER_PASSCODE) {
-        showToast('Senha da equipe incorreta. Tente novamente.', 'warning');
+      if (!inputEmail || !inputPassword) {
+        showToast('Informe e-mail e senha para entrar.', 'warning');
         return;
       }
 
-      // Busca os colaboradores cadastrados para encontrar o correspondente
+      // Busca o colaborador cadastrado pelo e-mail
       const members = await DB.getAll('members');
-      const matchedMember = members.find(m =>
-        (m.name && m.name.toLowerCase() === inputUser) ||
-        (m.email && m.email.toLowerCase() === inputUser)
-      );
+      const matchedMember = members.find(m => m.email && m.email.toLowerCase() === inputEmail);
 
-      if (matchedMember) {
-        localStorage.setItem('app_passcode_authenticated', 'true');
-        localStorage.setItem('logged_member_id', matchedMember.id);
-        currentMemberFilter = matchedMember.id;
-
-        if (loginOverlay) loginOverlay.classList.remove('active');
-        showToast(`Bem-vindo de volta, ${matchedMember.name}!`, 'success');
-        refreshUI();
-      } else {
-        showToast('Nome ou E-mail não encontrado na lista de colaboradores.', 'warning');
+      if (!matchedMember) {
+        showToast('E-mail não encontrado na lista de colaboradores.', 'warning');
+        return;
       }
+
+      // NOTA DE SEGURANÇA: comparação de senha em texto puro no cliente.
+      // Para produção real, o ideal é migrar para o Supabase Auth (hash de senha no servidor).
+      if (!matchedMember.password || matchedMember.password !== inputPassword) {
+        showToast('Senha incorreta. Tente novamente.', 'warning');
+        return;
+      }
+
+      const accessLevel = matchedMember.accessLevel === 'gestor' ? 'gestor' : 'colaborador';
+
+      localStorage.setItem('app_authenticated', 'true');
+      localStorage.setItem('logged_member_id', matchedMember.id);
+      localStorage.setItem('logged_access_level', accessLevel);
+      currentMemberFilter = matchedMember.id;
+      activeView = 'kanban';
+
+      if (loginOverlay) loginOverlay.classList.remove('active');
+      showToast(`Bem-vindo de volta, ${matchedMember.name}!`, 'success');
+      refreshUI();
     });
   }
 
   const btnLogout = document.getElementById('btn-logout');
   if (btnLogout) {
     btnLogout.addEventListener('click', () => {
-      localStorage.removeItem('app_passcode_authenticated');
+      localStorage.removeItem('app_authenticated');
       localStorage.removeItem('logged_member_id');
-      currentMemberFilter = 'all'; // Reseta o filtro ao deslogar
+      localStorage.removeItem('logged_access_level');
+      currentMemberFilter = 'all';
+      activeView = 'kanban';
       checkAuthentication();
       showToast('Você saiu do aplicativo.', 'info');
     });
@@ -96,6 +117,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   if (btnResetDb) {
     btnResetDb.addEventListener('click', async () => {
+      if (!isManager()) {
+        showToast('Apenas gestores podem restaurar os dados.', 'warning');
+        return;
+      }
       if (confirm('Deseja realmente restaurar os dados iniciais padrão no Supabase/App?')) {
         await DB.resetDatabase();
         currentMemberFilter = 'all';
@@ -133,7 +158,14 @@ document.addEventListener('DOMContentLoaded', async () => {
    * Atualiza a Interface completa
    */
   async function refreshUI() {
-    const loggedId = localStorage.getItem('logged_member_id');
+    const loggedId = getLoggedMemberId();
+    const manager = isManager();
+
+    // Colaborador comum não pode ficar preso numa view restrita (ex: veio de sessão anterior como gestor)
+    if (!manager && MANAGER_ONLY_VIEWS.includes(activeView)) {
+      activeView = 'kanban';
+    }
+
     const backupFilter = currentMemberFilter;
 
     // Força temporariamente a leitura global antes de rodar a barra de notificações
@@ -146,21 +178,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     await renderMemberTabs();
     const memberTabsBar = document.getElementById('member-tabs-bar');
 
-    // REGRA DE OURO: Oculta as abas dos colegas apenas se estiver no Kanban, deixando as outras abas livres
+    // ACESSO INDIVIDUALIZADO: colaborador comum nunca vê abas/dados dos colegas, em nenhuma seção
     if (memberTabsBar) {
-      if (loggedId && activeView === 'kanban') {
+      if (!manager) {
         memberTabsBar.style.display = 'none';
-        currentMemberFilter = loggedId; // Garante o foco apenas nos cards do usuário no Kanban
+        currentMemberFilter = loggedId;
       } else {
-        memberTabsBar.style.display = 'flex'; // Exibe as abas normalmente nas demais seções
+        memberTabsBar.style.display = 'flex';
       }
     }
 
-    // Exibe todos os botões de ferramentas das abas para livre navegação
-    const adminButtons = [btnViewManager, btnViewMap, btnViewSettings, btnViewProjects, btnNewMember, btnResetDb];
-    adminButtons.forEach(btn => {
-      if (btn) btn.style.display = 'inline-block';
+    // Botões administrativos visíveis apenas para quem tem nível de acesso "gestor"
+    const managerOnlyButtons = [btnViewManager, btnViewMap, btnViewSettings, btnNewMember, btnResetDb];
+    managerOnlyButtons.forEach(btn => {
+      if (btn) btn.style.display = manager ? 'inline-block' : 'none';
     });
+    // Kanban, Projetos e Nova Atividade continuam acessíveis a todos os colaboradores
+    if (btnViewKanban) btnViewKanban.style.display = 'inline-block';
+    if (btnViewProjects) btnViewProjects.style.display = 'inline-block';
+    if (btnNewTask) btnNewTask.style.display = 'inline-block';
 
     // Reset visual dos botões de navegação
     [btnViewKanban, btnViewManager, btnViewMap, btnViewSettings, btnViewProjects].forEach(btn => {
@@ -186,7 +222,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         onReportImpediment: openReportImpedimentModal,
         onOpenTaskDetails: openTaskDetailsModal
       });
-    } else if (activeView === 'manager') {
+    } else if (activeView === 'manager' && manager) {
       if (sectionManager) sectionManager.classList.add('active');
       if (btnViewManager) {
         btnViewManager.classList.add('btn-primary');
@@ -194,7 +230,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
 
       await ManagerEngine.renderDashboard(openEvidenceModal, handleDeleteMember, openCalendarDayModal);
-    } else if (activeView === 'map') {
+    } else if (activeView === 'map' && manager) {
       if (sectionMap) sectionMap.classList.add('active');
       if (btnViewMap) {
         btnViewMap.classList.add('btn-primary');
@@ -202,7 +238,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
 
       await MapEngine.renderSectorMap();
-    } else if (activeView === 'settings') {
+    } else if (activeView === 'settings' && manager) {
       if (sectionSettings) sectionSettings.classList.add('active');
       if (btnViewSettings) {
         btnViewSettings.classList.add('btn-primary');
@@ -218,39 +254,64 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
 
       await ProjectsEngine.renderProjectsSection(showToast, refreshUI);
+    } else {
+      // Fallback de segurança: se caiu aqui sem permissão, volta pro Kanban
+      activeView = 'kanban';
+      if (sectionKanban) sectionKanban.classList.add('active');
+      if (btnViewKanban) {
+        btnViewKanban.classList.add('btn-primary');
+        btnViewKanban.classList.remove('btn-secondary');
+      }
+      await KanbanEngine.renderBoard(currentMemberFilter, {
+        onRefresh: refreshUI,
+        onReportImpediment: openReportImpedimentModal,
+        onOpenTaskDetails: openTaskDetailsModal
+      });
     }
   }
 
   /**
    * Renderiza a Barra de Notificações e Pendências de Aceite no Topo da Página
+   * Regra: cada notificação só aparece para quem está diretamente envolvido
+   * (quem enviou a transferência ou quem deveria recebê-la).
    */
   async function renderTopNotificationBar() {
     const bar = document.getElementById('top-notification-bar');
     const container = document.getElementById('top-notification-list');
     if (!bar || !container) return;
 
-    const loggedId = localStorage.getItem('logged_member_id');
+    const loggedId = getLoggedMemberId();
+    const manager = isManager();
     const transfers = await DB.getAll('activity_transfers');
 
-    // FILTRO DE SEGURANÇA: Só exibe a notificação se ela for destinada a quem está logado
+    // Notificações recebidas: transferências pendentes destinadas a mim
     const pendingTransfers = transfers.filter(t =>
-      t.status === 'PENDENTE' && (!loggedId || String(t.toMemberId) === String(loggedId))
+      t.status === 'PENDENTE' && loggedId && String(t.toMemberId) === String(loggedId)
+    );
+
+    // Notificações de retorno: transferências que eu enviei e já foram respondidas (aceitas/recusadas)
+    const senderNotices = transfers.filter(t =>
+      loggedId &&
+      String(t.fromMemberId) === String(loggedId) &&
+      (t.status === 'ACEITO' || t.status === 'REJEITADO') &&
+      !t.senderAcknowledged
     );
 
     const tasks = await DB.getAll('tasks');
     const members = await DB.getAll('members');
     const membersMap = new Map(members.map(m => [m.id, m]));
 
-    // Alertas de prazo de 2 dias
+    // Alertas de prazo de 2 dias: gestor vê de todos, colaborador só vê os seus
     const today = new Date();
-    const urgentTasks = tasks.filter(t => {
+    const relevantTasks = manager ? tasks : tasks.filter(t => String(t.memberId) === String(loggedId));
+    const urgentTasks = relevantTasks.filter(t => {
       if (t.status === 'CONCLUÍDO' || !t.dueDate) return false;
       const due = new Date(t.dueDate);
       const diffDays = Math.ceil((due - today) / (1000 * 60 * 60 * 24));
       return diffDays >= 0 && diffDays <= 2;
     });
 
-    if (pendingTransfers.length === 0 && (urgentTasks.length === 0 || loggedId)) {
+    if (pendingTransfers.length === 0 && senderNotices.length === 0 && urgentTasks.length === 0) {
       bar.style.display = 'none';
       return;
     }
@@ -259,7 +320,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     let html = `<div>`;
 
     if (pendingTransfers.length > 0) {
-      // Lendo corretamente o primeiro item da lista filtrada com [0]
       const firstTr = pendingTransfers[0];
       const task = tasks.find(t => t.id === firstTr.taskId) || { title: 'Atividade' };
       const fromMem = membersMap.get(firstTr.fromMemberId) || { name: 'Alguém' };
@@ -274,10 +334,25 @@ document.addEventListener('DOMContentLoaded', async () => {
           </div> 
         </div> 
       `;
-    } else if (urgentTasks.length > 0 && !loggedId) {
+    } else if (senderNotices.length > 0) {
+      const firstNotice = senderNotices[0];
+      const task = tasks.find(t => t.id === firstNotice.taskId) || { title: 'Atividade' };
+      const toMem = membersMap.get(firstNotice.toMemberId) || { name: 'Colega' };
+      const statusLabel = firstNotice.status === 'ACEITO' ? 'aceitou' : 'recusou';
+      const statusColor = firstNotice.status === 'ACEITO' ? '#10b981' : '#ef4444';
+
+      html += ` 
+        <div style="display:flex; justify-content:space-between; align-items:center; background:#1e1b4b; border:1px solid #4338ca; padding:0.6rem 1rem; border-radius:4px; color:#c7d2fe; font-size:0.85rem; margin-bottom:0.5rem;"> 
+          <span>🔄 <strong style="color:${statusColor};">${toMem.name} ${statusLabel}</strong> a transferência da atividade "${task.title}".</span> 
+          <div style="display:flex; gap:0.5rem;"> 
+            <button class="btn btn-secondary btn-ack-sender-notice" data-id="${firstNotice.id}" style="padding:0.2rem 0.6rem; font-size:0.75rem; background:#374151; border:none; color:white; font-weight:700; cursor:pointer; border-radius:4px;">OK</button> 
+          </div> 
+        </div> 
+      `;
+    } else if (urgentTasks.length > 0) {
       html += ` 
         <span> 
-          ⚠️ <strong>Alerta de Prazos:</strong> Existem ${urgentTasks.length} atividade(s) vencendo nos próximos 2 dias no calendário! 
+          ⚠️ <strong>Alerta de Prazos:</strong> Você tem ${urgentTasks.length} atividade(s) vencendo nos próximos 2 dias! 
         </span> 
       `;
     }
@@ -285,7 +360,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     html += `</div>`;
     container.innerHTML = html;
 
-    // Vinculação de cliques corrigida para usar requested_at do Supabase
     const btnAccept = container.querySelector('.btn-accept-transfer');
     if (btnAccept) {
       btnAccept.addEventListener('click', async () => {
@@ -293,7 +367,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         const transfer = await DB.get('activity_transfers', transferId);
         if (transfer) {
           transfer.status = 'ACEITO';
-          transfer.requested_at = new Date().toISOString(); // Alinhado com a coluna do Supabase
+          transfer.senderAcknowledged = false;
+          transfer.requested_at = new Date().toISOString();
           await DB.save('activity_transfers', transfer);
           const task = await DB.get('tasks', transfer.taskId);
           if (task) {
@@ -313,9 +388,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         const transfer = await DB.get('activity_transfers', transferId);
         if (transfer) {
           transfer.status = 'REJEITADO';
-          transfer.requested_at = new Date().toISOString(); // Alinhado com a coluna do Supabase
+          transfer.senderAcknowledged = false;
+          transfer.requested_at = new Date().toISOString();
           await DB.save('activity_transfers', transfer);
           showToast('Solicitação de transferência recusada.', 'info');
+          await refreshUI();
+        }
+      });
+    }
+
+    const btnAckNotice = container.querySelector('.btn-ack-sender-notice');
+    if (btnAckNotice) {
+      btnAckNotice.addEventListener('click', async () => {
+        const transferId = btnAckNotice.dataset.id;
+        const transfer = await DB.get('activity_transfers', transferId);
+        if (transfer) {
+          transfer.senderAcknowledged = true;
+          await DB.save('activity_transfers', transfer);
           await refreshUI();
         }
       });
@@ -323,11 +412,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   /**
-   * Renderiza a barra de abas de membros no topo
+   * Renderiza a barra de abas de membros no topo (somente visível para gestores)
    */
   async function renderMemberTabs() {
     const container = document.getElementById('member-tabs-bar');
     if (!container) return;
+
+    if (!isManager()) {
+      container.innerHTML = '';
+      return;
+    }
 
     const members = await DB.getAll('members');
 
@@ -358,9 +452,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   /**
-   * Remove um membro da equipe e limpa suas tarefas
+   * Remove um membro da equipe e limpa suas tarefas (somente gestor)
    */
   async function handleDeleteMember(memberId, memberName) {
+    if (!isManager()) {
+      showToast('Apenas gestores podem remover colaboradores.', 'warning');
+      return;
+    }
+
     const member = await DB.get('members', memberId);
     if (confirm(`Tem certeza que deseja remover o membro "${memberName}" da equipe?\nEsta ação também removerá as atividades vinculadas.`)) {
       await DB.delete('members', memberId);
@@ -391,6 +490,19 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function openTaskDetailsModal(taskId) {
     const task = await DB.get('tasks', taskId);
     if (!task) return;
+
+    // Acesso individualizado: colaborador comum só pode abrir detalhes das próprias atividades
+    // (ou de atividades em grupo das quais participa)
+    const loggedId = getLoggedMemberId();
+    const manager = isManager();
+    if (!manager) {
+      const taskMembersAll = await DB.getAll('task_members');
+      const isInGroup = taskMembersAll.some(tm => tm.taskId === task.id && String(tm.memberId) === String(loggedId));
+      if (String(task.memberId) !== String(loggedId) && !isInGroup) {
+        showToast('Você não tem acesso a esta atividade.', 'warning');
+        return;
+      }
+    }
 
     const members = await DB.getAll('members');
     const impediments = await DB.getAll('impediments');
@@ -577,6 +689,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   if (btnNewMember) {
     btnNewMember.addEventListener('click', () => {
+      if (!isManager()) {
+        showToast('Apenas gestores podem cadastrar colaboradores.', 'warning');
+        return;
+      }
       formMember.reset();
       document.getElementById('member-photo-preview').classList.remove('active');
       openModal(modalMember);
@@ -596,10 +712,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  if (btnViewManager) btnViewManager.addEventListener('click', () => { activeView = 'manager'; refreshUI(); });
+  if (btnViewManager) btnViewManager.addEventListener('click', () => {
+    if (!isManager()) return;
+    activeView = 'manager'; refreshUI();
+  });
   if (btnViewKanban) btnViewKanban.addEventListener('click', () => { activeView = 'kanban'; refreshUI(); });
-  if (btnViewMap) btnViewMap.addEventListener('click', () => { activeView = 'map'; refreshUI(); });
-  if (btnViewSettings) btnViewSettings.addEventListener('click', () => { activeView = 'settings'; refreshUI(); });
+  if (btnViewMap) btnViewMap.addEventListener('click', () => {
+    if (!isManager()) return;
+    activeView = 'map'; refreshUI();
+  });
+  if (btnViewSettings) btnViewSettings.addEventListener('click', () => {
+    if (!isManager()) return;
+    activeView = 'settings'; refreshUI();
+  });
   if (btnViewProjects) btnViewProjects.addEventListener('click', () => { activeView = 'projects'; refreshUI(); });
 
   // Botões do Filtro de Período do Kanban
@@ -615,8 +740,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function populateTaskMemberSelect() {
     const select = document.getElementById('task-member');
     if (!select) return;
+    const manager = isManager();
+    const loggedId = getLoggedMemberId();
     const members = await DB.getAll('members');
-    select.innerHTML = members.map(m => `<option value="${m.id}">${m.name} (${m.role || 'Membro'})</option>`).join('');
+    // Colaborador comum só pode atribuir/transferir atividades entre si e colegas existentes,
+    // mas a criação de atividade para si mesmo é sempre permitida.
+    const options = manager ? members : members;
+    select.innerHTML = options.map(m => `<option value="${m.id}" ${!manager && m.id === loggedId ? 'selected' : ''}>${m.name} (${m.role || 'Membro'})</option>`).join('');
   }
 
   async function populateTaskProjectSelect() {
@@ -681,9 +811,27 @@ document.addEventListener('DOMContentLoaded', async () => {
     formMember.addEventListener('submit', async (e) => {
       e.preventDefault();
 
+      if (!isManager()) {
+        showToast('Apenas gestores podem cadastrar colaboradores.', 'warning');
+        return;
+      }
+
       const name = document.getElementById('member-name').value;
       const role = document.getElementById('member-role').value;
       const contact = document.getElementById('member-contact').value;
+      // Campos novos — precisam existir no HTML do modal-member (ver instruções)
+      const emailField = document.getElementById('member-email');
+      const passwordField = document.getElementById('member-password');
+      const accessLevelField = document.getElementById('member-access-level');
+
+      const email = emailField ? emailField.value.trim() : contact;
+      const password = passwordField ? passwordField.value : '';
+      const accessLevel = accessLevelField ? accessLevelField.value : 'colaborador';
+
+      if (!email || !password) {
+        showToast('E-mail e senha de acesso são obrigatórios para o colaborador.', 'warning');
+        return;
+      }
 
       const photoPreview = document.getElementById('member-photo-preview');
       let photoData = photoPreview.src;
@@ -699,7 +847,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         name,
         role,
         contact,
-        email: contact,
+        email,
+        password,
+        accessLevel: accessLevel === 'gestor' ? 'gestor' : 'colaborador',
         photo: photoData
       };
 
@@ -720,6 +870,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       const email = document.getElementById('edit-profile-email').value;
       const preview = document.getElementById('edit-profile-preview');
 
+      // Campos novos — precisam existir no HTML do modal-edit-profile (ver instruções)
+      const passwordField = document.getElementById('edit-profile-password');
+      const accessLevelField = document.getElementById('edit-profile-access-level');
+
       const member = await DB.get('members', memberId);
       if (member) {
         member.name = name;
@@ -728,7 +882,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         member.contact = email;
         if (preview.src) member.photo = preview.src;
 
+        // Só permite alterar senha do próprio usuário
+        if (passwordField && passwordField.value) {
+          member.password = passwordField.value;
+        }
+
+        // Só um gestor pode alterar o nível de acesso de alguém (inclusive o próprio, com cautela)
+        if (isManager() && accessLevelField && accessLevelField.value) {
+          member.accessLevel = accessLevelField.value === 'gestor' ? 'gestor' : 'colaborador';
+        }
+
         await DB.save('members', member);
+
+        // Se o usuário editou o próprio nível de acesso ou logou como esse membro, atualiza a sessão
+        if (String(memberId) === String(getLoggedMemberId())) {
+          localStorage.setItem('logged_access_level', member.accessLevel === 'gestor' ? 'gestor' : 'colaborador');
+        }
+
         showToast('Perfil atualizado com sucesso!', 'success');
         closeModal(modalEditProfile);
         refreshUI();
@@ -752,6 +922,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Modo Edição de Atividade Existente
         const task = await DB.get('tasks', existingTaskId);
         if (task) {
+          // Acesso individualizado: colaborador comum só edita as próprias atividades
+          if (!isManager() && String(task.memberId) !== String(getLoggedMemberId())) {
+            showToast('Você não tem permissão para editar esta atividade.', 'warning');
+            return;
+          }
+
           const previousState = { ...task };
           task.title = title;
           task.description = description;
@@ -914,4 +1090,3 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Render inicial
   await refreshUI();
 });
-
