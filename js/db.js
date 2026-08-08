@@ -1,11 +1,31 @@
 /**
- * Motor de Banco de Dados com Supabase Cloud Persistence
- * Versão compatível com a estrutura atual do Supabase
+ * ============================================================
+ * MOTOR DE BANCO DE DADOS - SUPABASE
+ * ============================================================
+ *
+ * Versão compatível com a estrutura atual do Supabase.
+ *
+ * IMPORTANTE:
+ * A tabela de transferências existente no Supabase é:
+ *
+ * transferências_de_atividade
+ *
+ * E NÃO:
+ *
+ * activity_transfers
+ *
+ * ============================================================
  */
 
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 
-const SUPABASE_URL = 'https://lspvdunxxxebzwyypqlx.supabase.co';
+
+// ============================================================
+// CONFIGURAÇÃO SUPABASE
+// ============================================================
+
+const SUPABASE_URL =
+  'https://lspvdunxxxebzwyypqlx.supabase.co';
 
 const SUPABASE_ANON_KEY =
   'sb_publishable_jf69uVHlxULskHzGN__srA_oTi2LWPJ';
@@ -16,63 +36,75 @@ export const supabase = createClient(
 );
 
 
-/* =========================================================
-   CACHE LOCAL
-   ========================================================= */
+// ============================================================
+// CACHE LOCAL
+// ============================================================
 
 const memoryStore = {
+
   members: [],
+
   tasks: [],
+
   impediments: [],
+
   projects: [],
+
   task_members: [],
+
   activity_transfers: [],
+
   cycle_templates: [],
+
   audit_logs: []
+
 };
+
 
 const lastFetchTime = {};
 
 const CACHE_TTL_MS = 5000;
 
 
-/* =========================================================
-   CONFIGURAÇÃO DAS TABELAS
-   ========================================================= */
+// ============================================================
+// MAPA DAS TABELAS
+// ============================================================
 
 const TABLE_MAP = {
 
-  members: 'members',
+  members:
+    'members',
 
-  tasks: 'tasks',
+  tasks:
+    'tasks',
 
-  impediments: 'impediments',
+  impediments:
+    'impediments',
 
-  projects: 'projects',
+  projects:
+    'projects',
 
-  task_members: 'task_members',
+  task_members:
+    'task_members',
 
-  /*
-   * IMPORTANTE:
-   * No seu Supabase a tabela NÃO se chama
-   * activity_transfers.
-   *
-   * O nome real mostrado no seu print é:
-   * transferências_de_atividade
-   */
-  activity_transfers: 'transferências_de_atividade',
+  activity_transfers:
+    'transferências_de_atividade',
 
-  transfers: 'transferências_de_atividade',
+  transfers:
+    'transferências_de_atividade',
 
-  cycle_templates: 'cycle_templates',
+  cycle_templates:
+    'cycle_templates',
 
-  audit_logs: 'audit_logs'
+  audit_logs:
+    'audit_logs'
+
 };
 
 
-/* =========================================================
-   BANCO DE DADOS
-   ========================================================= */
+// ============================================================
+// BANCO DE DADOS
+// ============================================================
 
 export const DB = {
 
@@ -81,9 +113,9 @@ export const DB = {
   isCloudConnected: true,
 
 
-  /* =======================================================
-     INICIALIZAÇÃO
-     ======================================================= */
+  // ========================================================
+  // INICIALIZAÇÃO
+  // ========================================================
 
   async init() {
 
@@ -93,6 +125,7 @@ export const DB = {
         .from('members')
         .select('id')
         .limit(1);
+
 
       if (error) {
 
@@ -117,175 +150,304 @@ export const DB = {
       );
 
       this.isCloudConnected = false;
+
     }
 
+
     await this.seedInitialDataIfEmpty();
+
   },
 
 
-  /* =======================================================
-     NOME DA TABELA
-     ======================================================= */
+  // ========================================================
+  // NOME DA TABELA
+  // ========================================================
 
   mapStoreName(storeName) {
 
     return TABLE_MAP[storeName] || storeName;
+
   },
 
 
-  /* =======================================================
-     CAMEL CASE -> SNAKE CASE
-     ======================================================= */
+  // ========================================================
+  // CAMEL CASE -> SNAKE CASE
+  // ========================================================
 
   toSnakeCase(obj) {
 
-    if (!obj || typeof obj !== 'object') {
+    if (
+      !obj ||
+      typeof obj !== 'object' ||
+      Array.isArray(obj)
+    ) {
+
       return obj;
+
     }
 
+
     const result = {};
+
 
     for (const key in obj) {
 
       const snakeKey = key
-        .replace(/([A-Z])/g, '_$1')
+        .replace(
+          /([A-Z])/g,
+          '_$1'
+        )
         .toLowerCase();
 
+
       result[snakeKey] = obj[key];
+
     }
 
+
     return result;
+
   },
 
 
-  /* =======================================================
-     SNAKE CASE -> CAMEL CASE
-     ======================================================= */
+  // ========================================================
+  // SNAKE CASE -> CAMEL CASE
+  // ========================================================
 
   toCamelCase(obj) {
 
-    if (!obj || typeof obj !== 'object') {
+    if (
+      !obj ||
+      typeof obj !== 'object' ||
+      Array.isArray(obj)
+    ) {
+
       return obj;
+
     }
 
+
     const result = {};
+
 
     for (const key in obj) {
 
       const camelKey = key.replace(
         /_([a-z])/g,
         function (_, letter) {
+
           return letter.toUpperCase();
+
         }
       );
 
+
       result[camelKey] = obj[key];
+
     }
 
+
     return result;
+
   },
 
 
-  /* =======================================================
-     ADAPTA TRANSFERÊNCIA DE ATIVIDADE
-     PARA A ESTRUTURA REAL DO SUPABASE
-     ======================================================= */
+  // ========================================================
+  // CONVERTE TRANSFERÊNCIA DO SUPABASE -> SISTEMA
+  // ========================================================
+
+  formatActivityTransfer(row) {
+
+    if (!row) {
+
+      return null;
+
+    }
+
+
+    return {
+
+      // Chave principal
+      id:
+        row['eu ia'] ?? null,
+
+
+      // Tarefa
+      taskId:
+        row['id_da_tarefa']
+        ??
+        row['ID da tarefa']
+        ??
+        null,
+
+
+      // Membro de destino
+      toMemberId:
+        row['para_id_do_membro']
+        ??
+        row['paral do membro']
+        ??
+        null,
+
+
+      // Membro de origem
+      fromMemberId:
+        row['do ID do membro']
+        ??
+        null,
+
+
+      // Status
+      status:
+        row['status']
+        ??
+        null,
+
+
+      // Datas
+      createdAt:
+        row['criado_em']
+        ??
+        null,
+
+
+      requestedAt:
+        row['solicitado_em']
+        ??
+        null,
+
+
+      answeredAt:
+        row['respondeu_em']
+        ??
+        null,
+
+
+      // Confirmação
+      senderConfirmed:
+        row['remetenteConfirmado']
+        ??
+        row['remetente_confirmado']
+        ??
+        false,
+
+
+      // Campo adicional
+      successId:
+        row['de_id_do_sucesso']
+        ??
+        null
+
+    };
+
+  },
+
+
+  // ========================================================
+  // PREPARA TRANSFERÊNCIA PARA O SUPABASE
+  // ========================================================
 
   prepareActivityTransfer(item) {
 
     const result = {};
 
-    /*
-     * ID
-     *
-     * No seu banco a primeira coluna está como:
-     * "eu ia"
-     *
-     * Como ela é a chave primária, usamos ela como ID.
-     */
+
+    // ------------------------------------------------------
+    // CHAVE PRIMÁRIA
+    // ------------------------------------------------------
 
     if (
       item.id !== undefined &&
-      item.id !== null
+      item.id !== null &&
+      item.id !== ''
     ) {
 
-      result['eu ia'] = String(item.id);
+      result['eu ia'] =
+        String(item.id);
 
     }
 
 
-    /*
-     * ID DA TAREFA
-     *
-     * Seu banco possui:
-     * id_da_tarefa
-     * ID da tarefa
-     *
-     * Vamos preencher as duas para manter
-     * compatibilidade com a estrutura atual.
-     */
+    // ------------------------------------------------------
+    // ID DA TAREFA
+    // ------------------------------------------------------
 
     const taskId =
-      item.taskId ??
-      item.id_da_tarefa ??
+      item.taskId
+      ??
+      item.id_da_tarefa
+      ??
       item['ID da tarefa'];
+
 
     if (
       taskId !== undefined &&
-      taskId !== null
+      taskId !== null &&
+      taskId !== ''
     ) {
 
-      result['id_da_tarefa'] = String(taskId);
-
-      result['ID da tarefa'] = String(taskId);
+      result['id_da_tarefa'] =
+        String(taskId);
 
     }
 
 
-    /*
-     * MEMBRO DE DESTINO
-     */
+    // ------------------------------------------------------
+    // ID DO MEMBRO DE DESTINO
+    // ------------------------------------------------------
 
     const toMemberId =
-      item.toMemberId ??
-      item.paraIdDoMembro ??
-      item.para_id_do_membro ??
+      item.toMemberId
+      ??
+      item.paraIdDoMembro
+      ??
+      item.para_id_do_membro
+      ??
       item['paral do membro'];
+
 
     if (
       toMemberId !== undefined &&
-      toMemberId !== null
+      toMemberId !== null &&
+      toMemberId !== ''
     ) {
 
       result['para_id_do_membro'] =
         String(toMemberId);
 
-      result['paral do membro'] =
-        String(toMemberId);
-
     }
 
 
-    /*
-     * MEMBRO DE ORIGEM
-     *
-     * O seu banco NÃO possui from_member_id.
-     *
-     * No print aparece:
-     * "do ID do membro"
-     *
-     * Então usamos essa coluna.
-     */
+    // ------------------------------------------------------
+    // ID DO MEMBRO DE ORIGEM
+    // ------------------------------------------------------
+    //
+    // ATENÇÃO:
+    //
+    // NÃO usamos:
+    //
+    // from_member_id
+    //
+    // porque essa coluna NÃO EXISTE no Supabase.
+    //
+    // A coluna real é:
+    //
+    // "do ID do membro"
+    //
+    // ------------------------------------------------------
 
     const fromMemberId =
-      item.fromMemberId ??
-      item.from_member_id ??
-      item.deIdDoMembro ??
+      item.fromMemberId
+      ??
+      item.deIdDoMembro
+      ??
       item['do ID do membro'];
+
 
     if (
       fromMemberId !== undefined &&
-      fromMemberId !== null
+      fromMemberId !== null &&
+      fromMemberId !== ''
     ) {
 
       result['do ID do membro'] =
@@ -294,110 +456,155 @@ export const DB = {
     }
 
 
-    /*
-     * STATUS
-     */
+    // ------------------------------------------------------
+    // STATUS
+    // ------------------------------------------------------
 
-    if (item.status !== undefined) {
+    if (
+      item.status !== undefined &&
+      item.status !== null
+    ) {
 
-      result.status = item.status;
+      result['status'] =
+        item.status;
 
     }
 
 
-    /*
-     * DATA DE CRIAÇÃO
-     */
+    // ------------------------------------------------------
+    // DATA DE CRIAÇÃO
+    // ------------------------------------------------------
 
     const createdAt =
-      item.createdAt ??
-      item.criadoEm ??
+      item.createdAt
+      ??
+      item.criadoEm
+      ??
       item.criado_em;
 
-    if (createdAt !== undefined) {
 
-      result.criado_em = createdAt;
+    if (
+      createdAt !== undefined &&
+      createdAt !== null
+    ) {
+
+      result['criado_em'] =
+        createdAt;
 
     }
 
 
-    /*
-     * DATA DA SOLICITAÇÃO
-     */
+    // ------------------------------------------------------
+    // DATA DA SOLICITAÇÃO
+    // ------------------------------------------------------
 
     const requestedAt =
-      item.requestedAt ??
-      item.solicitadoEm ??
+      item.requestedAt
+      ??
+      item.solicitadoEm
+      ??
       item.solicitado_em;
 
-    if (requestedAt !== undefined) {
 
-      result.solicitado_em = requestedAt;
+    if (
+      requestedAt !== undefined &&
+      requestedAt !== null
+    ) {
+
+      result['solicitado_em'] =
+        requestedAt;
 
     }
 
 
-    /*
-     * DATA DA RESPOSTA
-     */
+    // ------------------------------------------------------
+    // DATA DA RESPOSTA
+    // ------------------------------------------------------
 
     const answeredAt =
-      item.answeredAt ??
-      item.respondeuEm ??
+      item.answeredAt
+      ??
+      item.respondeuEm
+      ??
       item.respondeu_em;
 
-    if (answeredAt !== undefined) {
 
-      result.respondeu_em = answeredAt;
+    if (
+      answeredAt !== undefined &&
+      answeredAt !== null
+    ) {
+
+      result['respondeu_em'] =
+        answeredAt;
 
     }
 
 
-    /*
-     * CONFIRMAÇÃO DO REMETENTE
-     */
+    // ------------------------------------------------------
+    // CONFIRMAÇÃO DO REMETENTE
+    // ------------------------------------------------------
 
     const senderConfirmed =
-      item.senderConfirmed ??
-      item.remetenteConfirmado ??
+      item.senderConfirmed
+      ??
+      item.remetenteConfirmado
+      ??
       item.remetente_confirmado;
 
-    if (senderConfirmed !== undefined) {
 
-      result.remetenteConfirmado =
+    if (
+      senderConfirmed !== undefined &&
+      senderConfirmed !== null
+    ) {
+
+      result['remetenteConfirmado'] =
         Boolean(senderConfirmed);
 
-      result.remetente_confirmado =
+      result['remetente_confirmado'] =
         Boolean(senderConfirmed);
 
     }
 
 
-    /*
-     * OUTROS CAMPOS QUE EXISTEM NO BANCO
-     */
+    // ------------------------------------------------------
+    // ID DE SUCESSO
+    // ------------------------------------------------------
 
-    if (item['de_id_do_sucesso'] !== undefined) {
+    const successId =
+      item.successId
+      ??
+      item.de_id_do_sucesso;
+
+
+    if (
+      successId !== undefined &&
+      successId !== null
+    ) {
 
       result['de_id_do_sucesso'] =
-        item['de_id_do_sucesso'];
+        successId;
 
     }
 
 
     return result;
+
   },
 
 
-  /* =======================================================
-     GET ALL
-     ======================================================= */
+  // ========================================================
+  // GET ALL
+  // ========================================================
 
-  async getAll(storeName, options = {}) {
+  async getAll(
+    storeName,
+    options = {}
+  ) {
 
     const {
       forceRefresh = false
     } = options;
+
 
     const tableName =
       this.mapStoreName(storeName);
@@ -408,8 +615,9 @@ export const DB = {
 
 
     const cacheIsFresh =
-      (Date.now() - lastFetch) <
-      CACHE_TTL_MS;
+      (
+        Date.now() - lastFetch
+      ) < CACHE_TTL_MS;
 
 
     const hasCachedData =
@@ -424,6 +632,7 @@ export const DB = {
     ) {
 
       return memoryStore[storeName];
+
     }
 
 
@@ -444,10 +653,40 @@ export const DB = {
       }
 
 
-      const formatted =
-        (data || []).map(item =>
-          this.toCamelCase(item)
-        );
+      let formatted;
+
+
+      // ----------------------------------------------------
+      // TRANSFERÊNCIAS
+      // ----------------------------------------------------
+
+      if (
+        storeName === 'activity_transfers' ||
+        storeName === 'transfers'
+      ) {
+
+        formatted =
+          (data || [])
+            .map(row =>
+              this.formatActivityTransfer(row)
+            )
+            .filter(Boolean);
+
+      }
+
+      // ----------------------------------------------------
+      // TABELAS NORMAIS
+      // ----------------------------------------------------
+
+      else {
+
+        formatted =
+          (data || [])
+            .map(item =>
+              this.toCamelCase(item)
+            );
+
+      }
 
 
       memoryStore[storeName] =
@@ -472,15 +711,20 @@ export const DB = {
       return (
         memoryStore[storeName] || []
       );
+
     }
+
   },
 
 
-  /* =======================================================
-     GET POR ID
-     ======================================================= */
+  // ========================================================
+  // GET POR ID
+  // ========================================================
 
-  async get(storeName, key) {
+  async get(
+    storeName,
+    key
+  ) {
 
     const tableName =
       this.mapStoreName(storeName);
@@ -491,29 +735,42 @@ export const DB = {
       let query;
 
 
-      /*
-       * Transferências usam "eu ia"
-       * como chave primária.
-       */
+      // ----------------------------------------------------
+      // TRANSFERÊNCIA
+      // ----------------------------------------------------
 
       if (
         storeName === 'activity_transfers' ||
         storeName === 'transfers'
       ) {
 
-        query = supabase
-          .from(tableName)
-          .select('*')
-          .eq('eu ia', key)
-          .single();
+        query =
+          supabase
+            .from(tableName)
+            .select('*')
+            .eq(
+              'eu ia',
+              String(key)
+            )
+            .single();
 
-      } else {
+      }
 
-        query = supabase
-          .from(tableName)
-          .select('*')
-          .eq('id', key)
-          .single();
+      // ----------------------------------------------------
+      // TABELAS NORMAIS
+      // ----------------------------------------------------
+
+      else {
+
+        query =
+          supabase
+            .from(tableName)
+            .select('*')
+            .eq(
+              'id',
+              key
+            )
+            .single();
 
       }
 
@@ -531,6 +788,16 @@ export const DB = {
       }
 
 
+      if (
+        storeName === 'activity_transfers' ||
+        storeName === 'transfers'
+      ) {
+
+        return this.formatActivityTransfer(data);
+
+      }
+
+
       return this.toCamelCase(data);
 
 
@@ -541,27 +808,31 @@ export const DB = {
 
 
       return list.find(
-        item => item.id === key
+        item =>
+          String(item.id) === String(key)
       ) || null;
+
     }
+
   },
 
 
-  /* =======================================================
-     SAVE
-     ======================================================= */
+  // ========================================================
+  // SAVE
+  // ========================================================
 
-  async save(storeName, item) {
+  async save(
+    storeName,
+    item
+  ) {
 
     const tableName =
       this.mapStoreName(storeName);
 
 
-    /*
-     * ================================================
-     * TRANSFERÊNCIA DE ATIVIDADE
-     * ================================================
-     */
+    // ======================================================
+    // TRANSFERÊNCIA DE ATIVIDADE
+    // ======================================================
 
     if (
       storeName === 'activity_transfers' ||
@@ -572,11 +843,13 @@ export const DB = {
         this.prepareActivityTransfer(item);
 
 
-      /*
-       * Atualiza cache
-       */
+      // ----------------------------------------------------
+      // CACHE
+      // ----------------------------------------------------
 
-      if (!memoryStore[storeName]) {
+      if (
+        !memoryStore[storeName]
+      ) {
 
         memoryStore[storeName] = [];
 
@@ -586,15 +859,20 @@ export const DB = {
       const idx =
         memoryStore[storeName]
           .findIndex(
-            i => i.id === item.id
+            i =>
+              String(i.id) ===
+              String(item.id)
           );
 
 
       if (idx >= 0) {
 
         memoryStore[storeName][idx] = {
+
           ...memoryStore[storeName][idx],
+
           ...item
+
         };
 
       } else {
@@ -605,10 +883,13 @@ export const DB = {
       }
 
 
+      // ----------------------------------------------------
+      // SUPABASE
+      // ----------------------------------------------------
+
       try {
 
         const {
-          data,
           error
         } = await supabase
           .from(tableName)
@@ -641,24 +922,25 @@ export const DB = {
 
 
       return item;
+
     }
 
 
-    /*
-     * ================================================
-     * TABELAS NORMAIS
-     * ================================================
-     */
+    // ======================================================
+    // TABELAS NORMAIS
+    // ======================================================
 
     const dbItem =
       this.toSnakeCase(item);
 
 
-    /*
-     * Atualiza cache imediatamente
-     */
+    // ------------------------------------------------------
+    // CACHE
+    // ------------------------------------------------------
 
-    if (!memoryStore[storeName]) {
+    if (
+      !memoryStore[storeName]
+    ) {
 
       memoryStore[storeName] = [];
 
@@ -668,15 +950,20 @@ export const DB = {
     const idx =
       memoryStore[storeName]
         .findIndex(
-          i => i.id === item.id
+          i =>
+            String(i.id) ===
+            String(item.id)
         );
 
 
     if (idx >= 0) {
 
       memoryStore[storeName][idx] = {
+
         ...memoryStore[storeName][idx],
+
         ...item
+
       };
 
     } else {
@@ -686,6 +973,10 @@ export const DB = {
 
     }
 
+
+    // ------------------------------------------------------
+    // SUPABASE
+    // ------------------------------------------------------
 
     try {
 
@@ -705,6 +996,7 @@ export const DB = {
 
       }
 
+
     } catch (err) {
 
       console.warn(
@@ -716,29 +1008,37 @@ export const DB = {
 
 
     return item;
+
   },
 
 
-  /* =======================================================
-     DELETE
-     ======================================================= */
+  // ========================================================
+  // DELETE
+  // ========================================================
 
-  async delete(storeName, key) {
+  async delete(
+    storeName,
+    key
+  ) {
 
     const tableName =
       this.mapStoreName(storeName);
 
 
-    /*
-     * Remove do cache
-     */
+    // ------------------------------------------------------
+    // CACHE
+    // ------------------------------------------------------
 
-    if (memoryStore[storeName]) {
+    if (
+      memoryStore[storeName]
+    ) {
 
       memoryStore[storeName] =
         memoryStore[storeName]
           .filter(
-            i => i.id !== key
+            i =>
+              String(i.id) !==
+              String(key)
           );
 
     }
@@ -749,27 +1049,40 @@ export const DB = {
       let query;
 
 
-      /*
-       * Transferência:
-       * chave = "eu ia"
-       */
+      // ----------------------------------------------------
+      // TRANSFERÊNCIA
+      // ----------------------------------------------------
 
       if (
         storeName === 'activity_transfers' ||
         storeName === 'transfers'
       ) {
 
-        query = supabase
-          .from(tableName)
-          .delete()
-          .eq('eu ia', key);
+        query =
+          supabase
+            .from(tableName)
+            .delete()
+            .eq(
+              'eu ia',
+              String(key)
+            );
 
-      } else {
+      }
 
-        query = supabase
-          .from(tableName)
-          .delete()
-          .eq('id', key);
+      // ----------------------------------------------------
+      // TABELAS NORMAIS
+      // ----------------------------------------------------
+
+      else {
+
+        query =
+          supabase
+            .from(tableName)
+            .delete()
+            .eq(
+              'id',
+              key
+            );
 
       }
 
@@ -800,12 +1113,13 @@ export const DB = {
 
 
     return true;
+
   },
 
 
-  /* =======================================================
-     DADOS INICIAIS
-     ======================================================= */
+  // ========================================================
+  // DADOS INICIAIS
+  // ========================================================
 
   async seedInitialDataIfEmpty() {
 
@@ -823,12 +1137,15 @@ export const DB = {
     }
 
 
-    /*
-     * Avatar
-     */
+    // ------------------------------------------------------
+    // AVATAR
+    // ------------------------------------------------------
 
     const createAvatarSvg =
-      (bgColor, initials) => {
+      (
+        bgColor,
+        initials
+      ) => {
 
         const svg = `
           <svg
@@ -837,6 +1154,7 @@ export const DB = {
             height="100"
             viewBox="0 0 100 100"
           >
+
             <rect
               width="100"
               height="100"
@@ -864,12 +1182,13 @@ export const DB = {
           'data:image/svg+xml;base64,' +
           btoa(svg)
         );
+
       };
 
 
-    /* =====================================================
-       MEMBROS
-       ===================================================== */
+    // ======================================================
+    // MEMBROS
+    // ======================================================
 
     const initialMembers = [
 
@@ -924,9 +1243,9 @@ export const DB = {
     }
 
 
-    /* =====================================================
-       TAREFAS
-       ===================================================== */
+    // ======================================================
+    // TAREFAS
+    // ======================================================
 
     const todayStr =
       new Date()
@@ -945,7 +1264,8 @@ export const DB = {
         description:
           'Conferência de proventos, descontos, cálculo de INSS, IRRF e geração de contracheques.',
 
-        memberId: 'm-1',
+        memberId:
+          'm-1',
 
         category:
           'Folha de Pagamento',
@@ -973,6 +1293,7 @@ export const DB = {
 
         createdAt:
           new Date().toISOString()
+
       },
 
 
@@ -1014,6 +1335,7 @@ export const DB = {
 
         createdAt:
           new Date().toISOString()
+
       },
 
 
@@ -1055,6 +1377,7 @@ export const DB = {
 
         createdAt:
           new Date().toISOString()
+
       }
 
     ];
@@ -1072,13 +1395,14 @@ export const DB = {
     }
 
 
-    /* =====================================================
-       IMPEDIMENTO
-       ===================================================== */
+    // ======================================================
+    // IMPEDIMENTO
+    // ======================================================
 
     const initialImpediment = {
 
-      id: 'imp-1',
+      id:
+        'imp-1',
 
       taskId:
         't-dp-1',
@@ -1099,12 +1423,13 @@ export const DB = {
       'impediments',
       initialImpediment
     );
+
   },
 
 
-  /* =======================================================
-     RESET DO BANCO
-     ======================================================= */
+  // ========================================================
+  // RESET DO BANCO
+  // ========================================================
 
   async resetDatabase() {
 
@@ -1144,25 +1469,38 @@ export const DB = {
 
       try {
 
-        /*
-         * Transferências usam "eu ia"
-         */
+        // --------------------------------------------------
+        // TRANSFERÊNCIAS
+        // --------------------------------------------------
 
         if (
-          storeName === 'activity_transfers'
+          storeName ===
+          'activity_transfers'
         ) {
 
           await supabase
             .from(tableName)
             .delete()
-            .neq('eu ia', '0');
+            .neq(
+              'eu ia',
+              '0'
+            );
 
-        } else {
+        }
+
+        // --------------------------------------------------
+        // DEMAIS TABELAS
+        // --------------------------------------------------
+
+        else {
 
           await supabase
             .from(tableName)
             .delete()
-            .neq('id', '0');
+            .neq(
+              'id',
+              '0'
+            );
 
         }
 
@@ -1174,10 +1512,12 @@ export const DB = {
         );
 
       }
+
     }
 
 
     await this.seedInitialDataIfEmpty();
+
   }
 
 };
