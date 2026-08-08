@@ -164,35 +164,32 @@ export const ProjectsEngine = {
       }
     }
 
-    // Insere o HTML dinâmico no DOM
     container.innerHTML = html;
 
-    // Associa eventos nos botões e formulários
-    this.attachEvents(showToastCallback, onRefreshCallback);
+    // Configura os ouvintes de forma delegada e global
+    this.attachEvents(container, showToastCallback, onRefreshCallback);
     this.setupFormListeners(showToastCallback, onRefreshCallback);
   },
 
-  attachEvents(showToast, onRefresh) {
-    // Evento para fechar modais ao clicar no 'X'
-    document.querySelectorAll('#modal-project .modal-close, #modal-project .btn-close-modal').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const modal = document.getElementById('modal-project');
-        if (modal) modal.classList.remove('active');
-      });
-    });
+  /**
+   * Usa Delegação de Eventos no container pai (#section-projects)
+   */
+  attachEvents(container, showToast, onRefresh) {
+    if (container.dataset.eventsBound) return;
+    container.dataset.eventsBound = 'true';
 
-    // 1. Troca de abas do projeto
-    document.querySelectorAll('.btn-project-tab').forEach(btn => {
-      btn.addEventListener('click', () => {
-        this.activeProjectId = btn.dataset.id;
+    container.addEventListener('click', async (e) => {
+      // 1. Troca de Abas
+      const tabBtn = e.target.closest('.btn-project-tab');
+      if (tabBtn) {
+        this.activeProjectId = tabBtn.dataset.id;
         this.renderProjectsSection(showToast, onRefresh);
-      });
-    });
+        return;
+      }
 
-    // 2. Botão 'Criar Novo Projeto'
-    const btnCreateProject = document.getElementById('btn-create-project');
-    if (btnCreateProject) {
-      btnCreateProject.addEventListener('click', () => {
+      // 2. Botão 'Criar Novo Projeto'
+      const createBtn = e.target.closest('#btn-create-project');
+      if (createBtn) {
         const modal = document.getElementById('modal-project');
         const titleHeader = document.getElementById('modal-project-title-header');
         const form = modal ? modal.querySelector('form') : null;
@@ -205,13 +202,13 @@ export const ProjectsEngine = {
           }
           modal.classList.add('active');
         }
-      });
-    }
+        return;
+      }
 
-    // 3. Botão 'Editar Projeto'
-    document.querySelectorAll('.btn-edit-project').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const projectId = btn.dataset.id;
+      // 3. Botão 'Editar Projeto'
+      const editBtn = e.target.closest('.btn-edit-project');
+      if (editBtn) {
+        const projectId = editBtn.dataset.id;
         const project = await DB.get('projects', projectId);
         if (!project) return;
 
@@ -223,7 +220,6 @@ export const ProjectsEngine = {
           if (titleHeader) titleHeader.innerHTML = '✏️ Editar Projeto';
 
           if (form) {
-            // Busca campos no formulário de forma universal
             const nameInput = form.querySelector('input[type="text"], [name="name"], [name="title"], #project-name');
             const descInput = form.querySelector('textarea, [name="description"], #project-description');
 
@@ -235,13 +231,13 @@ export const ProjectsEngine = {
 
           modal.classList.add('active');
         }
-      });
-    });
+        return;
+      }
 
-    // 4. Botão '+ Atividade no Projeto'
-    document.querySelectorAll('.btn-add-project-task').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const projectId = btn.dataset.id;
+      // 4. Botão '+ Atividade no Projeto'
+      const addTaskBtn = e.target.closest('.btn-add-project-task');
+      if (addTaskBtn) {
+        const projectId = addTaskBtn.dataset.id;
         const modalTask = document.getElementById('modal-task');
         const selectProject = document.getElementById('task-project-id') || document.querySelector('[name="projectId"]');
 
@@ -251,13 +247,13 @@ export const ProjectsEngine = {
           if (selectProject) selectProject.value = projectId;
           modalTask.classList.add('active');
         }
-      });
-    });
+        return;
+      }
 
-    // 5. Botão de gerenciar integrantes da tarefa
-    document.querySelectorAll('.btn-manage-task-group').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const taskId = btn.dataset.taskId;
+      // 5. Botão de Gerenciar Integrantes
+      const manageGroupBtn = e.target.closest('.btn-manage-task-group');
+      if (manageGroupBtn) {
+        const taskId = manageGroupBtn.dataset.taskId;
         const modal = document.getElementById('modal-task-group');
         if (!modal) return;
 
@@ -265,9 +261,9 @@ export const ProjectsEngine = {
         const taskMembers = await DB.getAll('task_members');
         const currentGroup = taskMembers.filter(tm => tm.taskId === taskId).map(tm => tm.memberId);
 
-        const container = document.getElementById('task-group-members-list');
-        if (container) {
-          container.innerHTML = members.map(m => `
+        const listContainer = document.getElementById('task-group-members-list');
+        if (listContainer) {
+          listContainer.innerHTML = members.map(m => `
             <label style="display:flex; align-items:center; gap:0.6rem; padding:0.4rem 0.6rem; background:var(--bg-input); border-radius:var(--radius-sm); margin-bottom:0.4rem; cursor:pointer;">
               <input type="checkbox" class="chk-group-member" data-member-id="${m.id}" ${currentGroup.includes(m.id) ? 'checked' : ''}>
               <img src="${m.photo}" style="width:24px; height:24px; border-radius:50%;">
@@ -280,7 +276,7 @@ export const ProjectsEngine = {
         if (btnSave) btnSave.dataset.taskId = taskId;
 
         modal.classList.add('active');
-      });
+      }
     });
   },
 
@@ -307,7 +303,6 @@ export const ProjectsEngine = {
         }
 
         if (editId) {
-          // --- MODO EDIÇÃO ---
           const project = await DB.get('projects', editId);
           if (project) {
             project.name = name;
@@ -316,7 +311,6 @@ export const ProjectsEngine = {
             await DB.save('projects', project);
           }
         } else {
-          // --- MODO CRIAÇÃO ---
           const newProject = {
             id: Date.now().toString(),
             name,
@@ -339,7 +333,6 @@ export const ProjectsEngine = {
       });
     }
 
-    // Salvar integrantes da tarefa
     const btnSaveTaskGroup = document.getElementById('task-group-save-btn');
     if (btnSaveTaskGroup && !btnSaveTaskGroup.dataset.listenerBound) {
       btnSaveTaskGroup.dataset.listenerBound = 'true';
