@@ -850,52 +850,54 @@ document.addEventListener('DOMContentLoaded', async () => {
       // ========================================================
 
       const transfers =
-        await DB.getAll(
-          'activity_transfers'
+        await DB.getAll('activity_transfers');
+
+      console.log('=================================');
+      console.log('🔔 TESTE NOTIFICAÇÕES');
+      console.log('👤 LOGADO:', loggedId);
+      console.log('👤 LOGADO TYPE:', typeof loggedId);
+      console.log('📦 TRANSFERÊNCIAS:', transfers);
+      console.log('📦 QUANTIDADE:', transfers.length);
+
+      transfers.forEach((transfer, index) => {
+
+        console.log(`--- TRANSFERÊNCIA ${index + 1} ---`);
+
+        console.log('ID:', transfer.id);
+
+        console.log(
+          'from_member_id:',
+          transfer.from_member_id
         );
 
-      console.log(
-        '🔄 TRANSFERÊNCIAS CARREGADAS:',
-        transfers
-      );
+        console.log(
+          'to_member_id:',
+          transfer.to_member_id
+        );
 
-      console.log(
-        '👤 USUÁRIO LOGADO:',
-        loggedId
-      );
+        console.log(
+          'task_id:',
+          transfer.task_id
+        );
 
-      // ========================================================
-      // RECEBIDAS
-      // ========================================================
+        console.log(
+          'status:',
+          transfer.status
+        );
 
-      const pendingTransfers =
-        transfers.filter(transfer => {
+        console.log(
+          'to == logado:',
+          String(transfer.to_member_id) === String(loggedId)
+        );
 
-          const toMemberId =
-            getTransferToMemberId(
-              transfer
-            );
+        console.log(
+          'status == pendente:',
+          String(transfer.status).toUpperCase() === 'PENDENTE'
+        );
 
-          console.log(
-            '📥 Transferência:',
-            transfer.id,
-            'destinatário:',
-            toMemberId,
-            'usuário:',
-            loggedId,
-            'status:',
-            transfer.status
-          );
+      });
 
-          return (
-            String(toMemberId) ===
-            String(loggedId) &&
-            String(transfer.status)
-              .toUpperCase() ===
-            'PENDENTE'
-          );
-
-        });
+      console.log('=================================');
 
       // ========================================================
       // RESPOSTAS
