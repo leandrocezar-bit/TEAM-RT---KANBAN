@@ -17,7 +17,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   let reportingTaskId = null;
 
   // Views restritas a usuários com nível de acesso "gestor"
-  const MANAGER_ONLY_VIEWS = ['manager', 'map', 'settings'];
+  // Dashboard, Fluxo RT e Configurações agora são visíveis para todos os colaboradores.
+  const MANAGER_ONLY_VIEWS = [];
 
   // --- 1. AUTENTICAÇÃO INDIVIDUAL POR E-MAIL + SENHA ---
   const loginOverlay = document.getElementById('login-overlay');
@@ -188,15 +189,16 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     }
 
-    // Botões administrativos visíveis apenas para quem tem nível de acesso "gestor"
-    const managerOnlyButtons = [btnViewManager, btnViewMap, btnViewSettings, btnNewMember, btnResetDb];
+    // Apenas cadastrar colaborador e restaurar dados continuam exclusivos de gestor.
+    // Dashboard, Fluxo RT e Configurações agora ficam visíveis para todos.
+    const managerOnlyButtons = [btnNewMember, btnResetDb];
     managerOnlyButtons.forEach(btn => {
       if (btn) btn.style.display = manager ? 'inline-block' : 'none';
     });
-    // Kanban, Projetos e Nova Atividade continuam acessíveis a todos os colaboradores
-    if (btnViewKanban) btnViewKanban.style.display = 'inline-block';
-    if (btnViewProjects) btnViewProjects.style.display = 'inline-block';
-    if (btnNewTask) btnNewTask.style.display = 'inline-block';
+    const openButtons = [btnViewKanban, btnViewManager, btnViewMap, btnViewSettings, btnViewProjects, btnNewTask];
+    openButtons.forEach(btn => {
+      if (btn) btn.style.display = 'inline-block';
+    });
 
     // Reset visual dos botões de navegação
     [btnViewKanban, btnViewManager, btnViewMap, btnViewSettings, btnViewProjects].forEach(btn => {
@@ -222,7 +224,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         onReportImpediment: openReportImpedimentModal,
         onOpenTaskDetails: openTaskDetailsModal
       });
-    } else if (activeView === 'manager' && manager) {
+    } else if (activeView === 'manager') {
       if (sectionManager) sectionManager.classList.add('active');
       if (btnViewManager) {
         btnViewManager.classList.add('btn-primary');
@@ -230,7 +232,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
 
       await ManagerEngine.renderDashboard(openEvidenceModal, handleDeleteMember, openCalendarDayModal);
-    } else if (activeView === 'map' && manager) {
+    } else if (activeView === 'map') {
       if (sectionMap) sectionMap.classList.add('active');
       if (btnViewMap) {
         btnViewMap.classList.add('btn-primary');
@@ -238,14 +240,19 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
 
       await MapEngine.renderSectorMap();
-    } else if (activeView === 'settings' && manager) {
+    } else if (activeView === 'settings') {
       if (sectionSettings) sectionSettings.classList.add('active');
       if (btnViewSettings) {
         btnViewSettings.classList.add('btn-primary');
         btnViewSettings.classList.remove('btn-secondary');
       }
 
-      await SettingsEngine.renderSettingsSection(showToast, refreshUI);
+      // Colaborador comum só deve ver as próprias atividades dentro de Configurações.
+      // O filtro real precisa ser aplicado dentro do settings.js (não incluso aqui).
+      await SettingsEngine.renderSettingsSection(showToast, refreshUI, {
+        isManager: manager,
+        memberId: loggedId
+      });
     } else if (activeView === 'projects') {
       if (sectionProjects) sectionProjects.classList.add('active');
       if (btnViewProjects) {
@@ -712,19 +719,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  if (btnViewManager) btnViewManager.addEventListener('click', () => {
-    if (!isManager()) return;
-    activeView = 'manager'; refreshUI();
-  });
+  if (btnViewManager) btnViewManager.addEventListener('click', () => { activeView = 'manager'; refreshUI(); });
   if (btnViewKanban) btnViewKanban.addEventListener('click', () => { activeView = 'kanban'; refreshUI(); });
-  if (btnViewMap) btnViewMap.addEventListener('click', () => {
-    if (!isManager()) return;
-    activeView = 'map'; refreshUI();
-  });
-  if (btnViewSettings) btnViewSettings.addEventListener('click', () => {
-    if (!isManager()) return;
-    activeView = 'settings'; refreshUI();
-  });
+  if (btnViewMap) btnViewMap.addEventListener('click', () => { activeView = 'map'; refreshUI(); });
+  if (btnViewSettings) btnViewSettings.addEventListener('click', () => { activeView = 'settings'; refreshUI(); });
   if (btnViewProjects) btnViewProjects.addEventListener('click', () => { activeView = 'projects'; refreshUI(); });
 
   // Botões do Filtro de Período do Kanban
