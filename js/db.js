@@ -3,18 +3,23 @@
  * MOTOR DE BANCO DE DADOS - SUPABASE
  * ============================================================
  *
- * Compatível com a estrutura atual do Supabase.
+ * Versão atualizada
  *
- * CORREÇÕES:
+ * PRINCIPAIS CORREÇÕES:
  *
- * 1. activity_transfers possui tratamento próprio.
- * 2. Transferência só entra no cache após confirmação do Supabase.
- * 3. Erros de gravação não são mais ignorados.
- * 4. activity_transfers sempre busca dados atualizados.
- * 5. Criado método getPendingTransfers().
- * 6. Mantido suporte aos nomes camelCase e snake_case.
- * 7. Evita transferência "sumir" após atualizar a página.
- *
+ * 1. Transferências sempre possuem status PENDENTE.
+ * 2. O registro só entra no cache como confirmado após o
+ *    Supabase aceitar a gravação.
+ * 3. Upsert de activity_transfers retorna o registro salvo.
+ * 4. Cache é invalidado após alterações.
+ * 5. Realtime para activity_transfers.
+ * 6. Outro usuário NÃO precisa estar conectado no momento
+ *    em que a transferência é criada.
+ * 7. Ao entrar no sistema, o usuário busca as transferências
+ *    pendentes diretamente do Supabase.
+ * 8. Evita que uma transferência "desapareça" após atualizar.
+ * 9. Tratamento especial para activity_transfers.
+ * 10. Compatibilidade CamelCase / SnakeCase.
  * ============================================================
  */
 
@@ -36,7 +41,17 @@ const SUPABASE_ANON_KEY =
 
 export const supabase = createClient(
   SUPABASE_URL,
-  SUPABASE_ANON_KEY
+  SUPABASE_ANON_KEY,
+  {
+    auth: {
+      persistSession: false
+    },
+    realtime: {
+      params: {
+        eventsPerSecond: 10
+      }
+    }
+  }
 );
 
 
@@ -67,7 +82,19 @@ const memoryStore = {
 
 const lastFetchTime = {};
 
-const CACHE_TTL_MS = 5000;
+
+// Cache curto para as tabelas normais.
+// activity_transfers possui tratamento especial.
+const CACHE_TTL_MS = 3000;
+
+
+// ============================================================
+// REALTIME
+// ============================================================
+
+let realtimeChannel = null;
+
+let realtimeStarted = false;
 
 
 // ============================================================
@@ -107,16 +134,24 @@ export const DB = {
 
   isCloudConnected: true,
 
+  realtimeConnected: false,
 
-  // ==========================================================
+
+  // ========================================================
   // INIT
-  // ==========================================================
+  // ========================================================
 
   async init() {
+
+    console.log(
+      '[DB] Inicializando banco...'
+    );
+
 
     try {
 
       const {
+        data,
         error
       } = await supabase
         .from('members')
@@ -133,9 +168,15 @@ export const DB = {
 
         this.isCloudConnected = false;
 
-      } else {
+      }
+
+      else {
 
         this.isCloudConnected = true;
+
+        console.log(
+          '[Supabase] Conectado.'
+        );
 
       }
 
@@ -153,25 +194,285 @@ export const DB = {
     }
 
 
-    await this.seedInitialDataIfEmpty();
+    // ------------------------------------------------------
+    // REALTIME
+    // ------------------------------------------------------
+
+    this.startRealtime();
+
+
+    // ------------------------------------------------------
+    // SEED
+    // ------------------------------------------------------
+
+    if (this.isCloudConnected) {
+
+      await this.seedInitialDataIfEmpty();
+
+    }
 
   },
 
 
-  // ==========================================================
+  // ========================================================
+  // REALTIME
+  // ========================================================
+
+  startRealtime() {
+
+    if (realtimeStarted) {
+
+      return;
+
+    }
+
+
+    realtimeStarted = true;
+
+
+    try {
+
+      realtimeChannel =
+        supabase
+          .channel(
+            'db-realtime-activity-transfers'
+          )
+
+          .on(
+            'postgres_changes',
+            {
+              event: '*',
+              schema: 'public',
+              table: 'activity_transfers'
+            },
+
+            payload => {
+
+              console.log(
+                '[Realtime] Activity transfer:',
+                payload
+              );
+
+
+              this.handleRealtimeTransfer(
+                payload
+              );
+
+            }
+          )
+
+          .subscribe(
+            status => {
+
+              console.log(
+                '[Realtime] Status:',
+                status
+              );
+
+
+              if (
+                status === 'SUBSCRIBED'
+              ) {
+
+                this.realtimeConnected =
+                  true;
+
+                console.log(
+                  '[Realtime] Conectado.'
+                );
+
+              }
+
+              else {
+
+                this.realtimeConnected =
+                  false;
+
+              }
+
+            }
+          );
+
+
+    }
+
+    catch (error) {
+
+      console.warn(
+        '[Realtime] Erro ao iniciar:',
+        error
+      );
+
+      this.realtimeConnected =
+        false;
+
+    }
+
+  },
+
+
+  // ========================================================
+  // PROCESSA ALTERAÇÃO DA TRANSFERÊNCIA
+  // ========================================================
+
+  handleRealtimeTransfer(payload) {
+
+    const eventType =
+      payload.eventType;
+
+
+    const newData =
+      payload.new || null;
+
+
+    const oldData =
+      payload.old || null;
+
+
+    // ------------------------------------------------------
+    // INSERT
+    // ------------------------------------------------------
+
+    if (
+      eventType === 'INSERT' &&
+      newData
+    ) {
+
+      const formatted =
+        this.formatActivityTransfer(
+          newData
+        );
+
+
+      this.upsertMemoryItem(
+        'activity_transfers',
+        formatted
+      );
+
+
+      this.dispatchDatabaseEvent(
+        'activity_transfer_created',
+        formatted
+      );
+
+
+      return;
+
+    }
+
+
+    // ------------------------------------------------------
+    // UPDATE
+    // ------------------------------------------------------
+
+    if (
+      eventType === 'UPDATE' &&
+      newData
+    ) {
+
+      const formatted =
+        this.formatActivityTransfer(
+          newData
+        );
+
+
+      this.upsertMemoryItem(
+        'activity_transfers',
+        formatted
+      );
+
+
+      this.dispatchDatabaseEvent(
+        'activity_transfer_updated',
+        formatted
+      );
+
+
+      return;
+
+    }
+
+
+    // ------------------------------------------------------
+    // DELETE
+    // ------------------------------------------------------
+
+    if (
+      eventType === 'DELETE' &&
+      oldData
+    ) {
+
+      const id =
+        oldData.id;
+
+
+      memoryStore.activity_transfers =
+        memoryStore.activity_transfers.filter(
+          item => item.id !== id
+        );
+
+
+      this.dispatchDatabaseEvent(
+        'activity_transfer_deleted',
+        oldData
+      );
+
+    }
+
+  },
+
+
+  // ========================================================
+  // EVENTO GLOBAL DO BANCO
+  // ========================================================
+
+  dispatchDatabaseEvent(
+    eventName,
+    detail
+  ) {
+
+    try {
+
+      window.dispatchEvent(
+        new CustomEvent(
+          eventName,
+          {
+            detail
+          }
+        )
+      );
+
+    }
+
+    catch (error) {
+
+      console.warn(
+        '[DB Event]',
+        error
+      );
+
+    }
+
+  },
+
+
+  // ========================================================
   // NOME DA TABELA
-  // ==========================================================
+  // ========================================================
 
   mapStoreName(storeName) {
 
-    return TABLE_MAP[storeName] || storeName;
+    return (
+      TABLE_MAP[storeName] ||
+      storeName
+    );
 
   },
 
 
-  // ==========================================================
+  // ========================================================
   // CAMEL CASE -> SNAKE CASE
-  // ==========================================================
+  // ========================================================
 
   toSnakeCase(obj) {
 
@@ -188,17 +489,21 @@ export const DB = {
     const result = {};
 
 
-    for (const key in obj) {
+    for (
+      const key in obj
+    ) {
 
-      const snakeKey = key
-        .replace(
-          /([A-Z])/g,
-          '_$1'
-        )
-        .toLowerCase();
+      const snakeKey =
+        key
+          .replace(
+            /([A-Z])/g,
+            '_$1'
+          )
+          .toLowerCase();
 
 
-      result[snakeKey] = obj[key];
+      result[snakeKey] =
+        obj[key];
 
     }
 
@@ -208,9 +513,9 @@ export const DB = {
   },
 
 
-  // ==========================================================
+  // ========================================================
   // SNAKE CASE -> CAMEL CASE
-  // ==========================================================
+  // ========================================================
 
   toCamelCase(obj) {
 
@@ -227,7 +532,9 @@ export const DB = {
     const result = {};
 
 
-    for (const key in obj) {
+    for (
+      const key in obj
+    ) {
 
       const camelKey =
         key.replace(
@@ -240,7 +547,8 @@ export const DB = {
         );
 
 
-      result[camelKey] = obj[key];
+      result[camelKey] =
+        obj[key];
 
     }
 
@@ -250,20 +558,18 @@ export const DB = {
   },
 
 
-  // ==========================================================
+  // ========================================================
   // PREPARA ACTIVITY TRANSFER
-  //
-  // A tabela activity_transfers possui estrutura própria.
-  // ==========================================================
+  // ========================================================
 
   prepareActivityTransfer(item) {
 
     const result = {};
 
 
-    // --------------------------------------------------------
+    // ------------------------------------------------------
     // ID
-    // --------------------------------------------------------
+    // ------------------------------------------------------
 
     if (
       item.id !== undefined &&
@@ -277,9 +583,9 @@ export const DB = {
     }
 
 
-    // --------------------------------------------------------
+    // ------------------------------------------------------
     // TASK ID
-    // --------------------------------------------------------
+    // ------------------------------------------------------
 
     const taskId =
       item.taskId ??
@@ -299,9 +605,9 @@ export const DB = {
     }
 
 
-    // --------------------------------------------------------
+    // ------------------------------------------------------
     // MEMBRO DE DESTINO
-    // --------------------------------------------------------
+    // ------------------------------------------------------
 
     const toMemberId =
       item.toMemberId ??
@@ -322,21 +628,13 @@ export const DB = {
     }
 
 
-    // --------------------------------------------------------
+    // ------------------------------------------------------
     // MEMBRO DE ORIGEM
-    //
-    // IMPORTANTE:
-    //
-    // A estrutura informada possui:
-    //
-    // fromMemberId
-    //
-    // Portanto NÃO converter automaticamente para
-    // from_member_id.
-    // --------------------------------------------------------
+    // ------------------------------------------------------
 
     const fromMemberId =
       item.fromMemberId ??
+      item.from_member_id ??
       item.deIdDoMembro ??
       item.de_id_do_membro;
 
@@ -347,18 +645,22 @@ export const DB = {
       fromMemberId !== ''
     ) {
 
+      /*
+       * ATENÇÃO:
+       *
+       * Conforme sua estrutura atual,
+       * a coluna real é fromMemberId.
+       */
+
       result.fromMemberId =
         String(fromMemberId);
 
     }
 
 
-    // --------------------------------------------------------
-    // COMPATIBILIDADE
-    //
-    // Caso o objeto possua explicitamente
-    // de_id_do_membro, mantém.
-    // --------------------------------------------------------
+    // ------------------------------------------------------
+    // DE_ID_DO_MEMBRO
+    // ------------------------------------------------------
 
     if (
       item.de_id_do_membro !== undefined &&
@@ -367,29 +669,30 @@ export const DB = {
     ) {
 
       result.de_id_do_membro =
-        String(item.de_id_do_membro);
+        String(
+          item.de_id_do_membro
+        );
 
     }
 
 
-    // --------------------------------------------------------
+    // ------------------------------------------------------
     // STATUS
-    // --------------------------------------------------------
+    // ------------------------------------------------------
 
-    if (
-      item.status !== undefined &&
-      item.status !== null
-    ) {
+    /*
+     * Se não vier status,
+     * a transferência nasce como PENDENTE.
+     */
 
-      result.status =
-        item.status;
+    result.status =
+      item.status ||
+      'PENDENTE';
 
-    }
 
-
-    // --------------------------------------------------------
+    // ------------------------------------------------------
     // CREATED AT
-    // --------------------------------------------------------
+    // ------------------------------------------------------
 
     const createdAt =
       item.createdAt ??
@@ -406,10 +709,17 @@ export const DB = {
 
     }
 
+    else {
 
-    // --------------------------------------------------------
+      result.created_at =
+        new Date().toISOString();
+
+    }
+
+
+    // ------------------------------------------------------
     // REQUESTED AT
-    // --------------------------------------------------------
+    // ------------------------------------------------------
 
     const requestedAt =
       item.requestedAt ??
@@ -426,10 +736,17 @@ export const DB = {
 
     }
 
+    else {
 
-    // --------------------------------------------------------
+      result.requested_at =
+        new Date().toISOString();
+
+    }
+
+
+    // ------------------------------------------------------
     // RESPONDED AT
-    // --------------------------------------------------------
+    // ------------------------------------------------------
 
     const respondedAt =
       item.respondedAt ??
@@ -448,9 +765,9 @@ export const DB = {
     }
 
 
-    // --------------------------------------------------------
+    // ------------------------------------------------------
     // SENDER ACKNOWLEDGED
-    // --------------------------------------------------------
+    // ------------------------------------------------------
 
     const senderAcknowledged =
       item.senderAcknowledged ??
@@ -465,7 +782,16 @@ export const DB = {
     ) {
 
       result.sender_acknowledged =
-        Boolean(senderAcknowledged);
+        Boolean(
+          senderAcknowledged
+        );
+
+    }
+
+    else {
+
+      result.sender_acknowledged =
+        false;
 
     }
 
@@ -475,10 +801,9 @@ export const DB = {
   },
 
 
-  // ==========================================================
-  // CONVERTE ACTIVITY TRANSFER
-  // DO SUPABASE PARA O SISTEMA
-  // ==========================================================
+  // ========================================================
+  // FORMATA ACTIVITY TRANSFER
+  // ========================================================
 
   formatActivityTransfer(item) {
 
@@ -492,9 +817,9 @@ export const DB = {
     const result = {};
 
 
-    // --------------------------------------------------------
+    // ------------------------------------------------------
     // ID
-    // --------------------------------------------------------
+    // ------------------------------------------------------
 
     if (
       item.id !== undefined
@@ -506,9 +831,9 @@ export const DB = {
     }
 
 
-    // --------------------------------------------------------
+    // ------------------------------------------------------
     // TASK ID
-    // --------------------------------------------------------
+    // ------------------------------------------------------
 
     if (
       item.task_id !== undefined
@@ -529,9 +854,9 @@ export const DB = {
     }
 
 
-    // --------------------------------------------------------
+    // ------------------------------------------------------
     // TO MEMBER
-    // --------------------------------------------------------
+    // ------------------------------------------------------
 
     if (
       item.to_member_id !== undefined
@@ -552,9 +877,9 @@ export const DB = {
     }
 
 
-    // --------------------------------------------------------
+    // ------------------------------------------------------
     // FROM MEMBER
-    // --------------------------------------------------------
+    // ------------------------------------------------------
 
     if (
       item.fromMemberId !== undefined
@@ -562,6 +887,15 @@ export const DB = {
 
       result.fromMemberId =
         item.fromMemberId;
+
+    }
+
+    else if (
+      item.from_member_id !== undefined
+    ) {
+
+      result.fromMemberId =
+        item.from_member_id;
 
     }
 
@@ -575,23 +909,18 @@ export const DB = {
     }
 
 
-    // --------------------------------------------------------
+    // ------------------------------------------------------
     // STATUS
-    // --------------------------------------------------------
+    // ------------------------------------------------------
 
-    if (
-      item.status !== undefined
-    ) {
-
-      result.status =
-        item.status;
-
-    }
+    result.status =
+      item.status ||
+      'PENDENTE';
 
 
-    // --------------------------------------------------------
+    // ------------------------------------------------------
     // DATAS
-    // --------------------------------------------------------
+    // ------------------------------------------------------
 
     if (
       item.created_at !== undefined
@@ -599,6 +928,15 @@ export const DB = {
 
       result.createdAt =
         item.created_at;
+
+    }
+
+    else if (
+      item.createdAt !== undefined
+    ) {
+
+      result.createdAt =
+        item.createdAt;
 
     }
 
@@ -612,6 +950,15 @@ export const DB = {
 
     }
 
+    else if (
+      item.requestedAt !== undefined
+    ) {
+
+      result.requestedAt =
+        item.requestedAt;
+
+    }
+
 
     if (
       item.responded_at !== undefined
@@ -622,10 +969,19 @@ export const DB = {
 
     }
 
+    else if (
+      item.respondedAt !== undefined
+    ) {
 
-    // --------------------------------------------------------
+      result.respondedAt =
+        item.respondedAt;
+
+    }
+
+
+    // ------------------------------------------------------
     // CONFIRMAÇÃO
-    // --------------------------------------------------------
+    // ------------------------------------------------------
 
     if (
       item.sender_acknowledged !== undefined
@@ -651,40 +1007,95 @@ export const DB = {
   },
 
 
-  // ==========================================================
+  // ========================================================
+  // ATUALIZA CACHE
+  // ========================================================
+
+  upsertMemoryItem(
+    storeName,
+    item
+  ) {
+
+    if (
+      !memoryStore[storeName]
+    ) {
+
+      memoryStore[storeName] = [];
+
+    }
+
+
+    const index =
+      memoryStore[storeName].findIndex(
+        current =>
+          current.id === item.id
+      );
+
+
+    if (index >= 0) {
+
+      memoryStore[storeName][index] = {
+
+        ...memoryStore[storeName][index],
+
+        ...item
+
+      };
+
+    }
+
+    else {
+
+      memoryStore[storeName].push(
+        item
+      );
+
+    }
+
+
+    lastFetchTime[storeName] =
+      Date.now();
+
+  },
+
+
+  // ========================================================
+  // INVALIDA CACHE
+  // ========================================================
+
+  invalidateCache(
+    storeName
+  ) {
+
+    lastFetchTime[storeName] =
+      0;
+
+  },
+
+
+  // ========================================================
   // GET ALL
-  // ==========================================================
+  // ========================================================
 
   async getAll(
     storeName,
     options = {}
   ) {
 
-    let {
+    const {
       forceRefresh = false
     } = options;
 
 
-    // --------------------------------------------------------
-    // TRANSFERÊNCIAS NÃO DEVEM FICAR PRESAS NO CACHE
-    // --------------------------------------------------------
-
-    if (
-      storeName === 'activity_transfers' ||
-      storeName === 'transfers'
-    ) {
-
-      forceRefresh = true;
-
-    }
-
-
     const tableName =
-      this.mapStoreName(storeName);
+      this.mapStoreName(
+        storeName
+      );
 
 
     const lastFetch =
-      lastFetchTime[storeName] || 0;
+      lastFetchTime[storeName] ||
+      0;
 
 
     const cacheIsFresh =
@@ -696,8 +1107,16 @@ export const DB = {
 
     const hasCachedData =
       memoryStore[storeName] &&
-      memoryStore[storeName].length > 0;
+      memoryStore[storeName].length >
+      0;
 
+
+    /*
+     * Activity transfers é importante:
+     *
+     * Se solicitado forceRefresh,
+     * SEMPRE consulta o Supabase.
+     */
 
     if (
       !forceRefresh &&
@@ -705,7 +1124,9 @@ export const DB = {
       hasCachedData
     ) {
 
-      return memoryStore[storeName];
+      return [
+        ...memoryStore[storeName]
+      ];
 
     }
 
@@ -730,36 +1151,34 @@ export const DB = {
       let formatted;
 
 
-      // ------------------------------------------------------
-      // ACTIVITY TRANSFERS
-      // ------------------------------------------------------
-
       if (
-        storeName === 'activity_transfers' ||
-        storeName === 'transfers'
+        storeName ===
+        'activity_transfers'
       ) {
 
         formatted =
-          (data || [])
-            .map(item =>
-              this.formatActivityTransfer(item)
-            )
-            .filter(Boolean);
+          (
+            data || []
+          ).map(
+            item =>
+              this.formatActivityTransfer(
+                item
+              )
+          );
 
       }
-
-
-      // ------------------------------------------------------
-      // OUTRAS TABELAS
-      // ------------------------------------------------------
 
       else {
 
         formatted =
-          (data || [])
-            .map(item =>
-              this.toCamelCase(item)
-            );
+          (
+            data || []
+          ).map(
+            item =>
+              this.toCamelCase(
+                item
+              )
+          );
 
       }
 
@@ -772,7 +1191,9 @@ export const DB = {
         Date.now();
 
 
-      return formatted;
+      return [
+        ...formatted
+      ];
 
     }
 
@@ -784,18 +1205,18 @@ export const DB = {
       );
 
 
-      return (
-        memoryStore[storeName] || []
-      );
+      return [
+        ...(memoryStore[storeName] || [])
+      ];
 
     }
 
   },
 
 
-  // ==========================================================
+  // ========================================================
   // GET POR ID
-  // ==========================================================
+  // ========================================================
 
   async get(
     storeName,
@@ -803,7 +1224,9 @@ export const DB = {
   ) {
 
     const tableName =
-      this.mapStoreName(storeName);
+      this.mapStoreName(
+        storeName
+      );
 
 
     try {
@@ -814,8 +1237,11 @@ export const DB = {
       } = await supabase
         .from(tableName)
         .select('*')
-        .eq('id', key)
-        .single();
+        .eq(
+          'id',
+          key
+        )
+        .maybeSingle();
 
 
       if (error) {
@@ -825,9 +1251,16 @@ export const DB = {
       }
 
 
+      if (!data) {
+
+        return null;
+
+      }
+
+
       if (
-        storeName === 'activity_transfers' ||
-        storeName === 'transfers'
+        storeName ===
+        'activity_transfers'
       ) {
 
         return this.formatActivityTransfer(
@@ -846,14 +1279,17 @@ export const DB = {
     catch (err) {
 
       const list =
-        memoryStore[storeName] || [];
+        memoryStore[storeName] ||
+        [];
 
 
       return (
         list.find(
           item =>
-            String(item.id) === String(key)
-        ) || null
+            String(item.id) ===
+            String(key)
+        ) ||
+        null
       );
 
     }
@@ -861,29 +1297,370 @@ export const DB = {
   },
 
 
-  // ==========================================================
+  // ========================================================
+  // SAVE
+  // ========================================================
+
+  async save(
+    storeName,
+    item
+  ) {
+
+    const tableName =
+      this.mapStoreName(
+        storeName
+      );
+
+
+    // ======================================================
+    // ACTIVITY TRANSFERS
+    // ======================================================
+
+    if (
+      storeName ===
+      'activity_transfers'
+    ) {
+
+      const dbItem =
+        this.prepareActivityTransfer(
+          item
+        );
+
+
+      /*
+       * IMPORTANTE:
+       *
+       * Não atualizamos o cache como confirmado
+       * antes do Supabase responder.
+       */
+
+
+      try {
+
+        const {
+          data,
+          error
+        } = await supabase
+          .from(tableName)
+          .upsert(
+            dbItem,
+            {
+              onConflict: 'id'
+            }
+          )
+          .select('*')
+          .single();
+
+
+        if (error) {
+
+          console.error(
+            '[Supabase Save Error] activity_transfers:',
+            error.message
+          );
+
+
+          /*
+           * Retorna erro explícito.
+           */
+
+          throw error;
+
+        }
+
+
+        const formatted =
+          this.formatActivityTransfer(
+            data
+          );
+
+
+        /*
+         * Só agora o cache é atualizado.
+         */
+
+        this.upsertMemoryItem(
+          storeName,
+          formatted
+        );
+
+
+        this.dispatchDatabaseEvent(
+          'activity_transfer_saved',
+          formatted
+        );
+
+
+        return formatted;
+
+      }
+
+      catch (err) {
+
+        console.error(
+          '[Supabase Save Exception] activity_transfers:',
+          err
+        );
+
+
+        /*
+         * NÃO fingir que salvou.
+         */
+
+        return null;
+
+      }
+
+    }
+
+
+    // ======================================================
+    // OUTRAS TABELAS
+    // ======================================================
+
+    const dbItem =
+      this.toSnakeCase(
+        item
+      );
+
+
+    try {
+
+      const {
+        data,
+        error
+      } = await supabase
+        .from(tableName)
+        .upsert(
+          dbItem
+        )
+        .select('*')
+        .single();
+
+
+      if (error) {
+
+        console.error(
+          `[Supabase Save Error] ${storeName}:`,
+          error.message
+        );
+
+
+        throw error;
+
+      }
+
+
+      const formatted =
+        this.toCamelCase(
+          data
+        );
+
+
+      this.upsertMemoryItem(
+        storeName,
+        formatted
+      );
+
+
+      return formatted;
+
+    }
+
+    catch (err) {
+
+      console.warn(
+        `[Supabase Save Fallback] ${storeName}:`,
+        err
+      );
+
+
+      /*
+       * Mantém o comportamento offline,
+       * mas deixa claro que o Supabase não confirmou.
+       */
+
+      this.upsertMemoryItem(
+        storeName,
+        item
+      );
+
+
+      return item;
+
+    }
+
+  },
+
+
+  // ========================================================
+  // DELETE
+  // ========================================================
+
+  async delete(
+    storeName,
+    key
+  ) {
+
+    const tableName =
+      this.mapStoreName(
+        storeName
+      );
+
+
+    try {
+
+      const {
+        error
+      } = await supabase
+        .from(tableName)
+        .delete()
+        .eq(
+          'id',
+          key
+        );
+
+
+      if (error) {
+
+        throw error;
+
+      }
+
+
+      if (
+        memoryStore[storeName]
+      ) {
+
+        memoryStore[storeName] =
+          memoryStore[storeName].filter(
+            item =>
+              String(item.id) !==
+              String(key)
+          );
+
+      }
+
+
+      this.invalidateCache(
+        storeName
+      );
+
+
+      return true;
+
+    }
+
+    catch (err) {
+
+      console.error(
+        `[Supabase Delete Error] ${storeName}:`,
+        err
+      );
+
+
+      return false;
+
+    }
+
+  },
+
+
+  // ========================================================
+  // BUSCAR TRANSFERÊNCIAS DO USUÁRIO
+  // ========================================================
+
+  async getTransfersForMember(
+    memberId
+  ) {
+
+    try {
+
+      /*
+       * Busca diretamente no banco.
+       *
+       * Portanto, o usuário pode ter entrado agora
+       * e ainda assim receber a transferência criada
+       * anteriormente.
+       */
+
+      const {
+        data,
+        error
+      } = await supabase
+        .from('activity_transfers')
+        .select('*')
+        .eq(
+          'to_member_id',
+          String(memberId)
+        )
+        .order(
+          'created_at',
+          {
+            ascending: false
+          }
+        );
+
+
+      if (error) {
+
+        throw error;
+
+      }
+
+
+      const transfers =
+        (
+          data || []
+        ).map(
+          item =>
+            this.formatActivityTransfer(
+              item
+            )
+        );
+
+
+      /*
+       * Atualiza cache.
+       */
+
+      memoryStore.activity_transfers =
+        transfers;
+
+
+      lastFetchTime.activity_transfers =
+        Date.now();
+
+
+      return transfers;
+
+    }
+
+    catch (error) {
+
+      console.error(
+        '[Transfers] Erro ao buscar:',
+        error
+      );
+
+
+      return (
+        memoryStore.activity_transfers ||
+        []
+      );
+
+    }
+
+  },
+
+
+  // ========================================================
   // BUSCAR TRANSFERÊNCIAS PENDENTES
-  //
-  // IMPORTANTE:
-  //
-  // O usuário pode estar entrando depois.
-  // Por isso a consulta é feita diretamente no Supabase.
-  // ==========================================================
+  // ========================================================
 
   async getPendingTransfers(
     memberId
   ) {
-
-    if (
-      memberId === undefined ||
-      memberId === null ||
-      memberId === ''
-    ) {
-
-      return [];
-
-    }
-
 
     try {
 
@@ -902,7 +1679,7 @@ export const DB = {
           'PENDENTE'
         )
         .order(
-          'requested_at',
+          'created_at',
           {
             ascending: false
           }
@@ -911,22 +1688,37 @@ export const DB = {
 
       if (error) {
 
-        console.error(
-          '[Transfers] Erro ao buscar pendentes:',
-          error
-        );
-
         throw error;
 
       }
 
 
       const transfers =
-        (data || [])
-          .map(item =>
-            this.formatActivityTransfer(item)
-          )
-          .filter(Boolean);
+        (
+          data || []
+        ).map(
+          item =>
+            this.formatActivityTransfer(
+              item
+            )
+        );
+
+
+      /*
+       * Mescla com cache em vez de substituir
+       * indiscriminadamente.
+       */
+
+      for (
+        const transfer of transfers
+      ) {
+
+        this.upsertMemoryItem(
+          'activity_transfers',
+          transfer
+        );
+
+      }
 
 
       return transfers;
@@ -936,36 +1728,37 @@ export const DB = {
     catch (error) {
 
       console.error(
-        '[Transfers] Falha ao buscar pendentes:',
+        '[Transfers Pending] Erro:',
         error
       );
 
 
-      return [];
+      return (
+        memoryStore.activity_transfers ||
+        []
+      ).filter(
+        transfer =>
+          String(
+            transfer.toMemberId
+          ) === String(memberId) &&
+          (
+            transfer.status ||
+            'PENDENTE'
+          ) === 'PENDENTE'
+      );
 
     }
 
   },
 
 
-  // ==========================================================
-  // BUSCAR TRANSFERÊNCIAS DO USUÁRIO
-  // ==========================================================
+  // ========================================================
+  // ACEITAR TRANSFERÊNCIA
+  // ========================================================
 
-  async getTransfersForMember(
-    memberId
+  async acceptTransfer(
+    transferId
   ) {
-
-    if (
-      memberId === undefined ||
-      memberId === null ||
-      memberId === ''
-    ) {
-
-      return [];
-
-    }
-
 
     try {
 
@@ -974,16 +1767,17 @@ export const DB = {
         error
       } = await supabase
         .from('activity_transfers')
-        .select('*')
-        .or(
-          `to_member_id.eq.${memberId},fromMemberId.eq.${memberId}`
+        .update({
+          status: 'ACEITA',
+          responded_at:
+            new Date().toISOString()
+        })
+        .eq(
+          'id',
+          transferId
         )
-        .order(
-          'requested_at',
-          {
-            ascending: false
-          }
-        );
+        .select('*')
+        .single();
 
 
       if (error) {
@@ -993,256 +1787,50 @@ export const DB = {
       }
 
 
-      return (
-        data || []
-      )
-        .map(item =>
-          this.formatActivityTransfer(item)
-        )
-        .filter(Boolean);
+      const formatted =
+        this.formatActivityTransfer(
+          data
+        );
+
+
+      this.upsertMemoryItem(
+        'activity_transfers',
+        formatted
+      );
+
+
+      this.dispatchDatabaseEvent(
+        'activity_transfer_accepted',
+        formatted
+      );
+
+
+      return formatted;
 
     }
 
     catch (error) {
 
       console.error(
-        '[Transfers] Erro ao buscar transferências:',
+        '[Transfer] Erro ao aceitar:',
         error
       );
 
 
-      return [];
+      return null;
 
     }
 
   },
 
 
-  // ==========================================================
-  // SALVAR
-  // ==========================================================
+  // ========================================================
+  // RECUSAR TRANSFERÊNCIA
+  // ========================================================
 
-  async save(
-    storeName,
-    item
+  async rejectTransfer(
+    transferId
   ) {
-
-    const tableName =
-      this.mapStoreName(storeName);
-
-
-    // ========================================================
-    // ACTIVITY TRANSFERS
-    // ========================================================
-
-    if (
-      storeName === 'activity_transfers'
-    ) {
-
-      const dbItem =
-        this.prepareActivityTransfer(item);
-
-
-      console.log(
-        '[TRANSFER] Enviando para Supabase:',
-        dbItem
-      );
-
-
-      try {
-
-        const {
-          data,
-          error
-        } = await supabase
-          .from(tableName)
-          .upsert(
-            dbItem,
-            {
-              onConflict: 'id'
-            }
-          )
-          .select()
-          .single();
-
-
-        // ----------------------------------------------------
-        // ERRO REAL
-        // ----------------------------------------------------
-
-        if (error) {
-
-          console.error(
-            '[Supabase Save Error] activity_transfers:',
-            error
-          );
-
-          throw error;
-
-        }
-
-
-        // ----------------------------------------------------
-        // SUPABASE CONFIRMOU
-        // ----------------------------------------------------
-
-        const savedItem =
-          this.formatActivityTransfer(
-            data
-          );
-
-
-        // ----------------------------------------------------
-        // ATUALIZA CACHE SOMENTE AGORA
-        // ----------------------------------------------------
-
-        if (
-          !memoryStore[storeName]
-        ) {
-
-          memoryStore[storeName] =
-            [];
-
-        }
-
-
-        const idx =
-          memoryStore[storeName]
-            .findIndex(
-              i =>
-                String(i.id) ===
-                String(savedItem.id)
-            );
-
-
-        if (idx >= 0) {
-
-          memoryStore[storeName][idx] = {
-
-            ...memoryStore[storeName][idx],
-
-            ...savedItem
-
-          };
-
-        }
-
-        else {
-
-          memoryStore[storeName]
-            .push(
-              savedItem
-            );
-
-        }
-
-
-        // ----------------------------------------------------
-        // INVALIDA CACHE
-        // ----------------------------------------------------
-
-        lastFetchTime[storeName] =
-          0;
-
-
-        console.log(
-          '[TRANSFER] Salva com sucesso:',
-          savedItem
-        );
-
-
-        return savedItem;
-
-      }
-
-      catch (err) {
-
-        console.error(
-          '[TRANSFER] ERRO REAL AO SALVAR:',
-          err
-        );
-
-
-        // ----------------------------------------------------
-        // NÃO MANTER FALSO POSITIVO NO CACHE
-        // ----------------------------------------------------
-
-        if (
-          memoryStore[storeName]
-        ) {
-
-          memoryStore[storeName] =
-            memoryStore[storeName]
-              .filter(
-                i =>
-                  String(i.id) !==
-                  String(item.id)
-              );
-
-        }
-
-
-        throw err;
-
-      }
-
-    }
-
-
-    // ========================================================
-    // OUTRAS TABELAS
-    // ========================================================
-
-    const dbItem =
-      this.toSnakeCase(item);
-
-
-    // --------------------------------------------------------
-    // CACHE
-    // --------------------------------------------------------
-
-    if (
-      !memoryStore[storeName]
-    ) {
-
-      memoryStore[storeName] =
-        [];
-
-    }
-
-
-    const idx =
-      memoryStore[storeName]
-        .findIndex(
-          i =>
-            String(i.id) ===
-            String(item.id)
-        );
-
-
-    if (idx >= 0) {
-
-      memoryStore[storeName][idx] = {
-
-        ...memoryStore[storeName][idx],
-
-        ...item
-
-      };
-
-    }
-
-    else {
-
-      memoryStore[storeName]
-        .push(item);
-
-    }
-
-
-    // --------------------------------------------------------
-    // SUPABASE
-    // --------------------------------------------------------
 
     try {
 
@@ -1250,132 +1838,141 @@ export const DB = {
         data,
         error
       } = await supabase
-        .from(tableName)
-        .upsert(
-          dbItem
+        .from('activity_transfers')
+        .update({
+          status: 'RECUSADA',
+          responded_at:
+            new Date().toISOString()
+        })
+        .eq(
+          'id',
+          transferId
         )
-        .select()
+        .select('*')
         .single();
 
 
       if (error) {
 
-        console.error(
-          `[Supabase Save Error] ${storeName}:`,
-          error.message
-        );
+        throw error;
 
       }
 
 
-      return (
-        data
-          ? this.toCamelCase(data)
-          : item
+      const formatted =
+        this.formatActivityTransfer(
+          data
+        );
+
+
+      this.upsertMemoryItem(
+        'activity_transfers',
+        formatted
       );
+
+
+      this.dispatchDatabaseEvent(
+        'activity_transfer_rejected',
+        formatted
+      );
+
+
+      return formatted;
 
     }
 
-    catch (err) {
+    catch (error) {
 
-      console.warn(
-        `[Supabase Save Fallback] ${storeName}:`,
-        err
+      console.error(
+        '[Transfer] Erro ao recusar:',
+        error
       );
 
 
-      return item;
+      return null;
 
     }
 
   },
 
 
-  // ==========================================================
-  // DELETE
-  // ==========================================================
+  // ========================================================
+  // CONFIRMAR RECEBIMENTO PELO REMETENTE
+  // ========================================================
 
-  async delete(
-    storeName,
-    key
+  async acknowledgeTransfer(
+    transferId
   ) {
-
-    const tableName =
-      this.mapStoreName(storeName);
-
-
-    // --------------------------------------------------------
-    // CACHE
-    // --------------------------------------------------------
-
-    if (
-      memoryStore[storeName]
-    ) {
-
-      memoryStore[storeName] =
-        memoryStore[storeName]
-          .filter(
-            i =>
-              String(i.id) !==
-              String(key)
-          );
-
-    }
-
-
-    // --------------------------------------------------------
-    // SUPABASE
-    // --------------------------------------------------------
 
     try {
 
       const {
+        data,
         error
       } = await supabase
-        .from(tableName)
-        .delete()
+        .from('activity_transfers')
+        .update({
+          sender_acknowledged:
+            true
+        })
         .eq(
           'id',
-          key
-        );
+          transferId
+        )
+        .select('*')
+        .single();
 
 
       if (error) {
 
-        console.error(
-          `[Supabase Delete Error] ${storeName}:`,
-          error.message
-        );
+        throw error;
 
       }
 
 
-    }
+      const formatted =
+        this.formatActivityTransfer(
+          data
+        );
 
-    catch (err) {
 
-      console.warn(
-        `[Supabase Delete Fallback] ${storeName}:`,
-        err
+      this.upsertMemoryItem(
+        'activity_transfers',
+        formatted
       );
 
+
+      return formatted;
+
     }
 
+    catch (error) {
 
-    return true;
+      console.error(
+        '[Transfer] Erro ao confirmar:',
+        error
+      );
+
+
+      return null;
+
+    }
 
   },
 
 
-  // ==========================================================
+  // ========================================================
   // DADOS INICIAIS
-  // ==========================================================
+  // ========================================================
 
   async seedInitialDataIfEmpty() {
 
     const members =
       await this.getAll(
-        'members'
+        'members',
+        {
+          forceRefresh: true
+        }
       );
 
 
@@ -1389,9 +1986,9 @@ export const DB = {
     }
 
 
-    // --------------------------------------------------------
+    // ------------------------------------------------------
     // AVATAR
-    // --------------------------------------------------------
+    // ------------------------------------------------------
 
     const createAvatarSvg =
       (
@@ -1438,78 +2035,46 @@ export const DB = {
       };
 
 
-    // --------------------------------------------------------
+    // ------------------------------------------------------
     // MEMBROS
-    // --------------------------------------------------------
+    // ------------------------------------------------------
 
     const initialMembers = [
 
       {
         id: 'm-1',
-
-        name:
-          'Ana Silva',
-
-        role:
-          'Analista de Folha de Pagamento',
-
-        email:
-          'ana.dp@empresa.com',
-
-        photo:
-          createAvatarSvg(
-            '#6366f1',
-            'AS'
-          ),
-
-        contact:
-          '(11) 98765-4321'
+        name: 'Ana Silva',
+        role: 'Analista de Folha de Pagamento',
+        email: 'ana.dp@empresa.com',
+        photo: createAvatarSvg(
+          '#6366f1',
+          'AS'
+        ),
+        contact: '(11) 98765-4321'
       },
-
 
       {
         id: 'm-2',
-
-        name:
-          'Carlos Oliveira',
-
-        role:
-          'Assistente de Admissão e Benefícios',
-
-        email:
-          'carlos.dp@empresa.com',
-
-        photo:
-          createAvatarSvg(
-            '#10b981',
-            'CO'
-          ),
-
-        contact:
-          '(11) 97654-3210'
+        name: 'Carlos Oliveira',
+        role: 'Assistente de Admissão e Benefícios',
+        email: 'carlos.dp@empresa.com',
+        photo: createAvatarSvg(
+          '#10b981',
+          'CO'
+        ),
+        contact: '(11) 97654-3210'
       },
-
 
       {
         id: 'm-3',
-
-        name:
-          'Mariana Costa',
-
-        role:
-          'Especialista eSocial & Encargos',
-
-        email:
-          'mariana.dp@empresa.com',
-
-        photo:
-          createAvatarSvg(
-            '#d946ef',
-            'MC'
-          ),
-
-        contact:
-          '(11) 96543-2109'
+        name: 'Mariana Costa',
+        role: 'Especialista eSocial & Encargos',
+        email: 'mariana.dp@empresa.com',
+        photo: createAvatarSvg(
+          '#d946ef',
+          'MC'
+        ),
+        contact: '(11) 96543-2109'
       }
 
     ];
@@ -1527,9 +2092,9 @@ export const DB = {
     }
 
 
-    // --------------------------------------------------------
+    // ------------------------------------------------------
     // TAREFAS
-    // --------------------------------------------------------
+    // ------------------------------------------------------
 
     const todayStr =
       new Date()
@@ -1543,9 +2108,7 @@ export const DB = {
     const initialTasks = [
 
       {
-
-        id:
-          't-dp-1',
+        id: 't-dp-1',
 
         title:
           'Fechamento da Folha de Pagamento Mensal (S-1200 / S-1210)',
@@ -1582,14 +2145,11 @@ export const DB = {
 
         createdAt:
           new Date().toISOString()
-
       },
 
 
       {
-
-        id:
-          't-dp-2',
+        id: 't-dp-2',
 
         title:
           'Apuração e Fechamento do Espelho de Ponto Eletrônico',
@@ -1626,14 +2186,11 @@ export const DB = {
 
         createdAt:
           new Date().toISOString()
-
       },
 
 
       {
-
-        id:
-          't-dp-3',
+        id: 't-dp-3',
 
         title:
           'Emissão da Guia DCTFWeb (INSS / FGTS Digital)',
@@ -1670,7 +2227,6 @@ export const DB = {
 
         createdAt:
           new Date().toISOString()
-
       }
 
     ];
@@ -1688,14 +2244,13 @@ export const DB = {
     }
 
 
-    // --------------------------------------------------------
+    // ------------------------------------------------------
     // IMPEDIMENTO
-    // --------------------------------------------------------
+    // ------------------------------------------------------
 
     const initialImpediment = {
 
-      id:
-        'imp-1',
+      id: 'imp-1',
 
       taskId:
         't-dp-1',
@@ -1720,9 +2275,9 @@ export const DB = {
   },
 
 
-  // ==========================================================
+  // ========================================================
   // RESET DO BANCO
-  // ==========================================================
+  // ========================================================
 
   async resetDatabase() {
 
@@ -1766,13 +2321,25 @@ export const DB = {
 
       try {
 
-        await supabase
+        const {
+          error
+        } = await supabase
           .from(tableName)
           .delete()
           .neq(
             'id',
             '0'
           );
+
+
+        if (error) {
+
+          console.warn(
+            `[Reset] Erro em ${storeName}:`,
+            error
+          );
+
+        }
 
       }
 
