@@ -433,7 +433,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ============================================================
-  // BARRA DE NOTIFICAÇÕES (CORRIGIDA)
+  // BARRA DE NOTIFICAÇÕES (ATUALIZADA E BLINDADA)
   // ============================================================
 
   async function renderTopNotificationBar() {
@@ -456,9 +456,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       // 1. TRANSFERÊNCIAS PENDENTES PARA O USUÁRIO LOGADO
       const pendingTransfers = transfers.filter((transfer) => {
         const toMemberId = getTransferToMemberId(transfer);
+        const status = String(transfer.status || '').trim().toUpperCase();
         return (
           String(toMemberId) === String(loggedId) &&
-          String(transfer.status).toUpperCase() === 'PENDENTE'
+          status === 'PENDENTE'
         );
       });
 
@@ -466,11 +467,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       const senderNotices = transfers.filter((transfer) => {
         const fromMemberId = getTransferFromMemberId(transfer);
         const acknowledged = isTransferSenderAcknowledged(transfer);
+        const status = String(transfer.status || '').trim().toUpperCase();
 
         return (
           String(fromMemberId) === String(loggedId) &&
-          (String(transfer.status).toUpperCase() === 'ACEITO' ||
-            String(transfer.status).toUpperCase() === 'REJEITADO') &&
+          (status === 'ACEITO' || status === 'REJEITADO') &&
           !acknowledged
         );
       });
@@ -571,73 +572,103 @@ document.addEventListener('DOMContentLoaded', async () => {
       html += '</div>';
       container.innerHTML = html;
 
-      // HANDLERS DOS BOTÕES DA NOTIFICAÇÃO
+      // ========================================================
+      // EVENTO: ACEITAR TRANSFERÊNCIA
+      // ========================================================
       const btnAccept = container.querySelector('.btn-accept-transfer');
       if (btnAccept) {
-        btnAccept.addEventListener('click', async () => {
+        btnAccept.addEventListener('click', async (e) => {
+          e.preventDefault();
           const transferId = btnAccept.dataset.id;
           const transfer = await DB.get('activity_transfers', transferId);
           if (!transfer) return;
 
+          // Atualização de Status
           transfer.status = 'ACEITO';
-          if ('sender_acknowledged' in transfer) transfer.sender_acknowledged = false;
-          if ('senderAcknowledged' in transfer) transfer.senderAcknowledged = false;
-          if ('remetenteConfirmado' in transfer) transfer.remetenteConfirmado = false;
+          transfer.sender_acknowledged = false;
+          transfer.senderAcknowledged = false;
+          transfer.remetenteConfirmado = false;
 
           const now = new Date().toISOString();
-          if ('responded_at' in transfer) transfer.responded_at = now;
-          if ('respondeuEm' in transfer) transfer.respondeuEm = now;
+          transfer.responded_at = now;
+          transfer.respondeuEm = now;
 
           await DB.save('activity_transfers', transfer);
 
+          // Atualização da Tarefa Relacionada
           const taskId = getTransferTaskId(transfer);
           const toMemberId = getTransferToMemberId(transfer);
-          const task = await DB.get('tasks', taskId);
 
-          if (task) {
-            task.memberId = toMemberId;
-            await DB.save('tasks', task);
+          if (taskId && toMemberId) {
+            const task = await DB.get('tasks', taskId);
+            if (task) {
+              task.memberId = toMemberId;
+              await DB.save('tasks', task);
+            }
           }
 
           showToast('Transferência de atividade aceita!', 'success');
+
+          // Oculta imediatamente da tela para evitar delay
+          bar.style.display = 'none';
+          container.innerHTML = '';
+
           await refreshUI();
         });
       }
 
+      // ========================================================
+      // EVENTO: RECUSAR TRANSFERÊNCIA
+      // ========================================================
       const btnReject = container.querySelector('.btn-reject-transfer');
       if (btnReject) {
-        btnReject.addEventListener('click', async () => {
+        btnReject.addEventListener('click', async (e) => {
+          e.preventDefault();
           const transferId = btnReject.dataset.id;
           const transfer = await DB.get('activity_transfers', transferId);
           if (!transfer) return;
 
           transfer.status = 'REJEITADO';
-          if ('sender_acknowledged' in transfer) transfer.sender_acknowledged = false;
-          if ('senderAcknowledged' in transfer) transfer.senderAcknowledged = false;
-          if ('remetenteConfirmado' in transfer) transfer.remetenteConfirmado = false;
+          transfer.sender_acknowledged = false;
+          transfer.senderAcknowledged = false;
+          transfer.remetenteConfirmado = false;
 
           const now = new Date().toISOString();
-          if ('responded_at' in transfer) transfer.responded_at = now;
-          if ('respondeuEm' in transfer) transfer.respondeuEm = now;
+          transfer.responded_at = now;
+          transfer.respondeuEm = now;
 
           await DB.save('activity_transfers', transfer);
           showToast('Solicitação de transferência recusada.', 'info');
+
+          // Oculta imediatamente da tela
+          bar.style.display = 'none';
+          container.innerHTML = '';
+
           await refreshUI();
         });
       }
 
+      // ========================================================
+      // EVENTO: CONFIRMAÇÃO DO REMETENTE (OK)
+      // ========================================================
       const btnAckNotice = container.querySelector('.btn-ack-sender-notice');
       if (btnAckNotice) {
-        btnAckNotice.addEventListener('click', async () => {
+        btnAckNotice.addEventListener('click', async (e) => {
+          e.preventDefault();
           const transferId = btnAckNotice.dataset.id;
           const transfer = await DB.get('activity_transfers', transferId);
           if (!transfer) return;
 
-          if ('sender_acknowledged' in transfer) transfer.sender_acknowledged = true;
-          if ('senderAcknowledged' in transfer) transfer.senderAcknowledged = true;
-          if ('remetenteConfirmado' in transfer) transfer.remetenteConfirmado = true;
+          transfer.sender_acknowledged = true;
+          transfer.senderAcknowledged = true;
+          transfer.remetenteConfirmado = true;
 
           await DB.save('activity_transfers', transfer);
+
+          // Oculta imediatamente
+          bar.style.display = 'none';
+          container.innerHTML = '';
+
           await refreshUI();
         });
       }
