@@ -852,52 +852,27 @@ document.addEventListener('DOMContentLoaded', async () => {
       const transfers =
         await DB.getAll('activity_transfers');
 
-      console.log('=================================');
-      console.log('🔔 TESTE NOTIFICAÇÕES');
-      console.log('👤 LOGADO:', loggedId);
-      console.log('👤 LOGADO TYPE:', typeof loggedId);
-      console.log('📦 TRANSFERÊNCIAS:', transfers);
-      console.log('📦 QUANTIDADE:', transfers.length);
+      // ========================================================
+      // TRANSFERÊNCIAS PENDENTES PARA O USUÁRIO LOGADO
+      //
+      // CORREÇÃO: esta variável não existia antes, o que
+      // causava um ReferenceError logo abaixo e fazia a
+      // barra de notificação nunca ser exibida (o catch
+      // escondia o erro e ocultava a barra silenciosamente).
+      // ========================================================
 
-      transfers.forEach((transfer, index) => {
+      const pendingTransfers =
+        transfers.filter(transfer => {
 
-        console.log(`--- TRANSFERÊNCIA ${index + 1} ---`);
+          const toMemberId =
+            getTransferToMemberId(transfer);
 
-        console.log('ID:', transfer.id);
+          return (
+            String(toMemberId) === String(loggedId) &&
+            String(transfer.status || '').toUpperCase() === 'PENDENTE'
+          );
 
-        console.log(
-          'from_member_id:',
-          transfer.from_member_id
-        );
-
-        console.log(
-          'to_member_id:',
-          transfer.to_member_id
-        );
-
-        console.log(
-          'task_id:',
-          transfer.task_id
-        );
-
-        console.log(
-          'status:',
-          transfer.status
-        );
-
-        console.log(
-          'to == logado:',
-          String(transfer.to_member_id) === String(loggedId)
-        );
-
-        console.log(
-          'status == pendente:',
-          String(transfer.status).toUpperCase() === 'PENDENTE'
-        );
-
-      });
-
-      console.log('=================================');
+        });
 
       // ========================================================
       // RESPOSTAS
@@ -1348,11 +1323,6 @@ document.addEventListener('DOMContentLoaded', async () => {
               return;
             }
 
-            console.log(
-              '✅ ACEITANDO TRANSFERÊNCIA:',
-              transfer
-            );
-
             transfer.status =
               'ACEITO';
 
@@ -1485,11 +1455,6 @@ document.addEventListener('DOMContentLoaded', async () => {
               return;
             }
 
-            console.log(
-              '❌ RECUSANDO TRANSFERÊNCIA:',
-              transfer
-            );
-
             transfer.status =
               'REJEITADO';
 
@@ -1591,11 +1556,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!transfer) {
               return;
             }
-
-            console.log(
-              '👋 CONFIRMANDO NOTIFICAÇÃO:',
-              transfer
-            );
 
             if (
               'sender_acknowledged'
