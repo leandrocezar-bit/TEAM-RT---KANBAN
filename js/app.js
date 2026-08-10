@@ -172,7 +172,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   await DB.init();
 
   // ============================================================
-  // ELEMENTOS
+  // ELEMENTOS DA INTERFACE
   // ============================================================
 
   const btnNewMember = document.getElementById('btn-new-member');
@@ -235,6 +235,26 @@ document.addEventListener('DOMContentLoaded', async () => {
   const formProject = document.getElementById('form-project');
 
   // ============================================================
+  // FUNÇÕES DE COMPATIBILIDADE (SUPABASE ENXUTO)
+  // ============================================================
+
+  function getTransferFromMemberId(transfer) {
+    return transfer.from_member_id ?? transfer.fromMemberId ?? null;
+  }
+
+  function getTransferToMemberId(transfer) {
+    return transfer.to_member_id ?? transfer.toMemberId ?? null;
+  }
+
+  function getTransferTaskId(transfer) {
+    return transfer.task_id ?? transfer.taskId ?? null;
+  }
+
+  function isTransferSenderAcknowledged(transfer) {
+    return Boolean(transfer.senderAcknowledged ?? transfer.sender_acknowledged ?? false);
+  }
+
+  // ============================================================
   // REFRESH UI
   // ============================================================
 
@@ -255,7 +275,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     await renderTopNotificationBar();
     currentMemberFilter = loggedId ? loggedId : backupFilter;
 
-    // ABAS
+    // ABAS DOS MEMBROS
     await renderMemberTabs();
 
     const memberTabsBar = document.getElementById('member-tabs-bar');
@@ -268,7 +288,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     }
 
-    // BOTÕES
+    // BOTÕES DE VISIBILIDADE
     const managerOnlyButtons = [btnNewMember, btnResetDb];
     managerOnlyButtons.forEach((btn) => {
       if (btn) {
@@ -317,7 +337,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     });
 
-    // ROUTING DE SEÇÕES
+    // ROUTING
     if (activeView === 'kanban') {
       if (sectionKanban) sectionKanban.classList.add('active');
       if (btnViewKanban) {
@@ -380,7 +400,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ============================================================
-  // BARRA DE NOTIFICAÇÕES (PADRÃO UNIFICADO SUPABASE)
+  // BARRA DE NOTIFICAÇÕES
   // ============================================================
 
   async function renderTopNotificationBar() {
@@ -402,17 +422,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       // 1. SOLICITAÇÕES RECEBIDAS PENDENTES
       const pendingTransfers = transfers.filter((transfer) => {
-        const toId = transfer.to_member_id || transfer.toMemberId;
+        const toId = getTransferToMemberId(transfer);
         const status = String(transfer.status || '').trim().toUpperCase();
         return String(toId) === String(loggedId) && status === 'PENDENTE';
       });
 
-      // 2. RESPOSTAS PARA QUEM ENVIOU A SOLICITAÇÃO
+      // 2. RESPOSTAS PARA O REMETENTE
       const senderNotices = transfers.filter((transfer) => {
-        const fromId = transfer.from_member_id || transfer.fromMemberId;
-        const acknowledged = Boolean(
-          transfer.sender_acknowledged ?? transfer.senderAcknowledged
-        );
+        const fromId = getTransferFromMemberId(transfer);
+        const acknowledged = isTransferSenderAcknowledged(transfer);
         const status = String(transfer.status || '').trim().toUpperCase();
 
         return (
@@ -458,9 +476,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       if (pendingTransfers.length > 0) {
         const firstTr = pendingTransfers[0];
-        const taskId = firstTr.task_id || firstTr.taskId;
-        const fromId = firstTr.from_member_id || firstTr.fromMemberId;
-        const toId = firstTr.to_member_id || firstTr.toMemberId;
+        const taskId = getTransferTaskId(firstTr);
+        const fromId = getTransferFromMemberId(firstTr);
+        const toId = getTransferToMemberId(firstTr);
 
         const task = tasks.find((t) => String(t.id) === String(taskId)) || { title: 'Atividade' };
         const fromMem = membersMap.get(String(fromId)) || { name: 'Alguém' };
@@ -477,8 +495,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         `;
       } else if (senderNotices.length > 0) {
         const firstNotice = senderNotices[0];
-        const taskId = firstNotice.task_id || firstNotice.taskId;
-        const toId = firstNotice.to_member_id || firstNotice.toMemberId;
+        const taskId = getTransferTaskId(firstNotice);
+        const toId = getTransferToMemberId(firstNotice);
 
         const task = tasks.find((t) => String(t.id) === String(taskId)) || { title: 'Atividade' };
         const toMem = membersMap.get(String(toId)) || { name: 'Colega' };
@@ -521,13 +539,14 @@ document.addEventListener('DOMContentLoaded', async () => {
           e.preventDefault();
 
           transfer.status = 'ACEITO';
+          transfer.senderAcknowledged = false;
           transfer.sender_acknowledged = false;
           transfer.responded_at = now;
 
           await DB.save('activity_transfers', transfer);
 
-          const taskId = transfer.task_id || transfer.taskId;
-          const toMemberId = transfer.to_member_id || transfer.toMemberId;
+          const taskId = getTransferTaskId(transfer);
+          const toMemberId = getTransferToMemberId(transfer);
 
           if (taskId && toMemberId) {
             const task = await DB.get('tasks', taskId);
@@ -547,6 +566,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           e.preventDefault();
 
           transfer.status = 'REJEITADO';
+          transfer.senderAcknowledged = false;
           transfer.sender_acknowledged = false;
           transfer.responded_at = now;
 
@@ -561,7 +581,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (target.classList.contains('btn-ack-sender-notice')) {
           e.preventDefault();
 
+          transfer.senderAcknowledged = true;
           transfer.sender_acknowledged = true;
+
           await DB.save('activity_transfers', transfer);
 
           bar.style.display = 'none';
