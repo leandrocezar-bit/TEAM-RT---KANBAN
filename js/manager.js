@@ -139,25 +139,40 @@ export const ManagerEngine = {
   },
 
   /**
-   * Renderiza a lista detalhada de contratempos
+   * Renderiza a lista detalhada de contratempos (Filtrada por permissão)
    */
   renderImpedimentsAlertList(impediments, tasks, members, onViewEvidence) {
     const container = document.getElementById('impediments-list-container');
     if (!container) return;
 
-    if (impediments.length === 0) {
+    // 1. Identifica o nível de acesso e o ID do usuário logado
+    const isManager = localStorage.getItem('logged_access_level') === 'gestor';
+    const loggedMemberId = localStorage.getItem('logged_member_id');
+
+    const tasksMap = new Map(tasks.map(t => [String(t.id), t]));
+    const membersMap = new Map(members.map(m => [String(m.id), m]));
+
+    // 2. SE FOR COLABORADOR: Filtra apenas os contratempos das suas próprias tarefas
+    let visibleImpediments = impediments;
+    if (!isManager && loggedMemberId) {
+      visibleImpediments = impediments.filter(imp => {
+        const task = tasksMap.get(String(imp.taskId));
+        if (!task) return false;
+        const taskOwnerId = task.member_id || task.memberId;
+        return String(taskOwnerId) === String(loggedMemberId);
+      });
+    }
+
+    if (visibleImpediments.length === 0) {
       container.innerHTML = `
         <div style="text-align:center; padding:1.5rem; color:var(--text-muted); font-size:0.85rem;">
-          🎉 Nenhum contratempo registrado na equipe até o momento!
+          🎉 Nenhum contratempo registrado ${isManager ? 'na equipe' : 'nas suas atividades'} até o momento!
         </div>
       `;
       return;
     }
 
-    const tasksMap = new Map(tasks.map(t => [String(t.id), t]));
-    const membersMap = new Map(members.map(m => [String(m.id), m]));
-
-    container.innerHTML = impediments.map(imp => {
+    container.innerHTML = visibleImpediments.map(imp => {
       const task = tasksMap.get(String(imp.taskId)) || { title: 'Tarefa não encontrada', memberId: null, member_id: null };
       const taskOwnerId = task.member_id || task.memberId;
       const member = membersMap.get(String(taskOwnerId)) || { name: 'Desconhecido', photo: '' };
