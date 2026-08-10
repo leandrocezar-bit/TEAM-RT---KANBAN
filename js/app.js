@@ -235,23 +235,23 @@ document.addEventListener('DOMContentLoaded', async () => {
   const formProject = document.getElementById('form-project');
 
   // ============================================================
-  // FUNÇÕES DE COMPATIBILIDADE (SUPABASE ENXUTO)
+  // FUNÇÕES HELPER (MAPEAMENTO DAS SUAS 9 COLUNAS EXATAS)
   // ============================================================
 
   function getTransferFromMemberId(transfer) {
-    return transfer.from_member_id ?? transfer.fromMemberId ?? null;
+    return transfer.fromMemberId || transfer.from_member_id || null;
   }
 
   function getTransferToMemberId(transfer) {
-    return transfer.to_member_id ?? transfer.toMemberId ?? null;
+    return transfer.to_member_id || transfer.toMemberId || null;
   }
 
   function getTransferTaskId(transfer) {
-    return transfer.task_id ?? transfer.taskId ?? null;
+    return transfer.task_id || transfer.taskId || null;
   }
 
   function isTransferSenderAcknowledged(transfer) {
-    return Boolean(transfer.senderAcknowledged ?? transfer.sender_acknowledged ?? false);
+    return Boolean(transfer.sender_acknowledged ?? transfer.senderAcknowledged ?? false);
   }
 
   // ============================================================
@@ -400,7 +400,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ============================================================
-  // BARRA DE NOTIFICAÇÕES
+  // BARRA DE NOTIFICAÇÕES (MAPEADA COM AS 9 COLUNAS DO SUPABASE)
   // ============================================================
 
   async function renderTopNotificationBar() {
@@ -449,7 +449,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const today = new Date();
       const relevantTasks = manager
         ? tasks
-        : tasks.filter((t) => String(t.memberId) === String(loggedId));
+        : tasks.filter((t) => String(t.memberId) === String(loggedId) || String(t.member_id) === String(loggedId));
 
       const urgentTasks = relevantTasks.filter((task) => {
         if (String(task.status).toUpperCase() === 'CONCLUÍDO' || !task.dueDate) {
@@ -539,7 +539,6 @@ document.addEventListener('DOMContentLoaded', async () => {
           e.preventDefault();
 
           transfer.status = 'ACEITO';
-          transfer.senderAcknowledged = false;
           transfer.sender_acknowledged = false;
           transfer.responded_at = now;
 
@@ -547,12 +546,26 @@ document.addEventListener('DOMContentLoaded', async () => {
 
           const taskId = getTransferTaskId(transfer);
           const toMemberId = getTransferToMemberId(transfer);
+          const fromMemberId = getTransferFromMemberId(transfer);
 
           if (taskId && toMemberId) {
+            // 1. Atualiza a Tarefa (preenche memberId E member_id para garantir gravação na tabela tasks)
             const task = await DB.get('tasks', taskId);
             if (task) {
               task.memberId = toMemberId;
+              task.member_id = toMemberId;
               await DB.save('tasks', task);
+              console.log('✅ Tarefa transferida no banco para o novo dono:', toMemberId);
+            }
+
+            // 2. Remove o vínculo da pessoa antiga da tabela task_members (se houver grupo)
+            const taskMembers = (await DB.getAll('task_members')) || [];
+            const oldLinks = taskMembers.filter(
+              (tm) => String(tm.taskId) === String(taskId) && String(tm.memberId) === String(fromMemberId)
+            );
+
+            for (const link of oldLinks) {
+              await DB.delete('task_members', link.id);
             }
           }
 
@@ -566,7 +579,6 @@ document.addEventListener('DOMContentLoaded', async () => {
           e.preventDefault();
 
           transfer.status = 'REJEITADO';
-          transfer.senderAcknowledged = false;
           transfer.sender_acknowledged = false;
           transfer.responded_at = now;
 
@@ -581,7 +593,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (target.classList.contains('btn-ack-sender-notice')) {
           e.preventDefault();
 
-          transfer.senderAcknowledged = true;
           transfer.sender_acknowledged = true;
 
           await DB.save('activity_transfers', transfer);
@@ -597,6 +608,46 @@ document.addEventListener('DOMContentLoaded', async () => {
       bar.style.display = 'none';
     }
   }
+
+  // ============================================================
+  // CRIAÇÃO / SOLICITAÇÃO DE TRANSFERÊNCIA (MAPEANDO AS 9 COLUNAS)
+  // ============================================================
+
+  window.requestTaskTransfer = async function (taskId, toMemberId) {
+    try {
+      const fromMemberId = getLoggedMemberId();
+
+      if (!taskId || !toMemberId || !fromMemberId) {
+        showToast('Selecione a tarefa e o destinatário.', 'warning');
+        return false;
+      }
+
+      const now = new Date().toISOString();
+
+      const newTransfer = {
+        id: 'tr-' + Date.now(),
+        task_id: taskId,
+        fromMemberId: fromMemberId, // 👈 exato como na sua foto do Supabase
+        to_member_id: toMemberId,
+        status: 'PENDENTE',
+        created_at: now,
+        requested_at: now,
+        sender_acknowledged: false,
+        responded_at: null
+      };
+
+      console.log('🔄 Gravando solicitação de transferência no Supabase:', newTransfer);
+      await DB.save('activity_transfers', newTransfer);
+
+      showToast('Solicitação de transferência enviada com sucesso!', 'success');
+      await refreshUI();
+      return true;
+    } catch (err) {
+      console.error('❌ Erro ao solicitar transferência:', err);
+      showToast('Erro ao gravar solicitação no banco de dados.', 'warning');
+      return false;
+    }
+  };
 
   // ============================================================
   // ABAS DOS MEMBROS
@@ -659,7 +710,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       await DB.delete('members', memberId);
 
       const tasks = (await DB.getAll('tasks')) || [];
-      const memberTasks = tasks.filter((task) => task.memberId === memberId);
+      const memberTasks = tasks.filter((task) => task.memberId === memberId || task.member_id === memberId);
 
       for (const task of memberTasks) {
         await DB.delete('tasks', task.id);
@@ -689,6 +740,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const loggedId = getLoggedMemberId();
     const manager = isManager();
+    const currentTaskMemberId = task.memberId || task.member_id;
 
     if (!manager) {
       const taskMembersAll = (await DB.getAll('task_members')) || [];
@@ -696,7 +748,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         (tm) => tm.taskId === task.id && String(tm.memberId) === String(loggedId)
       );
 
-      if (String(task.memberId) !== String(loggedId) && !isInGroup) {
+      if (String(currentTaskMemberId) !== String(loggedId) && !isInGroup) {
         showToast('Você não tem acesso a esta atividade.', 'warning');
         return;
       }
@@ -707,14 +759,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     const projects = (await DB.getAll('projects')) || [];
     const taskMembers = (await DB.getAll('task_members')) || [];
 
-    const member = members.find((m) => m.id === task.memberId) || {
+    const member = members.find((m) => m.id === currentTaskMemberId) || {
       name: 'Não atribuído',
       role: '',
       photo: '',
     };
 
     const taskImpediments = impediments.filter((imp) => imp.taskId === task.id);
-    const project = projects.find((p) => p.id === task.projectId);
+    const project = projects.find((p) => p.id === (task.projectId || task.project_id));
     const groupLinks = taskMembers.filter((tm) => tm.taskId === task.id);
     const groupMembers = members.filter((m) =>
       groupLinks.some((gl) => gl.memberId === m.id)
@@ -816,8 +868,8 @@ document.addEventListener('DOMContentLoaded', async () => {
           document.getElementById('task-id').value = task.id;
           document.getElementById('task-title').value = task.title;
           document.getElementById('task-desc').value = task.description || '';
-          document.getElementById('task-member').value = task.memberId;
-          document.getElementById('task-project').value = task.projectId || '';
+          document.getElementById('task-member').value = currentTaskMemberId;
+          document.getElementById('task-project').value = task.projectId || task.project_id || '';
           document.getElementById('task-priority').value = task.priority || 'Média';
           document.getElementById('task-date').value = task.dueDate || '';
 
@@ -880,7 +932,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       } else {
         bodyEl.innerHTML = dayTasks
           .map((task) => {
-            const member = membersMap.get(task.memberId) || {
+            const member = membersMap.get(task.memberId || task.member_id) || {
               name: 'Desconhecido',
               photo: '',
             };
@@ -1250,9 +1302,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         const task = await DB.get('tasks', existingTaskId);
 
         if (task) {
+          const currentTaskMemberId = task.memberId || task.member_id;
           if (
             !isManager() &&
-            String(task.memberId) !== String(getLoggedMemberId())
+            String(currentTaskMemberId) !== String(getLoggedMemberId())
           ) {
             showToast('Você não tem permissão para editar esta atividade.', 'warning');
             return;
@@ -1263,6 +1316,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           task.title = title;
           task.description = description;
           task.memberId = memberId;
+          task.member_id = memberId;
           task.projectId = projectId;
           task.priority = priority;
           task.dueDate = dueDate;
@@ -1281,6 +1335,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           title,
           description,
           memberId,
+          member_id: memberId,
           projectId,
           priority,
           dueDate,
@@ -1412,6 +1467,24 @@ document.addEventListener('DOMContentLoaded', async () => {
       toast.style.transform = 'translateX(100%)';
       setTimeout(() => toast.remove(), 300);
     }, 3500);
+  }
+
+  // ============================================================
+  // ESCUTA EM TEMPO REAL (SUPABASE REALTIME)
+  // ============================================================
+
+  if (DB.supabase) {
+    DB.supabase
+      .channel('realtime_transfers')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'activity_transfers' },
+        (payload) => {
+          console.log('⚡ Realtime detectado em activity_transfers:', payload);
+          renderTopNotificationBar();
+        }
+      )
+      .subscribe();
   }
 
   // ============================================================
