@@ -9,7 +9,7 @@ export const MapEngine = {
   selectedCalendarMemberId: 'all',
 
   /**
-   * Processos padrão pré-definidos caso ainda não existam no banco de dados
+   * Processos padrão pré-definidos caso a tabela cycle_templates esteja vazia
    */
   defaultDpProcesses: [
     {
@@ -74,16 +74,17 @@ export const MapEngine = {
   ],
 
   /**
-   * Obtém a lista atualizada de processos (do banco de dados ou do padrão)
+   * Obtém a lista atualizada de processos da tabela "cycle_templates" do Supabase
    */
   async getDpProcesses() {
     try {
-      const savedProcesses = await DB.getAll('dp_processes');
-      if (savedProcesses && savedProcesses.length > 0) {
-        return savedProcesses;
+      const records = await DB.getAll('cycle_templates');
+      if (records && records.length > 0) {
+        // Extrai a propriedade JSON "data" ou o próprio registro
+        return records.map(r => r.data || r);
       }
     } catch (e) {
-      console.warn('⚡ Tabela dp_processes não encontrada ou vazia. Usando estrutura padrão.', e);
+      console.warn('⚡ Tabela cycle_templates vazia ou indisponível. Usando estrutura padrão.', e);
     }
     return this.defaultDpProcesses;
   },
@@ -312,7 +313,7 @@ export const MapEngine = {
   },
 
   /**
-   * Eventos dos botões do Organograma DP (Edição e Criação liberados para todos)
+   * Eventos dos botões do Organograma DP
    */
   attachEvents(processes) {
     // 1. Iniciar ciclo mensal
@@ -362,7 +363,7 @@ export const MapEngine = {
       });
     });
 
-    // 3. Adicionar Nova Atividade Padrão ao Mapa
+    // 3. Adicionar Nova Atividade Padrão ao Mapa (Grava em cycle_templates)
     const btnAdd = document.getElementById('btn-add-map-process');
     if (btnAdd) {
       btnAdd.addEventListener('click', () => {
@@ -389,7 +390,14 @@ export const MapEngine = {
           const procIndex = processes.findIndex(p => String(p.id) === String(procId));
           if (procIndex !== -1) {
             processes[procIndex].tasks = processes[procIndex].tasks.filter(t => String(t.id) !== String(taskId));
-            await DB.save('dp_processes', processes[procIndex]);
+
+            // Grava na tabela cycle_templates
+            const payload = {
+              id: processes[procIndex].id,
+              data: processes[procIndex]
+            };
+            await DB.save('cycle_templates', payload);
+
             alert('Atividade removida com sucesso!');
             this.renderSectorMap();
           }
@@ -399,7 +407,7 @@ export const MapEngine = {
   },
 
   /**
-   * Abre Modal Prompt simples para Edição / Adição de Processos Padrões
+   * Abre Modal para Edição / Adição de Processos na tabela cycle_templates
    */
   async openEditProcessModal(procId, taskId, processes) {
     let currentTask = { title: '', desc: '', dayLimit: 'Dia 05', priority: 'Média' };
@@ -421,14 +429,12 @@ export const MapEngine = {
     const newDayLimit = prompt('Prazo limite padrão (ex: Dia 05, Dia 15, Recorrente):', currentTask.dayLimit) || 'Dia 05';
     const newPriority = prompt('Prioridade (Alta, Média, Baixa):', currentTask.priority) || 'Média';
 
-    // Encontra ou cria a categoria no array
     let targetProc = processes.find(p => p.category === currentCategory);
     if (!targetProc) {
       targetProc = processes[0];
     }
 
     if (taskId) {
-      // Atualização
       const taskIndex = targetProc.tasks.findIndex(t => String(t.id) === String(taskId));
       if (taskIndex !== -1) {
         targetProc.tasks[taskIndex] = {
@@ -440,7 +446,6 @@ export const MapEngine = {
         };
       }
     } else {
-      // Criação de Nova Atividade
       targetProc.tasks.push({
         id: 'dp-t-' + Date.now(),
         title: newTitle,
@@ -450,13 +455,19 @@ export const MapEngine = {
       });
     }
 
-    await DB.save('dp_processes', targetProc);
-    alert('Mapa de Processos atualizado com sucesso!');
+    // Salva na tabela "cycle_templates" empacotando dentro do jsonb "data"
+    const payload = {
+      id: targetProc.id,
+      data: targetProc
+    };
+
+    await DB.save('cycle_templates', payload);
+    alert('Mapa de Processos atualizado no Supabase!');
     this.renderSectorMap();
   },
 
   /**
-   * Gera automaticamente todo o ciclo de tarefas mensais do DP
+   * Gera automaticamente o ciclo de tarefas mensais na tabela "tasks"
    */
   async startDPMonthlyCycle() {
     const members = (await DB.getAll('members')) || [];
