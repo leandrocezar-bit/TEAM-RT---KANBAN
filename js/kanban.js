@@ -34,6 +34,19 @@ export const KanbanEngine = {
         const targetStatus = col.dataset.status;
 
         if (taskId && targetStatus) {
+          // Impede a movimentação se a tarefa estiver travada
+          const transfers = (await DB.getAll('activity_transfers')) || [];
+          const isPending = transfers.some(tr => {
+            const tId = tr.task_id || tr.taskId;
+            const status = String(tr.status || '').trim().toUpperCase();
+            return String(tId) === String(taskId) && status === 'PENDENTE';
+          });
+
+          if (isPending) {
+            alert('Esta atividade possui uma solicitação de transferência pendente e está travada.');
+            return;
+          }
+
           await this.handleTaskMove(taskId, targetStatus, onTaskMovedCallback);
         }
       });
@@ -71,7 +84,7 @@ export const KanbanEngine = {
     const auditLog = {
       id: 'log-' + Date.now(),
       taskId: task.id,
-      memberId: task.memberId,
+      memberId: task.memberId || task.member_id,
       fromStatus: oldStatus,
       toStatus: targetStatus,
       timestamp: new Date().toISOString()
@@ -92,7 +105,7 @@ export const KanbanEngine = {
 
     const allTasks = await DB.getAll('tasks');
     const colTasks = allTasks
-      .filter(t => t.status === task.status && (this.activeMemberId === 'all' || t.memberId === this.activeMemberId))
+      .filter(t => t.status === task.status && (this.activeMemberId === 'all' || t.memberId === this.activeMemberId || t.member_id === this.activeMemberId))
       .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
 
     const index = colTasks.findIndex(t => t.id === taskId);
@@ -118,21 +131,33 @@ export const KanbanEngine = {
    */
   async renderBoard(memberId = 'all', callbacks = {}) {
     this.activeMemberId = memberId;
-    const tasks = await DB.getAll('tasks');
-    const members = await DB.getAll('members');
-    const impediments = await DB.getAll('impediments');
-    const taskMembers = await DB.getAll('task_members');
+    const tasks = (await DB.getAll('tasks')) || [];
+    const members = (await DB.getAll('members')) || [];
+    const impediments = (await DB.getAll('impediments')) || [];
+    const taskMembers = (await DB.getAll('task_members')) || [];
+    const transfers = (await DB.getAll('activity_transfers')) || [];
 
-    const membersMap = new Map(members.map(m => [m.id, m]));
+    const membersMap = new Map(members.map(m => [String(m.id), m]));
+
+    // Mapeia transferências pendentes por ID da tarefa
+    const pendingTransfersMap = new Map();
+    transfers.forEach(tr => {
+      const tId = tr.task_id || tr.taskId;
+      const status = String(tr.status || '').trim().toUpperCase();
+      if (status === 'PENDENTE' && tId) {
+        pendingTransfersMap.set(String(tId), tr);
+      }
+    });
+
     const impMap = new Map();
     impediments.forEach(imp => {
       if (!impMap.has(imp.taskId)) impMap.set(imp.taskId, []);
       impMap.get(imp.taskId).push(imp);
     });
 
-    let filteredTasks = memberId === 'all' 
-      ? tasks 
-      : tasks.filter(t => t.memberId === memberId);
+    let filteredTasks = memberId === 'all'
+      ? tasks
+      : tasks.filter(t => String(t.memberId || t.member_id) === String(memberId));
 
     // Filtro por período se selecionado
     if (this.currentPeriodFilter !== 'all') {
@@ -159,7 +184,7 @@ export const KanbanEngine = {
     statuses.forEach(status => {
       const colEl = document.querySelector(`.kanban-column[data-status="${status}"] .cards-container`);
       const countEl = document.querySelector(`.kanban-column[data-status="${status}"] .column-count`);
-      
+
       if (!colEl) return;
 
       const colTasks = filteredTasks
@@ -178,26 +203,48 @@ export const KanbanEngine = {
       }
 
       colEl.innerHTML = colTasks.map((task, idx) => {
-        const member = membersMap.get(task.memberId) || { name: 'Não atribuído', photo: '' };
+        const taskOwnerId = String(task.memberId || task.member_id || '');
+        const member = membersMap.get(taskOwnerId) || { name: 'Não atribuído', photo: '' };
         const taskImpediments = impMap.get(task.id) || [];
         const elapsedSecs = TimerEngine.getCurrentElapsedSeconds(task);
         const timeFormatted = TimerEngine.formatTime(elapsedSecs);
         const isRunning = task.isTimerRunning;
+
+        // Verifica se há transferência pendente travando este card
+        const pendingTransfer = pendingTransfersMap.get(String(task.id));
+        const isLocked = Boolean(pendingTransfer);
+
+        let destMemberName = '';
+        if (isLocked) {
+          const toId = pendingTransfer.to_member_id || pendingTransfer.toMemberId;
+          const destMember = membersMap.get(String(toId));
+          if (destMember) destMemberName = destMember.name;
+        }
 
         // Membros do Grupo
         const groupLinks = taskMembers.filter(tm => tm.taskId === task.id);
         const groupMembers = members.filter(m => groupLinks.some(gl => gl.memberId === m.id));
 
         return `
-          <div class="kanban-card ${task.status === 'EM EXECUÇÃO' ? 'wip-active' : ''}" 
-               draggable="true" 
-               data-id="${task.id}">
+          <div class="kanban-card ${task.status === 'EM EXECUÇÃO' ? 'wip-active' : ''} ${isLocked ? 'task-locked' : ''}" 
+               draggable="${!isLocked}" 
+               data-id="${task.id}"
+               style="${isLocked ? 'opacity:0.85; border:1px dashed #6366f1; position:relative;' : ''}">
             
+            ${isLocked ? `
+              <div class="lock-banner" style="background:rgba(99, 102, 241, 0.2); border-bottom:1px solid #6366f1; margin:-0.75rem -0.75rem 0.5rem -0.75rem; padding:0.4rem 0.6rem; border-radius:6px 6px 0 0; font-size:0.75rem; color:#a5b4fc; display:flex; justify-content:space-between; align-items:center;">
+                <span>⏳ <strong>Aguardando aceite de ${destMemberName || 'colaborador'}...</strong></span>
+                <span>🔒</span>
+              </div>
+            ` : ''}
+
             <div class="card-header">
-              <h4 class="card-title font-clickable-title" data-id="${task.id}" title="Clique para ver detalhes completos">${task.title}</h4>
+              <h4 class="card-title font-clickable-title" data-id="${task.id}" title="${isLocked ? 'Transferência Pendente' : 'Clique para ver detalhes completos'}">
+                ${task.title}
+              </h4>
               <div style="display:flex; align-items:center; gap:0.25rem;">
-                <button class="btn-reorder btn-reorder-up" data-id="${task.id}" title="Mover para Cima" ${idx === 0 ? 'disabled style="opacity:0.3;"' : ''}>▲</button>
-                <button class="btn-reorder btn-reorder-down" data-id="${task.id}" title="Mover para Baixo" ${idx === colTasks.length - 1 ? 'disabled style="opacity:0.3;"' : ''}>▼</button>
+                <button class="btn-reorder btn-reorder-up" data-id="${task.id}" title="Mover para Cima" ${idx === 0 || isLocked ? 'disabled style="opacity:0.3;"' : ''}>▲</button>
+                <button class="btn-reorder btn-reorder-down" data-id="${task.id}" title="Mover para Baixo" ${idx === colTasks.length - 1 || isLocked ? 'disabled style="opacity:0.3;"' : ''}>▼</button>
               </div>
             </div>
 
@@ -216,14 +263,14 @@ export const KanbanEngine = {
               </div>
               
               ${task.status === 'EM EXECUÇÃO' ? `
-                <button class="timer-btn btn-toggle-timer" data-id="${task.id}" title="${isRunning ? 'Pausar Cronômetro' : 'Retomar Cronômetro'}">
+                <button class="timer-btn btn-toggle-timer" data-id="${task.id}" ${isLocked ? 'disabled style="opacity:0.5; cursor:not-allowed;"' : ''} title="${isRunning ? 'Pausar Cronômetro' : 'Retomar Cronômetro'}">
                   ${isRunning ? '⏸️ Pausar' : '▶️ Retomar'}
                 </button>
               ` : ''}
             </div>
 
             ${task.status === 'EM EXECUÇÃO' ? `
-              <button class="btn btn-warning btn-report-impediment" data-id="${task.id}" style="width:100%; margin-bottom:0.75rem; font-size:0.75rem; padding:0.35rem;">
+              <button class="btn btn-warning btn-report-impediment" data-id="${task.id}" ${isLocked ? 'disabled style="opacity:0.5; cursor:not-allowed;"' : ''} style="width:100%; margin-bottom:0.75rem; font-size:0.75rem; padding:0.35rem;">
                 ⚠️ Registrar Contratempo
               </button>
             ` : ''}
@@ -243,9 +290,13 @@ export const KanbanEngine = {
         `;
       }).join('');
 
-      // Eventos de Drag & Drop
+      // Eventos de Drag & Drop nos cartões
       colEl.querySelectorAll('.kanban-card').forEach(card => {
         card.addEventListener('dragstart', (e) => {
+          if (card.classList.contains('task-locked')) {
+            e.preventDefault();
+            return;
+          }
           e.dataTransfer.setData('text/plain', card.dataset.id);
           card.classList.add('dragging');
         });
@@ -254,11 +305,17 @@ export const KanbanEngine = {
           card.classList.remove('dragging');
         });
 
-        // Clique no cartão abre a modal de Detalhes da Atividade
+        // Clique no cartão
         card.addEventListener('click', (e) => {
           if (e.target.closest('.btn-toggle-timer') || e.target.closest('.btn-report-impediment') || e.target.closest('.btn-reorder')) {
             return;
           }
+
+          if (card.classList.contains('task-locked')) {
+            alert('Esta atividade possui uma solicitação de transferência pendente e está travada.');
+            return;
+          }
+
           if (callbacks.onOpenTaskDetails) {
             callbacks.onOpenTaskDetails(card.dataset.id);
           }
@@ -306,4 +363,3 @@ export const KanbanEngine = {
     });
   }
 };
-
