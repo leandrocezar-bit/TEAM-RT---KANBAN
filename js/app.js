@@ -235,7 +235,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const formProject = document.getElementById('form-project');
 
   // ============================================================
-  // FUNÇÕES HELPER PARA SUAS COLUNAS DO SUPABASE
+  // FUNÇÕES HELPER PARA COLUNAS
   // ============================================================
 
   function getTransferFromMemberId(transfer) {
@@ -400,7 +400,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ============================================================
-  // BARRA DE NOTIFICAÇÕES (MUDANÇA DE RESPONSÁVEL GARANTIDA)
+  // BARRA DE NOTIFICAÇÕES (BUSCA TAREFA PELO ID E MUDA RESPONSÁVEL)
   // ============================================================
 
   async function renderTopNotificationBar() {
@@ -547,7 +547,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const now = new Date().toISOString();
 
-        // 1. ACEITAR
+        // 1. ACEITAR SOLICITAÇÃO DE TRANSFERÊNCIA
         if (target.classList.contains('btn-accept-transfer')) {
           e.preventDefault();
 
@@ -563,31 +563,32 @@ document.addEventListener('DOMContentLoaded', async () => {
             const toMemberId = getTransferToMemberId(transfer);
             const fromMemberId = getTransferFromMemberId(transfer);
 
-            if (!taskId) {
-              alert('⚠️ Atenção: Esta solicitação antiga não tem um task_id válido no banco!');
-            } else if (toMemberId) {
+            if (taskId && toMemberId) {
+              // Busca a tarefa na tabela tasks pelo seu id
               const task = await DB.get('tasks', taskId);
               if (task) {
                 task.member_id = toMemberId;
                 task.memberId = toMemberId;
                 await DB.save('tasks', task);
-                console.log('✅ Tarefa reatribuída no Supabase para o ID:', toMemberId);
+                console.log('✅ Tarefa reatribuída no Supabase com sucesso para:', toMemberId);
+              } else {
+                console.error('❌ Não foi possível encontrar a tarefa na tabela tasks com id:', taskId);
               }
-            }
 
-            // Remove o antigo dono da tabela de grupos
-            const taskMembers = (await DB.getAll('task_members')) || [];
-            const oldLinks = taskMembers.filter(
-              (tm) => String(tm.taskId) === String(taskId) && String(tm.memberId || tm.member_id) === String(fromMemberId)
-            );
+              // Remove o antigo dono da tabela de grupos
+              const taskMembers = (await DB.getAll('task_members')) || [];
+              const oldLinks = taskMembers.filter(
+                (tm) => String(tm.taskId) === String(taskId) && String(tm.memberId || tm.member_id) === String(fromMemberId)
+              );
 
-            for (const link of oldLinks) {
-              await DB.delete('task_members', link.id);
+              for (const link of oldLinks) {
+                await DB.delete('task_members', link.id);
+              }
             }
 
             showToast('Transferência de atividade aceita!', 'success');
           } catch (err) {
-            console.error('❌ Erro ao aceitar:', err);
+            console.error('❌ Erro ao aceitar transferência:', err);
           }
 
           await refreshUI();
@@ -627,25 +628,32 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ============================================================
-  // SOLICITAR TRANSFERÊNCIA (CORRIGIDO PARA O SUPABASE NUNCA MAIS GRAVAR NULL)
+  // SOLICITAR TRANSFERÊNCIA (GARANTE task_id NA TABELA activity_transfers)
   // ============================================================
 
   window.requestTaskTransfer = async function (taskId, toMemberId) {
     try {
       const fromMemberId = getLoggedMemberId();
 
-      if (!taskId || !toMemberId || !fromMemberId) {
-        showToast('Selecione a tarefa e o destinatário.', 'warning');
+      // Garante que o taskId não esteja nulo nem undefined
+      const cleanTaskId = String(taskId || '').trim();
+
+      if (!cleanTaskId || cleanTaskId === 'null' || cleanTaskId === 'undefined') {
+        showToast('Erro: ID da tarefa inválido para transferência.', 'warning');
+        return false;
+      }
+
+      if (!toMemberId || !fromMemberId) {
+        showToast('Selecione o destinatário para continuar.', 'warning');
         return false;
       }
 
       const now = new Date().toISOString();
 
-      // Forçamos o envio com o nome EXATO da coluna no Supabase: task_id
       const newTransfer = {
         id: 'tr-' + Date.now(),
-        task_id: String(taskId),        // 👈 Garante gravação da coluna no Supabase
-        taskId: String(taskId),
+        task_id: cleanTaskId,       // 👈 Grava na coluna task_id da tabela activity_transfers
+        taskId: cleanTaskId,
         fromMemberId: fromMemberId,
         from_member_id: fromMemberId,
         to_member_id: toMemberId,
@@ -657,7 +665,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         responded_at: null
       };
 
-      console.log('🔄 Gravando nova transferência com task_id correto:', newTransfer);
+      console.log('🔄 Gravando em activity_transfers:', newTransfer);
       await DB.save('activity_transfers', newTransfer);
 
       showToast('Solicitação de transferência enviada com sucesso!', 'success');
