@@ -235,7 +235,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const formProject = document.getElementById('form-project');
 
   // ============================================================
-  // FUNÇÕES HELPER (MAPEAMENTO DAS SUAS 9 COLUNAS EXATAS)
+  // FUNÇÕES HELPER PARA SUAS 9 COLUNAS
   // ============================================================
 
   function getTransferFromMemberId(transfer) {
@@ -400,7 +400,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ============================================================
-  // BARRA DE NOTIFICAÇÕES (MAPEADA COM AS 9 COLUNAS DO SUPABASE)
+  // BARRA DE NOTIFICAÇÕES (DESAPARECIMENTO IMEDIATO)
   // ============================================================
 
   async function renderTopNotificationBar() {
@@ -427,7 +427,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         return String(toId) === String(loggedId) && status === 'PENDENTE';
       });
 
-      // 2. RESPOSTAS PARA O REMETENTE
+      // 2. RESPOSTAS PARA O REMETENTE (Que ainda NÃO confirmou com OK)
       const senderNotices = transfers.filter((transfer) => {
         const fromId = getTransferFromMemberId(transfer);
         const acknowledged = isTransferSenderAcknowledged(transfer);
@@ -530,16 +530,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         const transferId = target.dataset.id;
         if (!transferId) return;
 
+        // Limpa visualmente primeiro para evitar delay
+        bar.style.display = 'none';
+        container.innerHTML = '';
+
         const transfer = await DB.get('activity_transfers', transferId);
         if (!transfer) return;
 
         const now = new Date().toISOString();
 
+        // 1. ACEITAR TRANSFERÊNCIA
         if (target.classList.contains('btn-accept-transfer')) {
           e.preventDefault();
 
           transfer.status = 'ACEITO';
           transfer.sender_acknowledged = false;
+          transfer.senderAcknowledged = false;
           transfer.responded_at = now;
 
           await DB.save('activity_transfers', transfer);
@@ -549,16 +555,13 @@ document.addEventListener('DOMContentLoaded', async () => {
           const fromMemberId = getTransferFromMemberId(transfer);
 
           if (taskId && toMemberId) {
-            // 1. Atualiza a Tarefa (preenche memberId E member_id para garantir gravação na tabela tasks)
             const task = await DB.get('tasks', taskId);
             if (task) {
               task.memberId = toMemberId;
               task.member_id = toMemberId;
               await DB.save('tasks', task);
-              console.log('✅ Tarefa transferida no banco para o novo dono:', toMemberId);
             }
 
-            // 2. Remove o vínculo da pessoa antiga da tabela task_members (se houver grupo)
             const taskMembers = (await DB.getAll('task_members')) || [];
             const oldLinks = taskMembers.filter(
               (tm) => String(tm.taskId) === String(taskId) && String(tm.memberId) === String(fromMemberId)
@@ -570,35 +573,35 @@ document.addEventListener('DOMContentLoaded', async () => {
           }
 
           showToast('Transferência de atividade aceita!', 'success');
-          bar.style.display = 'none';
-          container.innerHTML = '';
           await refreshUI();
         }
 
+        // 2. RECUSAR TRANSFERÊNCIA
         if (target.classList.contains('btn-reject-transfer')) {
           e.preventDefault();
 
           transfer.status = 'REJEITADO';
           transfer.sender_acknowledged = false;
+          transfer.senderAcknowledged = false;
           transfer.responded_at = now;
 
           await DB.save('activity_transfers', transfer);
           showToast('Solicitação de transferência recusada.', 'info');
-
-          bar.style.display = 'none';
-          container.innerHTML = '';
           await refreshUI();
         }
 
+        // 3. BOTÃO OK (CONFIRMAÇÃO DO REMETENTE)
         if (target.classList.contains('btn-ack-sender-notice')) {
           e.preventDefault();
 
+          // Grava em ambas as variáveis da coluna
           transfer.sender_acknowledged = true;
+          transfer.senderAcknowledged = true;
 
           await DB.save('activity_transfers', transfer);
+          console.log('✅ Confirmação do remetente salva no Supabase para ID:', transferId);
 
-          bar.style.display = 'none';
-          container.innerHTML = '';
+          showToast('Notificação confirmada.', 'info');
           await refreshUI();
         }
       };
@@ -610,7 +613,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ============================================================
-  // CRIAÇÃO / SOLICITAÇÃO DE TRANSFERÊNCIA (MAPEANDO AS 9 COLUNAS)
+  // SOLICITAR TRANSFERÊNCIA
   // ============================================================
 
   window.requestTaskTransfer = async function (taskId, toMemberId) {
@@ -627,12 +630,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       const newTransfer = {
         id: 'tr-' + Date.now(),
         task_id: taskId,
-        fromMemberId: fromMemberId, // 👈 exato como na sua foto do Supabase
+        fromMemberId: fromMemberId,
+        from_member_id: fromMemberId,
         to_member_id: toMemberId,
         status: 'PENDENTE',
         created_at: now,
         requested_at: now,
         sender_acknowledged: false,
+        senderAcknowledged: false,
         responded_at: null
       };
 
