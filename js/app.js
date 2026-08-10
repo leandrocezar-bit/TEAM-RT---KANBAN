@@ -235,7 +235,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const formProject = document.getElementById('form-project');
 
   // ============================================================
-  // FUNÇÕES HELPER PARA COLUNAS
+  // FUNÇÕES HELPER PARA SUAS 9 COLUNAS
   // ============================================================
 
   function getTransferFromMemberId(transfer) {
@@ -400,7 +400,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ============================================================
-  // BARRA DE NOTIFICAÇÕES (COM AVISO DE AGUARDANDO E TROCA EFETIVA)
+  // BARRA DE NOTIFICAÇÕES (MULTI-NOTIFICAÇÃO + AGUARDANDO ACEITE)
   // ============================================================
 
   async function renderTopNotificationBar() {
@@ -420,21 +420,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
       const transfers = (await DB.getAll('activity_transfers')) || [];
 
-      // 1. SOLICITAÇÕES RECEBIDAS PENDENTES (Para quem vai aceitar/recusar)
+      // 1. RECEBIDAS PENDENTES (Para eu Aceitar/Recusar)
       const pendingTransfers = transfers.filter((transfer) => {
         const toId = getTransferToMemberId(transfer);
         const status = String(transfer.status || '').trim().toUpperCase();
         return String(toId) === String(loggedId) && status === 'PENDENTE';
       });
 
-      // 2. SOLICITAÇÕES ENVIADAS PENDENTES (Aviso de "Aguardando Aceite" para quem enviou)
+      // 2. ENVIADAS PENDENTES (Eu enviei e estou aguardando o aceite)
       const outgoingPendingTransfers = transfers.filter((transfer) => {
         const fromId = getTransferFromMemberId(transfer);
         const status = String(transfer.status || '').trim().toUpperCase();
         return String(fromId) === String(loggedId) && status === 'PENDENTE';
       });
 
-      // 3. RESPOSTAS FINALIZADAS PARA O REMETENTE (Aceito ou Rejeitado sem OK)
+      // 3. RESPOSTAS FINALIZADAS (Colega aceitou ou recusou minha solicitação)
       const senderNotices = transfers.filter((transfer) => {
         const fromId = getTransferFromMemberId(transfer);
         const acknowledged = isTransferSenderAcknowledged(transfer);
@@ -482,9 +482,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       bar.style.display = 'block';
       let html = '<div translate="no">';
 
-      // PRIORIDADE 1: Se alguém mandou para mim (mostrar Aceitar/Recusar)
-      if (pendingTransfers.length > 0) {
-        const firstTr = pendingTransfers[0];
+      // --- ITEM 1: SOLICITAÇÕES PARA EU ACEITAR ---
+      pendingTransfers.forEach((firstTr) => {
         const taskId = getTransferTaskId(firstTr);
         const fromId = getTransferFromMemberId(firstTr);
         const toId = getTransferToMemberId(firstTr);
@@ -502,10 +501,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             </div>
           </div>
         `;
-      }
-      // PRIORIDADE 2: Se eu mandei para alguém e está pendente (Aviso de Aguardando Aceite)
-      else if (outgoingPendingTransfers.length > 0) {
-        const firstOut = outgoingPendingTransfers[0];
+      });
+
+      // --- ITEM 2: SOLICITAÇÕES QUE EU ENVIEI E ESTÃO AGUARDANDO ACEITE ---
+      outgoingPendingTransfers.forEach((firstOut) => {
         const taskId = getTransferTaskId(firstOut);
         const toId = getTransferToMemberId(firstOut);
 
@@ -514,13 +513,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         html += `
           <div style="display:flex; justify-content:space-between; align-items:center; background:#312e81; border:1px solid #6366f1; padding:0.6rem 1rem; border-radius:4px; color:#e0e7ff; font-size:0.85rem; margin-bottom:0.5rem;">
-            <span>⏳ <strong>Aguardando Aceite:</strong> Transferência da atividade "${task.title}" enviada para <strong>${toMem.name}</strong>.</span>
+            <span>⏳ <strong>Aguardando Aceite:</strong> A transferência da atividade "${task.title}" foi enviada e está aguardando a resposta de <strong>${toMem.name}</strong>.</span>
           </div>
         `;
-      }
-      // PRIORIDADE 3: Resposta finalizada (Aceitou / Recusou)
-      else if (senderNotices.length > 0) {
-        const firstNotice = senderNotices[0];
+      });
+
+      // --- ITEM 3: RESPOSTA FINALIZADA (ACEITOU / RECUSOU) ---
+      senderNotices.forEach((firstNotice) => {
         const taskId = getTransferTaskId(firstNotice);
         const toId = getTransferToMemberId(firstNotice);
 
@@ -537,9 +536,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             <button class="btn btn-ack-sender-notice" data-id="${firstNotice.id}" style="padding:0.2rem 0.6rem; font-size:0.75rem; background:#374151; border:none; color:white; font-weight:700; cursor:pointer; border-radius:4px;" translate="no">OK</button>
           </div>
         `;
-      }
-      // PRIORIDADE 4: Prazos urgentes
-      else if (urgentTasks.length > 0) {
+      });
+
+      // --- ITEM 4: PRAZOS URGENTES ---
+      if (
+        pendingTransfers.length === 0 &&
+        outgoingPendingTransfers.length === 0 &&
+        senderNotices.length === 0 &&
+        urgentTasks.length > 0
+      ) {
         html += `
           <div style="padding:0.6rem 1rem; background:#451a03; border:1px solid #92400e; border-radius:4px; color:#fed7aa; font-size:0.85rem;">
             ⚠️ <strong>Alerta de Prazos:</strong> Você tem ${urgentTasks.length} atividade(s) vencendo nos próximos 2 dias!
@@ -550,7 +555,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       html += '</div>';
       container.innerHTML = html;
 
-      // EVENT DELEGATION
+      // EVENT DELEGATION DOS BOTÕES
       container.onclick = async (e) => {
         const target = e.target.closest('button');
         if (!target) return;
@@ -558,15 +563,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         const transferId = target.dataset.id;
         if (!transferId) return;
 
-        bar.style.display = 'none';
-        container.innerHTML = '';
-
         const transfer = await DB.get('activity_transfers', transferId);
         if (!transfer) return;
 
         const now = new Date().toISOString();
 
-        // 1. ACEITAR
+        // 1. CLIQUE EM ACEITAR (Pelo Destinatário)
         if (target.classList.contains('btn-accept-transfer')) {
           e.preventDefault();
 
@@ -582,16 +584,16 @@ document.addEventListener('DOMContentLoaded', async () => {
           const fromMemberId = getTransferFromMemberId(transfer);
 
           if (taskId && toMemberId) {
-            // BUSCA E MUDA EFETIVAMENTE O DONO DA TAREFA NO BANCO
+            // Muda o responsável na tabela tasks
             const task = await DB.get('tasks', taskId);
             if (task) {
               task.memberId = toMemberId;
               task.member_id = toMemberId;
               await DB.save('tasks', task);
-              console.log('✅ Tarefa transferida com sucesso para o novo membro:', toMemberId);
+              console.log('✅ Tarefa reatribuída no banco para:', toMemberId);
             }
 
-            // Remove o antigo dono da tabela de grupos (task_members)
+            // Desvincula o antigo dono do grupo da tarefa
             const taskMembers = (await DB.getAll('task_members')) || [];
             const oldLinks = taskMembers.filter(
               (tm) => String(tm.taskId) === String(taskId) && String(tm.memberId) === String(fromMemberId)
@@ -606,7 +608,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           await refreshUI();
         }
 
-        // 2. RECUSAR
+        // 2. CLIQUE EM RECUSAR (Pelo Destinatário)
         if (target.classList.contains('btn-reject-transfer')) {
           e.preventDefault();
 
@@ -620,7 +622,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           await refreshUI();
         }
 
-        // 3. OK DO REMETENTE
+        // 3. CLIQUE EM OK (Pelo Remetente)
         if (target.classList.contains('btn-ack-sender-notice')) {
           e.preventDefault();
 
@@ -640,7 +642,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ============================================================
-  // CRIAÇÃO / SOLICITAÇÃO DE TRANSFERÊNCIA
+  // CRIAÇÃO DE SOLICITAÇÃO
   // ============================================================
 
   window.requestTaskTransfer = async function (taskId, toMemberId) {
