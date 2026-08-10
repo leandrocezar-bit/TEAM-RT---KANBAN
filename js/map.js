@@ -1,90 +1,114 @@
 /**
- * Organograma e Mapa de Processos Recorrentes do Departamento Pessoal (DP)
+ * Organograma e Mapa de Processos Recorrentes do Departamento Pessoal (DP) Editável
  */
 
 import { DB } from './db.js';
 import { TimerEngine } from './timer.js';
 
 export const MapEngine = {
+  selectedCalendarMemberId: 'all',
+
   /**
-   * Processos pré-definidos do Departamento Pessoal (DP) por Macro-Área
+   * Processos padrão pré-definidos caso ainda não existam no banco de dados
    */
-  dpProcesses: [
+  defaultDpProcesses: [
     {
+      id: 'proc-1',
       category: 'Folha de Pagamento & Encargos',
       icon: '💵',
       defaultMemberRole: 'Analista de Folha de Pagamento',
       tasks: [
-        { title: 'Fechamento da Folha de Pagamento Mensal (S-1200 / S-1210)', dayLimit: 'Dia 05', priority: 'Alta', desc: 'Cálculo de proventos, descontos, DSR, INSS, IRRF e emissão de holerites.' },
-        { title: 'Emissão e Envio da Guia DCTFWeb (INSS / DARF Unificado)', dayLimit: 'Dia 15', priority: 'Alta', desc: 'Fechamento do eSocial S-1299 e transmissão da DCTFWeb à Receita Federal.' },
-        { title: 'Gerar e Enviar Guia do FGTS Digital', dayLimit: 'Dia 20', priority: 'Alta', desc: 'Emissão da guia do FGTS referente à folha de pagamento do mês.' }
+        { id: 'dp-t-1', title: 'Fechamento da Folha de Pagamento Mensal (S-1200 / S-1210)', dayLimit: 'Dia 05', priority: 'Alta', desc: 'Cálculo de proventos, descontos, DSR, INSS, IRRF e emissão de holerites.' },
+        { id: 'dp-t-2', title: 'Emissão e Envio da Guia DCTFWeb (INSS / DARF Unificado)', dayLimit: 'Dia 15', priority: 'Alta', desc: 'Fechamento do eSocial S-1299 e transmissão da DCTFWeb à Receita Federal.' },
+        { id: 'dp-t-3', title: 'Gerar e Enviar Guia do FGTS Digital', dayLimit: 'Dia 20', priority: 'Alta', desc: 'Emissão da guia do FGTS referente à folha de pagamento do mês.' }
       ]
     },
     {
+      id: 'proc-2',
       category: 'Gestão de Ponto & Benefícios',
       icon: '⏱️',
       defaultMemberRole: 'Assistente de Admissão e Benefícios',
       tasks: [
-        { title: 'Apuração e Fechamento do Espelho de Ponto Eletrônico', dayLimit: 'Dia 25', priority: 'Alta', desc: 'Ajuste de marcações, cálculo de HE, adicional noturno, banco de horas e faltas.' },
-        { title: 'Pedido e Recarga de Vale Transporte (VT) e Vale Alimentação (VA/VR)', dayLimit: 'Dia 28', priority: 'Média', desc: 'Conferência de dias úteis e recarga nos cartões dos colaboradores.' }
+        { id: 'dp-t-4', title: 'Apuração e Fechamento do Espelho de Ponto Eletrônico', dayLimit: 'Dia 25', priority: 'Alta', desc: 'Ajuste de marcações, cálculo de HE, adicional noturno, banco de horas e faltas.' },
+        { id: 'dp-t-5', title: 'Pedido e Recarga de Vale Transporte (VT) e Vale Alimentação (VA/VR)', dayLimit: 'Dia 28', priority: 'Média', desc: 'Conferência de dias úteis e recarga nos cartões dos colaboradores.' }
       ]
     },
     {
+      id: 'proc-3',
       category: 'Admissão & Registro de Colaboradores',
       icon: '💼',
       defaultMemberRole: 'Assistente de Admissão e Benefícios',
       tasks: [
-        { title: 'Processamento de Admissões e Qualificação Cadastral (S-2200)', dayLimit: 'Recorrente', priority: 'Média', desc: 'Coleta de documentos, ASO admissional e transmissão prévia ao eSocial.' },
-        { title: 'Cadastro no Ponto e Abertura de Conta Salário', dayLimit: 'Recorrente', priority: 'Média', desc: 'Inclusão no sistema de relógio de ponto e solicitação de conta bancária.' }
+        { id: 'dp-t-6', title: 'Processamento de Admissões e Qualificação Cadastral (S-2200)', dayLimit: 'Recorrente', priority: 'Média', desc: 'Coleta de documentos, ASO admissional e transmissão prévia ao eSocial.' },
+        { id: 'dp-t-7', title: 'Cadastro no Ponto e Abertura de Conta Salário', dayLimit: 'Recorrente', priority: 'Média', desc: 'Inclusão no sistema de relógio de ponto e solicitação de conta bancária.' }
       ]
     },
     {
+      id: 'proc-4',
       category: 'Férias & Ausências',
       icon: '🏖️',
       defaultMemberRole: 'Analista de Folha de Pagamento',
       tasks: [
-        { title: 'Mapeamento de Escala de Férias e Emissão de Avisos (30 dias antes)', dayLimit: 'Dia 01', priority: 'Média', desc: 'Verificação do período aquisitivo/concessivo e colheita de assinatura.' },
-        { title: 'Cálculo de Recibo de Férias e Adicional de 1/3 (S-2230)', dayLimit: 'Dia 25', priority: 'Média', desc: 'Pagamento das férias até 2 dias antes do início do gozo conforme CLT.' }
+        { id: 'dp-t-8', title: 'Mapeamento de Escala de Férias e Emissão de Avisos (30 dias antes)', dayLimit: 'Dia 01', priority: 'Média', desc: 'Verificação do período aquisitivo/concessivo e colheita de assinatura.' },
+        { id: 'dp-t-9', title: 'Cálculo de Recibo de Férias e Adicional de 1/3 (S-2230)', dayLimit: 'Dia 25', priority: 'Média', desc: 'Pagamento das férias até 2 dias antes do início do gozo conforme CLT.' }
       ]
     },
     {
+      id: 'proc-5',
       category: 'Rescisão & Desligamento',
       icon: '📄',
       defaultMemberRole: 'Analista de Folha de Pagamento',
       tasks: [
-        { title: 'Cálculo de Rescisão Contratual (TRCT) e Chave do FGTS (S-2299)', dayLimit: 'Recorrente', priority: 'Alta', desc: 'Cálculo de aviso prévio, saldo de salário, guias e transmissão de desligamento.' }
+        { id: 'dp-t-10', title: 'Cálculo de Rescisão Contratual (TRCT) e Chave do FGTS (S-2299)', dayLimit: 'Recorrente', priority: 'Alta', desc: 'Cálculo de aviso prévio, saldo de salário, guias e transmissão de desligamento.' }
       ]
     },
     {
+      id: 'proc-6',
       category: 'SST & Obrigações eSocial',
       icon: '📋',
       defaultMemberRole: 'Especialista eSocial & Encargos',
       tasks: [
-        { title: 'Gestão de Eventos de SST (S-2210 CAT, S-2220 ASO, S-2240 Periculosidade)', dayLimit: 'Dia 15', priority: 'Média', desc: 'Acompanhamento de exames periódicos e laudos ambientais de trabalho.' }
+        { id: 'dp-t-11', title: 'Gestão de Eventos de SST (S-2210 CAT, S-2220 ASO, S-2240 Periculosidade)', dayLimit: 'Dia 15', priority: 'Média', desc: 'Acompanhamento de exames periódicos e laudos ambientais de trabalho.' }
       ]
     }
   ],
 
   /**
+   * Obtém a lista atualizada de processos (do banco de dados ou do padrão)
+   */
+  async getDpProcesses() {
+    try {
+      const savedProcesses = await DB.getAll('dp_processes');
+      if (savedProcesses && savedProcesses.length > 0) {
+        return savedProcesses;
+      }
+    } catch (e) {
+      console.warn('⚡ Tabela dp_processes não encontrada ou vazia. Usando estrutura padrão.', e);
+    }
+    return this.defaultDpProcesses;
+  },
+
+  /**
    * Renderiza a tela do Mapa de Demandas do DP
    */
   async renderSectorMap() {
-    const tasks = await DB.getAll('tasks');
-    const members = await DB.getAll('members');
-    const impediments = await DB.getAll('impediments');
+    const tasks = (await DB.getAll('tasks')) || [];
+    const members = (await DB.getAll('members')) || [];
+    const impediments = (await DB.getAll('impediments')) || [];
+    const processes = await this.getDpProcesses();
 
-    const membersMap = new Map(members.map(m => [m.id, m]));
+    const membersMap = new Map(members.map(m => [String(m.id), m]));
     const impMap = new Map();
     impediments.forEach(imp => {
-      if (!impMap.has(imp.taskId)) impMap.set(imp.taskId, []);
-      impMap.get(imp.taskId).push(imp);
+      if (!impMap.has(String(imp.taskId))) impMap.set(String(imp.taskId), []);
+      impMap.get(String(imp.taskId)).push(imp);
     });
 
     this.renderHeaderMetrics(tasks);
-    this.renderDPOrganogram(tasks, members, membersMap);
+    this.renderDPOrganogram(processes, tasks, members);
     this.renderRoadmapTable(tasks, membersMap, impMap);
 
-    this.attachEvents();
+    this.attachEvents(processes);
   },
 
   /**
@@ -141,21 +165,34 @@ export const MapEngine = {
   },
 
   /**
-   * Renderiza o Organograma Visual por Sub-Área do Departamento Pessoal
+   * Renderiza o Organograma Editável por Sub-Área do DP
    */
-  renderDPOrganogram(tasks, members, membersMap) {
+  renderDPOrganogram(processes, tasks, members) {
     const container = document.getElementById('map-organogram-grid');
     if (!container) return;
 
-    container.innerHTML = this.dpProcesses.map(proc => {
-      // Encontra membro padrão da equipe responsável por esta área
-      const defaultMember = members.find(m => m.role.toLowerCase().includes(proc.defaultMemberRole.toLowerCase())) || members[0];
+    const isManager = localStorage.getItem('logged_access_level') === 'gestor';
+
+    let html = `
+      ${isManager ? `
+        <div style="grid-column: 1 / -1; display:flex; justify-content:flex-end; margin-bottom: 0.5rem;">
+          <button id="btn-add-map-process" class="btn btn-primary" style="font-size: 0.8rem; padding: 0.4rem 0.8rem;">
+            ➕ Adicionar Nova Atividade Padrão
+          </button>
+        </div>
+      ` : ''}
+    `;
+
+    html += processes.map(proc => {
+      const defaultMember = members.find(m =>
+        (m.role || '').toLowerCase().includes((proc.defaultMemberRole || '').toLowerCase())
+      ) || members[0];
 
       return `
         <div class="card-panel" style="border-top: 3px solid var(--accent-primary);">
           <div class="panel-header" style="margin-bottom:0.75rem;">
             <h3 class="panel-title" style="font-size:0.95rem;">
-              <span>${proc.icon}</span> ${proc.category}
+              <span>${proc.icon || '📋'}</span> ${proc.category}
             </h3>
           </div>
 
@@ -169,20 +206,25 @@ export const MapEngine = {
 
           <div style="display:flex; flex-direction:column; gap:0.75rem;">
             ${proc.tasks.map(t => {
-              // Verifica se a tarefa já está cadastrada nas ativas do mês
-              const activeTask = tasks.find(item => item.title === t.title);
+        const activeTask = tasks.find(item => item.title === t.title);
 
-              let statusBadge = `<span class="badge" style="background:rgba(255,255,255,0.08); color:var(--text-dim);">Padrão DP</span>`;
-              if (activeTask) {
-                const badgeClass = activeTask.status === 'EM EXECUÇÃO' ? 'badge-pending' : activeTask.status === 'CONCLUÍDO' ? 'badge-approved' : 'badge-rate';
-                statusBadge = `<span class="badge ${badgeClass}">${activeTask.status}</span>`;
-              }
+        let statusBadge = `<span class="badge" style="background:rgba(255,255,255,0.08); color:var(--text-dim);">Padrão DP</span>`;
+        if (activeTask) {
+          const badgeClass = activeTask.status === 'EM EXECUÇÃO' ? 'badge-pending' : activeTask.status === 'CONCLUÍDO' ? 'badge-approved' : 'badge-rate';
+          statusBadge = `<span class="badge ${badgeClass}">${activeTask.status}</span>`;
+        }
 
-              return `
-                <div style="background:var(--bg-input); border:1px solid var(--border-color); border-radius:var(--radius-md); padding:0.85rem;">
-                  <div style="display:flex; justify-space-between; align-items:flex-start; margin-bottom:0.35rem;">
+        return `
+                <div style="background:var(--bg-input); border:1px solid var(--border-color); border-radius:var(--radius-md); padding:0.85rem; position:relative;">
+                  <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:0.35rem; gap:0.5rem;">
                     <strong style="font-size:0.85rem; color:var(--text-main);">${t.title}</strong>
-                    ${statusBadge}
+                    <div style="display:flex; align-items:center; gap:0.3rem;">
+                      ${statusBadge}
+                      ${isManager ? `
+                        <button class="btn-edit-process-item" data-proc-id="${proc.id}" data-task-id="${t.id}" title="Editar Atividade Padrão" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:0.75rem; padding:0 0.2rem;">✏️</button>
+                        <button class="btn-delete-process-item" data-proc-id="${proc.id}" data-task-id="${t.id}" title="Excluir Atividade Padrão" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:0.75rem; padding:0 0.2rem;">🗑️</button>
+                      ` : ''}
+                    </div>
                   </div>
                   
                   <p style="font-size:0.75rem; color:var(--text-muted); margin-bottom:0.6rem;">${t.desc}</p>
@@ -200,11 +242,13 @@ export const MapEngine = {
                   </div>
                 </div>
               `;
-            }).join('')}
+      }).join('')}
           </div>
         </div>
       `;
     }).join('');
+
+    container.innerHTML = html;
   },
 
   /**
@@ -226,8 +270,9 @@ export const MapEngine = {
     const todayStr = new Date().toISOString().slice(0, 10);
 
     container.innerHTML = tasks.map(task => {
-      const member = membersMap.get(task.memberId) || { name: 'Não atribuído', photo: '' };
-      const taskImpediments = impMap.get(task.id) || [];
+      const taskOwnerId = task.member_id || task.memberId;
+      const member = membersMap.get(String(taskOwnerId)) || { name: 'Não atribuído', photo: '' };
+      const taskImpediments = impMap.get(String(task.id)) || [];
       const elapsedSecs = TimerEngine.getCurrentElapsedSeconds(task);
 
       let deadlineBadge = '';
@@ -258,7 +303,7 @@ export const MapEngine = {
             </div>
           </td>
           <td>
-            <span class="badge-priority priority-${task.priority.toLowerCase()}">${task.priority}</span>
+            <span class="badge-priority priority-${(task.priority || 'média').toLowerCase()}">${task.priority || 'Média'}</span>
           </td>
           <td><strong>${task.status}</strong></td>
           <td>${task.dueDate ? task.dueDate.split('-').reverse().join('/') : '-'}</td>
@@ -273,9 +318,10 @@ export const MapEngine = {
   },
 
   /**
-   * Eventos dos botões do Organograma DP
+   * Eventos dos botões do Organograma DP (Edição e Criação)
    */
-  attachEvents() {
+  attachEvents(processes) {
+    // 1. Iniciar ciclo mensal
     const btnCycle = document.getElementById('btn-start-dp-cycle');
     if (btnCycle) {
       btnCycle.addEventListener('click', async () => {
@@ -285,6 +331,7 @@ export const MapEngine = {
       });
     }
 
+    // 2. Lançar uma única tarefa no Kanban
     document.querySelectorAll('.btn-launch-dp-task').forEach(btn => {
       btn.addEventListener('click', async () => {
         const title = btn.dataset.title;
@@ -292,7 +339,7 @@ export const MapEngine = {
         const priority = btn.dataset.priority;
         const memberId = btn.dataset.member;
 
-        const tasks = await DB.getAll('tasks');
+        const tasks = (await DB.getAll('tasks')) || [];
         const exists = tasks.some(t => t.title === title);
 
         if (exists) {
@@ -304,6 +351,7 @@ export const MapEngine = {
           id: 't-dp-' + Date.now(),
           title,
           description: desc,
+          member_id: memberId || 'm-1',
           memberId: memberId || 'm-1',
           priority: priority || 'Média',
           dueDate: new Date().toISOString().slice(0, 10),
@@ -319,20 +367,115 @@ export const MapEngine = {
         this.renderSectorMap();
       });
     });
+
+    // 3. Adicionar Nova Atividade Padrão ao Mapa
+    const btnAdd = document.getElementById('btn-add-map-process');
+    if (btnAdd) {
+      btnAdd.addEventListener('click', () => {
+        this.openEditProcessModal(null, null, processes);
+      });
+    }
+
+    // 4. Editar Atividade Padrão
+    document.querySelectorAll('.btn-edit-process-item').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const procId = btn.dataset.procId;
+        const taskId = btn.dataset.taskId;
+        this.openEditProcessModal(procId, taskId, processes);
+      });
+    });
+
+    // 5. Excluir Atividade Padrão do Mapa
+    document.querySelectorAll('.btn-delete-process-item').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const procId = btn.dataset.procId;
+        const taskId = btn.dataset.taskId;
+
+        if (confirm('Deseja realmente remover esta atividade do Mapa de Processos?')) {
+          const procIndex = processes.findIndex(p => String(p.id) === String(procId));
+          if (procIndex !== -1) {
+            processes[procIndex].tasks = processes[procIndex].tasks.filter(t => String(t.id) !== String(taskId));
+            await DB.save('dp_processes', processes[procIndex]);
+            alert('Atividade removida com sucesso!');
+            this.renderSectorMap();
+          }
+        }
+      });
+    });
+  },
+
+  /**
+   * Abre Modal Prompt simples para Edição / Adição de Processos Padrões
+   */
+  async openEditProcessModal(procId, taskId, processes) {
+    let currentTask = { title: '', desc: '', dayLimit: 'Dia 05', priority: 'Média' };
+    let currentCategory = processes[0].category;
+
+    if (procId && taskId) {
+      const proc = processes.find(p => String(p.id) === String(procId));
+      if (proc) {
+        currentCategory = proc.category;
+        const t = proc.tasks.find(item => String(item.id) === String(taskId));
+        if (t) currentTask = t;
+      }
+    }
+
+    const newTitle = prompt('Título da Atividade Padrão:', currentTask.title);
+    if (!newTitle) return;
+
+    const newDesc = prompt('Descrição detalhada:', currentTask.desc) || '';
+    const newDayLimit = prompt('Prazo limite padrão (ex: Dia 05, Dia 15, Recorrente):', currentTask.dayLimit) || 'Dia 05';
+    const newPriority = prompt('Prioridade (Alta, Média, Baixa):', currentTask.priority) || 'Média';
+
+    // Encontra ou cria a categoria no array
+    let targetProc = processes.find(p => p.category === currentCategory);
+    if (!targetProc) {
+      targetProc = processes[0];
+    }
+
+    if (taskId) {
+      // Atualização
+      const taskIndex = targetProc.tasks.findIndex(t => String(t.id) === String(taskId));
+      if (taskIndex !== -1) {
+        targetProc.tasks[taskIndex] = {
+          ...targetProc.tasks[taskIndex],
+          title: newTitle,
+          desc: newDesc,
+          dayLimit: newDayLimit,
+          priority: newPriority
+        };
+      }
+    } else {
+      // Criação de Nova Atividade
+      targetProc.tasks.push({
+        id: 'dp-t-' + Date.now(),
+        title: newTitle,
+        desc: newDesc,
+        dayLimit: newDayLimit,
+        priority: newPriority
+      });
+    }
+
+    await DB.save('dp_processes', targetProc);
+    alert('Mapa de Processos atualizado com sucesso!');
+    this.renderSectorMap();
   },
 
   /**
    * Gera automaticamente todo o ciclo de tarefas mensais do DP
    */
   async startDPMonthlyCycle() {
-    const members = await DB.getAll('members');
-    const existingTasks = await DB.getAll('tasks');
+    const members = (await DB.getAll('members')) || [];
+    const existingTasks = (await DB.getAll('tasks')) || [];
+    const processes = await this.getDpProcesses();
     const todayStr = new Date().toISOString().slice(0, 10);
 
     let countAdded = 0;
 
-    for (const proc of this.dpProcesses) {
-      const defaultMember = members.find(m => m.role.toLowerCase().includes(proc.defaultMemberRole.toLowerCase())) || members[0];
+    for (const proc of processes) {
+      const defaultMember = members.find(m =>
+        (m.role || '').toLowerCase().includes((proc.defaultMemberRole || '').toLowerCase())
+      ) || members[0];
       const memberId = defaultMember ? defaultMember.id : 'm-1';
 
       for (const t of proc.tasks) {
@@ -342,6 +485,7 @@ export const MapEngine = {
             id: 't-dp-' + Date.now() + Math.floor(Math.random() * 1000),
             title: t.title,
             description: t.desc,
+            member_id: memberId,
             memberId: memberId,
             priority: t.priority,
             dueDate: todayStr,
