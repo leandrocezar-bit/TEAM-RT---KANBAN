@@ -1,5 +1,5 @@
 /**
- * Visão do Gestor - Dashboard, Estatísticas, Relatório de Contratempos e Calendário Editável
+ * Visão do Gestor / Dashboard - Estatísticas, Relatório de Contratempos e Calendário
  */
 
 import { DB } from './db.js';
@@ -10,12 +10,12 @@ export const ManagerEngine = {
   currentCalendarDate: new Date(),
 
   /**
-   * Renderiza o Dashboard Completo do Gestor
+   * Renderiza o Dashboard Completo
    */
   async renderDashboard(onViewEvidenceCallback, onDeleteMemberCallback, onOpenDayDetailsCallback) {
-    const members = await DB.getAll('members');
-    const tasks = await DB.getAll('tasks');
-    const impediments = await DB.getAll('impediments');
+    const members = (await DB.getAll('members')) || [];
+    const tasks = (await DB.getAll('tasks')) || [];
+    const impediments = (await DB.getAll('impediments')) || [];
 
     this.renderMemberCards(members, tasks, impediments, onDeleteMemberCallback);
     this.renderImpedimentsAlertList(impediments, tasks, members, onViewEvidenceCallback);
@@ -29,14 +29,24 @@ export const ManagerEngine = {
     const container = document.getElementById('manager-members-grid');
     if (!container) return;
 
-    if (members.length === 0) {
+    // 1. Identifica o nível de acesso e o ID do usuário logado
+    const isManager = localStorage.getItem('logged_access_level') === 'gestor';
+    const loggedMemberId = localStorage.getItem('logged_member_id');
+
+    // 2. SE FOR COLABORADOR: Exibe apenas o card do seu próprio perfil
+    let visibleMembers = members;
+    if (!isManager && loggedMemberId) {
+      visibleMembers = members.filter(m => String(m.id) === String(loggedMemberId));
+    }
+
+    if (visibleMembers.length === 0) {
       container.innerHTML = `<div class="empty-state"><p>Nenhum membro cadastrado.</p></div>`;
       return;
     }
 
-    container.innerHTML = members.map(member => {
-      const memberTasks = tasks.filter(t => t.memberId === member.id);
-      
+    container.innerHTML = visibleMembers.map(member => {
+      const memberTasks = tasks.filter(t => String(t.member_id || t.memberId) === String(member.id));
+
       const todoCount = memberTasks.filter(t => t.status === 'A FAZER').length;
       const wipCount = memberTasks.filter(t => t.status === 'EM EXECUÇÃO').length;
       const doneCount = memberTasks.filter(t => t.status === 'CONCLUÍDO').length;
@@ -46,8 +56,8 @@ export const ManagerEngine = {
         totalSeconds += TimerEngine.getCurrentElapsedSeconds(t);
       });
 
-      const memberTaskIds = new Set(memberTasks.map(t => t.id));
-      const memberImpediments = impediments.filter(imp => memberTaskIds.has(imp.taskId));
+      const memberTaskIds = new Set(memberTasks.map(t => String(t.id)));
+      const memberImpediments = impediments.filter(imp => memberTaskIds.has(String(imp.taskId)));
 
       return `
         <div class="manager-card">
@@ -60,13 +70,19 @@ export const ManagerEngine = {
                 <p style="font-size:0.7rem; color:var(--text-dim);">${member.email || member.contact || ''}</p>
               </div>
             </div>
+
             <div style="display:flex; gap:0.4rem;">
               <button class="btn-edit-member-profile" data-id="${member.id}" title="Editar Perfil" style="background:rgba(99,102,241,0.12); color:#818cf8; border:1px solid rgba(99,102,241,0.3); border-radius:var(--radius-sm); padding:0.3rem 0.5rem; font-size:0.75rem; font-weight:700; cursor:pointer;">
                 ✏️ Perfil
               </button>
-              <button class="btn-delete-member" data-id="${member.id}" data-name="${member.name}" title="Excluir Membro" style="background:rgba(239,68,68,0.12); color:#ef4444; border:1px solid rgba(239,68,68,0.3); border-radius:var(--radius-sm); padding:0.3rem 0.5rem; font-size:0.75rem; font-weight:700; cursor:pointer;">
-                🗑️
-              </button>
+
+              ${/* Botão Excluir renderiza SOMENTE para Gestores */
+        isManager ? `
+                  <button class="btn-delete-member" data-id="${member.id}" data-name="${member.name}" title="Excluir Membro" style="background:rgba(239,68,68,0.12); color:#ef4444; border:1px solid rgba(239,68,68,0.3); border-radius:var(--radius-sm); padding:0.3rem 0.5rem; font-size:0.75rem; font-weight:700; cursor:pointer;">
+                    🗑️
+                  </button>
+                ` : ''
+        }
             </div>
           </div>
 
@@ -106,7 +122,7 @@ export const ManagerEngine = {
 
     container.querySelectorAll('.btn-edit-member-profile').forEach(btn => {
       btn.addEventListener('click', async () => {
-        const member = members.find(m => m.id === btn.dataset.id);
+        const member = members.find(m => String(m.id) === String(btn.dataset.id));
         if (member) {
           const modal = document.getElementById('modal-edit-profile');
           if (modal) {
@@ -138,16 +154,17 @@ export const ManagerEngine = {
       return;
     }
 
-    const tasksMap = new Map(tasks.map(t => [t.id, t]));
-    const membersMap = new Map(members.map(m => [m.id, m]));
+    const tasksMap = new Map(tasks.map(t => [String(t.id), t]));
+    const membersMap = new Map(members.map(m => [String(m.id), m]));
 
     container.innerHTML = impediments.map(imp => {
-      const task = tasksMap.get(imp.taskId) || { title: 'Tarefa não encontrada', memberId: null };
-      const member = membersMap.get(task.memberId) || { name: 'Desconhecido', photo: '' };
+      const task = tasksMap.get(String(imp.taskId)) || { title: 'Tarefa não encontrada', memberId: null, member_id: null };
+      const taskOwnerId = task.member_id || task.memberId;
+      const member = membersMap.get(String(taskOwnerId)) || { name: 'Desconhecido', photo: '' };
       const dateFormatted = new Date(imp.createdAt).toLocaleString('pt-BR');
 
       return `
-        <div style="background:var(--bg-input); border:1px solid var(--border-color); border-radius:var(--radius-md); padding:1rem; margin-bottom:0.75rem; display:flex; justify-space-between; align-items:flex-start; gap:1rem; flex-wrap:wrap;">
+        <div style="background:var(--bg-input); border:1px solid var(--border-color); border-radius:var(--radius-md); padding:1rem; margin-bottom:0.75rem; display:flex; justify-content:space-between; align-items:flex-start; gap:1rem; flex-wrap:wrap;">
           <div style="flex:1;">
             <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.4rem;">
               <span class="badge-impediment">⚠️ Contratempo</span>
@@ -192,12 +209,11 @@ export const ManagerEngine = {
 
     const weekDays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
     const today = new Date();
-    const todayStr = today.toISOString().slice(0, 10);
 
     // Filtra tarefas por membro selecionado no calendário (Agenda do Colaborador)
     const calendarTasks = this.selectedCalendarMemberId === 'all'
       ? tasks
-      : tasks.filter(t => t.memberId === this.selectedCalendarMemberId);
+      : tasks.filter(t => String(t.member_id || t.memberId) === String(this.selectedCalendarMemberId));
 
     let html = `
       <!-- Filtro por Colaborador no Calendário -->
@@ -207,7 +223,7 @@ export const ManagerEngine = {
           <select id="select-calendar-member-filter" class="select-control" style="padding:0.25rem 0.5rem; font-size:0.775rem;">
             <option value="all">👥 Todos os Colaboradores</option>
             ${members.map(m => `
-              <option value="${m.id}" ${this.selectedCalendarMemberId === m.id ? 'selected' : ''}>${m.name}</option>
+              <option value="${m.id}" ${String(this.selectedCalendarMemberId) === String(m.id) ? 'selected' : ''}>${m.name}</option>
             `).join('')}
           </select>
         </div>
@@ -294,4 +310,3 @@ export const ManagerEngine = {
     });
   }
 };
-
