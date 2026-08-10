@@ -84,7 +84,7 @@ export const KanbanEngine = {
     const auditLog = {
       id: 'log-' + Date.now(),
       taskId: task.id,
-      memberId: task.memberId || task.member_id,
+      memberId: task.member_id || task.memberId,
       fromStatus: oldStatus,
       toStatus: targetStatus,
       timestamp: new Date().toISOString()
@@ -105,10 +105,10 @@ export const KanbanEngine = {
 
     const allTasks = await DB.getAll('tasks');
     const colTasks = allTasks
-      .filter(t => t.status === task.status && (this.activeMemberId === 'all' || t.memberId === this.activeMemberId || t.member_id === this.activeMemberId))
+      .filter(t => t.status === task.status && (this.activeMemberId === 'all' || String(t.member_id || t.memberId) === String(this.activeMemberId)))
       .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
 
-    const index = colTasks.findIndex(t => t.id === taskId);
+    const index = colTasks.findIndex(t => String(t.id) === String(taskId));
     if (index === -1) return;
 
     const targetIndex = direction === 'up' ? index - 1 : index + 1;
@@ -157,7 +157,7 @@ export const KanbanEngine = {
 
     let filteredTasks = memberId === 'all'
       ? tasks
-      : tasks.filter(t => String(t.memberId || t.member_id) === String(memberId));
+      : tasks.filter(t => String(t.member_id || t.memberId) === String(memberId));
 
     // Filtro por período se selecionado
     if (this.currentPeriodFilter !== 'all') {
@@ -203,7 +203,7 @@ export const KanbanEngine = {
       }
 
       colEl.innerHTML = colTasks.map((task, idx) => {
-        const taskOwnerId = String(task.memberId || task.member_id || '');
+        const taskOwnerId = String(task.member_id || task.memberId || '');
         const member = membersMap.get(taskOwnerId) || { name: 'Não atribuído', photo: '' };
         const taskImpediments = impMap.get(task.id) || [];
         const elapsedSecs = TimerEngine.getCurrentElapsedSeconds(task);
