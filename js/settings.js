@@ -41,9 +41,9 @@ export const SettingsEngine = {
     // CARREGAMENTO DOS DADOS
     // ============================================================
 
-    const members = await DB.getAll('members');
-    const tasks = await DB.getAll('tasks');
-    const transfers = await DB.getAll('activity_transfers');
+    const members = (await DB.getAll('members')) || [];
+    const tasks = (await DB.getAll('tasks')) || [];
+    const transfers = (await DB.getAll('activity_transfers')) || [];
 
     // ============================================================
     // FILTRO DE SEGURANÇA
@@ -52,16 +52,11 @@ export const SettingsEngine = {
     let visibleTasks;
 
     if (this.isManager) {
-
       visibleTasks = tasks;
-
     } else {
-
       visibleTasks = tasks.filter(
-        task =>
-          String(task.memberId) === String(this.loggedMemberId)
+        task => String(task.member_id || task.memberId) === String(this.loggedMemberId)
       );
-
     }
 
     // ============================================================
@@ -106,8 +101,7 @@ export const SettingsEngine = {
     `;
 
     // ============================================================
-    // FILTRO DE MEMBROS
-    // SOMENTE GESTOR
+    // FILTRO DE MEMBROS (SOMENTE GESTOR)
     // ============================================================
 
     if (this.isManager) {
@@ -134,52 +128,52 @@ export const SettingsEngine = {
           ${members.map(member => {
 
           const count = tasks.filter(
-            task => String(task.memberId) === String(member.id)
+            task => String(task.member_id || task.memberId) === String(member.id)
           ).length;
 
           return `
-                <button
-                  class="btn ${String(this.selectedMemberId) === String(member.id)
+              <button
+                class="btn ${String(this.selectedMemberId) === String(member.id)
               ? 'btn-primary'
               : 'btn-secondary'
             } btn-filter-settings-member"
-                  data-id="${member.id}"
-                  style="
-                    display:flex;
-                    align-items:center;
-                    gap:0.4rem;
-                  "
-                >
+                data-id="${member.id}"
+                style="
+                  display:flex;
+                  align-items:center;
+                  gap:0.4rem;
+                "
+              >
 
-                  ${member.photo
+                ${member.photo
               ? `
-                        <img
-                          src="${member.photo}"
-                          alt="${member.name}"
-                          style="
-                            width:20px;
-                            height:20px;
-                            border-radius:50%;
-                            object-fit:cover;
-                          "
-                        >
-                      `
+                    <img
+                      src="${member.photo}"
+                      alt="${member.name}"
+                      style="
+                        width:20px;
+                        height:20px;
+                        border-radius:50%;
+                        object-fit:cover;
+                      "
+                    >
+                  `
               : '👤'
             }
 
-                  <span>${member.name}</span>
+                <span>${member.name}</span>
 
-                  <span style="
-                    background:rgba(255,255,255,0.2);
-                    border-radius:10px;
-                    padding:0.1rem 0.4rem;
-                    font-size:0.7rem;
-                  ">
-                    ${count}
-                  </span>
+                <span style="
+                  background:rgba(255,255,255,0.2);
+                  border-radius:10px;
+                  padding:0.1rem 0.4rem;
+                  font-size:0.7rem;
+                ">
+                  ${count}
+                </span>
 
-                </button>
-              `;
+              </button>
+            `;
 
         }).join('')
         }
@@ -263,17 +257,15 @@ export const SettingsEngine = {
   renderTableRows(tasks, members, transfers) {
 
     const filteredTasks = this.isManager
-
       ? (
         this.selectedMemberId === 'all'
           ? tasks
           : tasks.filter(
             task =>
-              String(task.memberId) ===
+              String(task.member_id || task.memberId) ===
               String(this.selectedMemberId)
           )
       )
-
       : tasks;
 
     if (filteredTasks.length === 0) {
@@ -296,10 +288,7 @@ export const SettingsEngine = {
       `;
     }
 
-    // ============================================================
     // MAPA DE MEMBROS
-    // ============================================================
-
     const membersMap = new Map(
       members.map(member => [
         String(member.id),
@@ -307,16 +296,7 @@ export const SettingsEngine = {
       ])
     );
 
-    // ============================================================
     // TRANSFERÊNCIAS PENDENTES
-    //
-    // IMPORTANTE:
-    // O app.js usa:
-    // idDaTarefa
-    // deIdDoMembro
-    // paraIdDoMembro
-    // ============================================================
-
     const pendingTransfersMap = new Map();
 
     transfers
@@ -327,28 +307,25 @@ export const SettingsEngine = {
       .forEach(transfer => {
 
         const taskId =
-          transfer.idDaTarefa ||
-          transfer.taskId;
+          transfer.task_id ||
+          transfer.taskId ||
+          transfer.idDaTarefa;
 
         if (taskId) {
-
           pendingTransfersMap.set(
             String(taskId),
             transfer
           );
-
         }
 
       });
 
-    // ============================================================
-    // LINHAS
-    // ============================================================
-
+    // LINHAS DA TABELA
     return filteredTasks.map(task => {
 
+      const taskOwnerId = task.member_id || task.memberId;
       const currentMember =
-        membersMap.get(String(task.memberId)) ||
+        membersMap.get(String(taskOwnerId)) ||
         {
           name: 'Não atribuído',
           photo: ''
@@ -362,8 +339,9 @@ export const SettingsEngine = {
       const targetMemberId =
         pendingTransfer
           ? (
-            pendingTransfer.paraIdDoMembro ||
-            pendingTransfer.toMemberId
+            pendingTransfer.to_member_id ||
+            pendingTransfer.toMemberId ||
+            pendingTransfer.paraIdDoMembro
           )
           : null;
 
@@ -376,7 +354,6 @@ export const SettingsEngine = {
         <tr>
 
           <!-- ATIVIDADE -->
-
           <td>
 
             <strong>
@@ -396,9 +373,7 @@ export const SettingsEngine = {
 
           </td>
 
-
           <!-- RESPONSÁVEL -->
-
           <td>
 
             <div style="
@@ -409,17 +384,17 @@ export const SettingsEngine = {
 
               ${currentMember.photo
           ? `
-                    <img
-                      src="${currentMember.photo}"
-                      alt="${currentMember.name}"
-                      style="
-                        width:24px;
-                        height:24px;
-                        border-radius:50%;
-                        object-fit:cover;
-                      "
-                    >
-                  `
+                  <img
+                    src="${currentMember.photo}"
+                    alt="${currentMember.name}"
+                    style="
+                      width:24px;
+                      height:24px;
+                      border-radius:50%;
+                      object-fit:cover;
+                    "
+                  >
+                `
           : '👤'
         }
 
@@ -429,37 +404,34 @@ export const SettingsEngine = {
 
             </div>
 
-
             ${pendingTransfer
           ? `
-                  <div style="
-                    font-size:0.7rem;
-                    color:#f59e0b;
-                    margin-top:0.2rem;
-                    display:flex;
-                    align-items:center;
-                    gap:0.2rem;
-                  ">
+                <div style="
+                  font-size:0.7rem;
+                  color:#f59e0b;
+                  margin-top:0.2rem;
+                  display:flex;
+                  align-items:center;
+                  gap:0.2rem;
+                ">
 
-                    ⏳ Aguardando aceite de:
+                  ⏳ Aguardando aceite de:
 
-                    <strong>
-                      ${targetMember
+                  <strong>
+                    ${targetMember
             ? targetMember.name
             : 'Outro colaborador'
           }
-                    </strong>
+                  </strong>
 
-                  </div>
-                `
+                </div>
+              `
           : ''
         }
 
           </td>
 
-
           <!-- PRIORIDADE -->
-
           <td>
 
             <span
@@ -472,9 +444,7 @@ export const SettingsEngine = {
 
           </td>
 
-
           <!-- STATUS -->
-
           <td>
 
             <strong>
@@ -483,9 +453,7 @@ export const SettingsEngine = {
 
           </td>
 
-
           <!-- TRANSFERÊNCIA -->
-
           <td>
 
             <div style="
@@ -513,38 +481,36 @@ export const SettingsEngine = {
           .filter(
             member =>
               String(member.id) !==
-              String(task.memberId)
+              String(taskOwnerId)
           )
           .map(
             member => `
-                        <option value="${member.id}">
-                          ${member.name}
-                        </option>
-                      `
+                      <option value="${member.id}">
+                        ${member.name}
+                      </option>
+                    `
           )
           .join('')
         }
 
               </select>
 
-
               ${this.isManager
           ? `
-                    <button
-                      class="btn btn-primary btn-direct-assign"
-                      data-task-id="${task.id}"
-                      style="
-                        padding:0.25rem 0.5rem;
-                        font-size:0.725rem;
-                        background:#6366f1;
-                      "
-                    >
-                      ⚡ Atribuir Direto
-                    </button>
-                  `
+                  <button
+                    class="btn btn-primary btn-direct-assign"
+                    data-task-id="${task.id}"
+                    style="
+                      padding:0.25rem 0.5rem;
+                      font-size:0.725rem;
+                      background:#6366f1;
+                    "
+                  >
+                    ⚡ Atribuir Direto
+                  </button>
+                `
           : ''
         }
-
 
               <button
                 class="btn btn-secondary btn-submit-transfer"
@@ -553,10 +519,7 @@ export const SettingsEngine = {
                   padding:0.25rem 0.5rem;
                   font-size:0.725rem;
                 "
-                ${pendingTransfer
-          ? 'disabled'
-          : ''
-        }
+                ${pendingTransfer ? 'disabled' : ''}
               >
                 ${pendingTransfer
           ? '⏳ Aguardando Aceite'
@@ -581,10 +544,7 @@ export const SettingsEngine = {
 
   attachEvents(showToast, onRefresh) {
 
-    // ============================================================
     // FILTRO DE MEMBROS
-    // ============================================================
-
     document
       .querySelectorAll('.btn-filter-settings-member')
       .forEach(button => {
@@ -593,8 +553,7 @@ export const SettingsEngine = {
 
           if (!this.isManager) return;
 
-          this.selectedMemberId =
-            button.dataset.id;
+          this.selectedMemberId = button.dataset.id;
 
           await this.renderSettingsSection(
             showToast,
@@ -610,382 +569,161 @@ export const SettingsEngine = {
       });
 
 
-    // ============================================================
-    // ATRIBUIÇÃO DIRETA
-    // SOMENTE GESTOR
-    // ============================================================
-
+    // ATRIBUIÇÃO DIRETA (GESTOR)
     document
       .querySelectorAll('.btn-direct-assign')
       .forEach(button => {
 
-        button.addEventListener(
-          'click',
-          async () => {
+        button.addEventListener('click', async () => {
 
-            if (!this.isManager) {
-
-              if (showToast) {
-                showToast(
-                  'Apenas gestores podem atribuir atividades diretamente.',
-                  'warning'
-                );
-              }
-
-              return;
-            }
-
-            const taskId =
-              button.dataset.taskId;
-
-            const select =
-              document.querySelector(
-                `.select-transfer-member[data-task-id="${taskId}"]`
-              );
-
-            const targetMemberId =
-              select
-                ? select.value
-                : '';
-
-            if (!targetMemberId) {
-
-              if (showToast) {
-                showToast(
-                  'Selecione o novo responsável.',
-                  'warning'
-                );
-              }
-
-              return;
-            }
-
-            const task =
-              await DB.get(
-                'tasks',
-                taskId
-              );
-
-            const targetMember =
-              await DB.get(
-                'members',
-                targetMemberId
-              );
-
-            if (!task || !targetMember) {
-
-              if (showToast) {
-                showToast(
-                  'Não foi possível localizar a atividade ou o colaborador.',
-                  'warning'
-                );
-              }
-
-              return;
-            }
-
-            const previousState =
-              { ...task };
-
-            const previousMemberId =
-              task.memberId;
-
-            // ====================================================
-            // ALTERA RESPONSÁVEL
-            // ====================================================
-
-            task.memberId =
-              targetMemberId;
-
-            await DB.save(
-              'tasks',
-              task
-            );
-
-            // ====================================================
-            // REGISTRA DESFAZER
-            // ====================================================
-
-            UndoEngine.pushAction({
-              type: 'TASK_UPDATE',
-              previousState
-            });
-
-            // ====================================================
-            // AVISO
-            // ====================================================
-
+          if (!this.isManager) {
             if (showToast) {
-
-              showToast(
-                `Atividade "${task.title}" atribuída para ${targetMember.name}!`,
-                'success'
-              );
-
+              showToast('Apenas gestores podem atribuir atividades diretamente.', 'warning');
             }
-
-            // ====================================================
-            // ATUALIZA TELA
-            // ====================================================
-
-            if (onRefresh) {
-
-              await onRefresh();
-
-            }
-
+            return;
           }
-        );
+
+          const taskId = button.dataset.taskId;
+          const select = document.querySelector(`.select-transfer-member[data-task-id="${taskId}"]`);
+          const targetMemberId = select ? select.value : '';
+
+          if (!targetMemberId) {
+            if (showToast) showToast('Selecione o novo responsável.', 'warning');
+            return;
+          }
+
+          const task = await DB.get('tasks', taskId);
+          const targetMember = await DB.get('members', targetMemberId);
+
+          if (!task || !targetMember) {
+            if (showToast) showToast('Não foi possível localizar a atividade ou o colaborador.', 'warning');
+            return;
+          }
+
+          const previousState = { ...task };
+
+          // Grava em ambos os campos para garantir no Supabase
+          task.member_id = targetMemberId;
+          task.memberId = targetMemberId;
+
+          await DB.save('tasks', task);
+
+          UndoEngine.pushAction({
+            type: 'TASK_UPDATE',
+            previousState
+          });
+
+          if (showToast) {
+            showToast(`Atividade "${task.title}" atribuída para ${targetMember.name}!`, 'success');
+          }
+
+          if (onRefresh) await onRefresh();
+
+        });
 
       });
 
 
-    // ============================================================
     // SOLICITAÇÃO DE TRANSFERÊNCIA
-    // ============================================================
-
     document
       .querySelectorAll('.btn-submit-transfer')
       .forEach(button => {
 
-        button.addEventListener(
-          'click',
-          async () => {
+        button.addEventListener('click', async () => {
 
-            const taskId =
-              button.dataset.taskId;
+          const taskId = button.dataset.taskId;
 
-            // ====================================================
-            // VERIFICA PERMISSÃO DO COLABORADOR
-            // ====================================================
+          const task = await DB.get('tasks', taskId);
 
-            const task =
-              await DB.get(
-                'tasks',
-                taskId
-              );
-
-            if (!task) {
-
-              if (showToast) {
-                showToast(
-                  'Atividade não encontrada.',
-                  'warning'
-                );
-              }
-
-              return;
-            }
-
-            if (!this.isManager) {
-
-              if (
-                String(task.memberId) !==
-                String(this.loggedMemberId)
-              ) {
-
-                if (showToast) {
-
-                  showToast(
-                    'Você só pode transferir suas próprias atividades.',
-                    'warning'
-                  );
-
-                }
-
-                return;
-              }
-
-            }
-
-            // ====================================================
-            // DESTINATÁRIO
-            // ====================================================
-
-            const select =
-              document.querySelector(
-                `.select-transfer-member[data-task-id="${taskId}"]`
-              );
-
-            const targetMemberId =
-              select
-                ? select.value
-                : '';
-
-            if (!targetMemberId) {
-
-              if (showToast) {
-
-                showToast(
-                  'Selecione o novo colaborador para transferir a atividade.',
-                  'warning'
-                );
-
-              }
-
-              return;
-            }
-
-            // Não permite transferir para si mesmo
-            if (
-              String(targetMemberId) ===
-              String(task.memberId)
-            ) {
-
-              if (showToast) {
-
-                showToast(
-                  'A atividade já pertence a este colaborador.',
-                  'warning'
-                );
-
-              }
-
-              return;
-            }
-
-            const targetMember =
-              await DB.get(
-                'members',
-                targetMemberId
-              );
-
-            if (!targetMember) {
-
-              if (showToast) {
-
-                showToast(
-                  'Colaborador destinatário não encontrado.',
-                  'warning'
-                );
-
-              }
-
-              return;
-            }
-
-            // ====================================================
-            // VERIFICA SE JÁ EXISTE SOLICITAÇÃO PENDENTE
-            // ====================================================
-
-            const transfers =
-              await DB.getAll(
-                'activity_transfers',
-                {
-                  forceRefresh: true
-                }
-              );
-
-            const alreadyPending =
-              transfers.some(
-                transfer => {
-
-                  const transferTaskId =
-                    transfer.idDaTarefa ||
-                    transfer.taskId;
-
-                  return (
-                    String(transferTaskId) ===
-                    String(task.id) &&
-                    String(
-                      transfer.status || ''
-                    ).toUpperCase() ===
-                    'PENDENTE'
-                  );
-
-                }
-              );
-
-            if (alreadyPending) {
-
-              if (showToast) {
-
-                showToast(
-                  'Esta atividade já possui uma solicitação de transferência pendente.',
-                  'warning'
-                );
-
-              }
-
-              return;
-            }
-
-            // ====================================================
-            // CRIA TRANSFERÊNCIA
-            //
-            // ATENÇÃO:
-            // ESTES NOMES PRECISAM SER IGUAIS AOS UTILIZADOS
-            // PELO app.js
-            // ====================================================
-
-            const newTransfer = {
-
-              id:
-                'tr-' +
-                Date.now(),
-
-              idDaTarefa:
-                task.id,
-
-              deIdDoMembro:
-                task.memberId,
-
-              paraIdDoMembro:
-                targetMemberId,
-
-              status:
-                'PENDENTE',
-
-              remetenteConfirmado:
-                false,
-
-              solicitadoEm:
-                new Date().toISOString(),
-
-              respondeuEm:
-                null
-
-            };
-
-            await DB.save(
-              'activity_transfers',
-              newTransfer
-            );
-
-            // ====================================================
-            // UNDO
-            // ====================================================
-
-            UndoEngine.pushAction({
-              type: 'TRANSFER_REQUEST',
-              transferId: newTransfer.id
-            });
-
-            // ====================================================
-            // AVISO
-            // ====================================================
-
-            if (showToast) {
-
-              showToast(
-                `Solicitação enviada! Aguardando aceite de ${targetMember.name}.`,
-                'warning'
-              );
-
-            }
-
-            // ====================================================
-            // ATUALIZA
-            // ====================================================
-
-            if (onRefresh) {
-
-              await onRefresh();
-
-            }
-
+          if (!task) {
+            if (showToast) showToast('Atividade não encontrada.', 'warning');
+            return;
           }
-        );
+
+          const taskOwnerId = task.member_id || task.memberId;
+
+          if (!this.isManager) {
+            if (String(taskOwnerId) !== String(this.loggedMemberId)) {
+              if (showToast) {
+                showToast('Você só pode transferir suas próprias atividades.', 'warning');
+              }
+              return;
+            }
+          }
+
+          const select = document.querySelector(`.select-transfer-member[data-task-id="${taskId}"]`);
+          const targetMemberId = select ? select.value : '';
+
+          if (!targetMemberId) {
+            if (showToast) showToast('Selecione o novo colaborador para transferir a atividade.', 'warning');
+            return;
+          }
+
+          if (String(targetMemberId) === String(taskOwnerId)) {
+            if (showToast) showToast('A atividade já pertence a este colaborador.', 'warning');
+            return;
+          }
+
+          const targetMember = await DB.get('members', targetMemberId);
+
+          if (!targetMember) {
+            if (showToast) showToast('Colaborador destinatário não encontrado.', 'warning');
+            return;
+          }
+
+          // VERIFICA SE JÁ EXISTE SOLICITAÇÃO PENDENTE
+          const transfers = (await DB.getAll('activity_transfers', { forceRefresh: true })) || [];
+
+          const alreadyPending = transfers.some(transfer => {
+            const transferTaskId = transfer.task_id || transfer.taskId || transfer.idDaTarefa;
+            return (
+              String(transferTaskId) === String(task.id) &&
+              String(transfer.status || '').toUpperCase() === 'PENDENTE'
+            );
+          });
+
+          if (alreadyPending) {
+            if (showToast) showToast('Esta atividade já possui uma solicitação de transferência pendente.', 'warning');
+            return;
+          }
+
+          // ====================================================
+          // CRIA TRANSFERÊNCIA COM NOMES EXATOS DO SUPABASE
+          // ====================================================
+
+          const now = new Date().toISOString();
+
+          const newTransfer = {
+            id: 'tr-' + Date.now(),
+            task_id: String(task.id),           // 👈 Garante a gravação da coluna no Supabase
+            taskId: String(task.id),
+            from_member_id: String(taskOwnerId), // 👈 Garante a gravação no Supabase
+            fromMemberId: String(taskOwnerId),
+            to_member_id: String(targetMemberId),// 👈 Garante a gravação no Supabase
+            toMemberId: String(targetMemberId),
+            status: 'PENDENTE',
+            sender_acknowledged: false,
+            senderAcknowledged: false,
+            created_at: now,
+            requested_at: now,
+            responded_at: null
+          };
+
+          console.log('🔄 Gravando solicitação de transferência correta no Supabase:', newTransfer);
+          await DB.save('activity_transfers', newTransfer);
+
+          UndoEngine.pushAction({
+            type: 'TRANSFER_REQUEST',
+            transferId: newTransfer.id
+          });
+
+          if (showToast) {
+            showToast(`Solicitação enviada! Aguardando aceite de ${targetMember.name}.`, 'warning');
+          }
+
+          if (onRefresh) await onRefresh();
+
+        });
 
       });
 
