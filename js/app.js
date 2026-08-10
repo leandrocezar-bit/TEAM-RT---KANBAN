@@ -209,7 +209,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ============================================================
-  // SEÇÕES
+  // SEÇÕES E MODAIS
   // ============================================================
 
   const sectionKanban = document.getElementById('section-kanban');
@@ -217,10 +217,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   const sectionMap = document.getElementById('section-map');
   const sectionSettings = document.getElementById('section-settings');
   const sectionProjects = document.getElementById('section-projects');
-
-  // ============================================================
-  // MODAIS
-  // ============================================================
 
   const modalMember = document.getElementById('modal-member');
   const modalEditProfile = document.getElementById('modal-edit-profile');
@@ -232,60 +228,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   const modalProject = document.getElementById('modal-project');
   const modalTaskGroup = document.getElementById('modal-task-group');
 
-  // ============================================================
-  // FORMULÁRIOS
-  // ============================================================
-
   const formMember = document.getElementById('form-member');
   const formEditProfile = document.getElementById('form-edit-profile');
   const formTask = document.getElementById('form-task');
   const formImpediment = document.getElementById('form-impediment');
   const formProject = document.getElementById('form-project');
-
-  // ============================================================
-  // FUNÇÕES DE COMPATIBILIDADE DAS TRANSFERÊNCIAS
-  // ============================================================
-
-  function getTransferFromMemberId(transfer) {
-    return (
-      transfer.from_member_id ??
-      transfer.fromMemberId ??
-      transfer.de_id_do_membro ??
-      transfer.deIdDoMembro ??
-      transfer['do ID do membro'] ??
-      null
-    );
-  }
-
-  function getTransferToMemberId(transfer) {
-    return (
-      transfer.to_member_id ??
-      transfer.toMemberId ??
-      transfer.para_id_do_membro ??
-      transfer.paraIdDoMembro ??
-      transfer['para ID do membro'] ??
-      null
-    );
-  }
-
-  function getTransferTaskId(transfer) {
-    return (
-      transfer.task_id ??
-      transfer.taskId ??
-      transfer.id_da_tarefa ??
-      transfer.idDaTarefa ??
-      null
-    );
-  }
-
-  function isTransferSenderAcknowledged(transfer) {
-    return Boolean(
-      transfer.sender_acknowledged ??
-      transfer.senderAcknowledged ??
-      transfer.remetenteConfirmado ??
-      false
-    );
-  }
 
   // ============================================================
   // REFRESH UI
@@ -433,7 +380,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ============================================================
-  // BARRA DE NOTIFICAÇÕES (ATUALIZADA E BLINDADA)
+  // BARRA DE NOTIFICAÇÕES (PADRÃO UNIFICADO SUPABASE)
   // ============================================================
 
   async function renderTopNotificationBar() {
@@ -453,24 +400,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
       const transfers = (await DB.getAll('activity_transfers')) || [];
 
-      // 1. TRANSFERÊNCIAS PENDENTES PARA O USUÁRIO LOGADO
+      // 1. SOLICITAÇÕES RECEBIDAS PENDENTES
       const pendingTransfers = transfers.filter((transfer) => {
-        const toMemberId = getTransferToMemberId(transfer);
+        const toId = transfer.to_member_id || transfer.toMemberId;
         const status = String(transfer.status || '').trim().toUpperCase();
-        return (
-          String(toMemberId) === String(loggedId) &&
-          status === 'PENDENTE'
-        );
+        return String(toId) === String(loggedId) && status === 'PENDENTE';
       });
 
-      // 2. RESPOSTAS PARA O REMETENTE
+      // 2. RESPOSTAS PARA QUEM ENVIOU A SOLICITAÇÃO
       const senderNotices = transfers.filter((transfer) => {
-        const fromMemberId = getTransferFromMemberId(transfer);
-        const acknowledged = isTransferSenderAcknowledged(transfer);
+        const fromId = transfer.from_member_id || transfer.fromMemberId;
+        const acknowledged = Boolean(
+          transfer.sender_acknowledged ?? transfer.senderAcknowledged
+        );
         const status = String(transfer.status || '').trim().toUpperCase();
 
         return (
-          String(fromMemberId) === String(loggedId) &&
+          String(fromId) === String(loggedId) &&
           (status === 'ACEITO' || status === 'REJEITADO') &&
           !acknowledged
         );
@@ -485,25 +431,18 @@ document.addEventListener('DOMContentLoaded', async () => {
       const today = new Date();
       const relevantTasks = manager
         ? tasks
-        : tasks.filter(
-          (task) => String(task.memberId) === String(loggedId)
-        );
+        : tasks.filter((t) => String(t.memberId) === String(loggedId));
 
       const urgentTasks = relevantTasks.filter((task) => {
-        if (
-          String(task.status).toUpperCase() === 'CONCLUÍDO' ||
-          !task.dueDate
-        ) {
+        if (String(task.status).toUpperCase() === 'CONCLUÍDO' || !task.dueDate) {
           return false;
         }
 
         const due = new Date(task.dueDate);
         const diffDays = Math.ceil((due - today) / (1000 * 60 * 60 * 24));
-
         return diffDays >= 0 && diffDays <= 2;
       });
 
-      // SE NÃO HOUVER NOTIFICAÇÕES, ESCONDE A BARRA
       if (
         pendingTransfers.length === 0 &&
         senderNotices.length === 0 &&
@@ -515,26 +454,22 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
 
       bar.style.display = 'block';
-      let html = '<div>';
+      let html = '<div translate="no">';
 
       if (pendingTransfers.length > 0) {
         const firstTr = pendingTransfers[0];
-        const taskId = getTransferTaskId(firstTr);
-        const fromMemberId = getTransferFromMemberId(firstTr);
-        const toMemberId = getTransferToMemberId(firstTr);
+        const taskId = firstTr.task_id || firstTr.taskId;
+        const fromId = firstTr.from_member_id || firstTr.fromMemberId;
+        const toId = firstTr.to_member_id || firstTr.toMemberId;
 
-        const task = tasks.find((t) => String(t.id) === String(taskId)) || {
-          title: 'Atividade',
-        };
-        const fromMem = membersMap.get(String(fromMemberId)) || {
-          name: 'Alguém',
-        };
-        const toMem = membersMap.get(String(toMemberId)) || { name: 'Você' };
+        const task = tasks.find((t) => String(t.id) === String(taskId)) || { title: 'Atividade' };
+        const fromMem = membersMap.get(String(fromId)) || { name: 'Alguém' };
+        const toMem = membersMap.get(String(toId)) || { name: 'Você' };
 
         html += `
           <div style="display:flex; justify-content:space-between; align-items:center; background:#1e1b4b; border:1px solid #4338ca; padding:0.6rem 1rem; border-radius:4px; color:#c7d2fe; font-size:0.85rem; margin-bottom:0.5rem;">
             <span>🔄 <strong>Solicitação de Transferência:</strong> "${task.title}" enviada por ${fromMem.name} para ${toMem.name}.</span>
-            <div style="display:flex; gap:0.5rem;">
+            <div style="display:flex; gap:0.5rem;" translate="no">
               <button class="btn btn-accept-transfer" data-id="${firstTr.id}" style="padding:0.2rem 0.6rem; font-size:0.75rem; background:#10b981; border:none; color:white; font-weight:700; cursor:pointer; border-radius:4px;">Aceitar</button>
               <button class="btn btn-reject-transfer" data-id="${firstTr.id}" style="padding:0.2rem 0.6rem; font-size:0.75rem; background:#ef4444; border:none; color:white; font-weight:700; cursor:pointer; border-radius:4px;">Recusar</button>
             </div>
@@ -542,15 +477,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         `;
       } else if (senderNotices.length > 0) {
         const firstNotice = senderNotices[0];
-        const taskId = getTransferTaskId(firstNotice);
-        const toMemberId = getTransferToMemberId(firstNotice);
+        const taskId = firstNotice.task_id || firstNotice.taskId;
+        const toId = firstNotice.to_member_id || firstNotice.toMemberId;
 
-        const task = tasks.find((t) => String(t.id) === String(taskId)) || {
-          title: 'Atividade',
-        };
-        const toMem = membersMap.get(String(toMemberId)) || { name: 'Colega' };
-        const accepted =
-          String(firstNotice.status).toUpperCase() === 'ACEITO';
+        const task = tasks.find((t) => String(t.id) === String(taskId)) || { title: 'Atividade' };
+        const toMem = membersMap.get(String(toId)) || { name: 'Colega' };
+        const accepted = String(firstNotice.status).toUpperCase() === 'ACEITO';
 
         const statusLabel = accepted ? 'aceitou' : 'recusou';
         const statusColor = accepted ? '#10b981' : '#ef4444';
@@ -558,7 +490,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         html += `
           <div style="display:flex; justify-content:space-between; align-items:center; background:#1e1b4b; border:1px solid #4338ca; padding:0.6rem 1rem; border-radius:4px; color:#c7d2fe; font-size:0.85rem; margin-bottom:0.5rem;">
             <span>🔄 <strong style="color:${statusColor};">${toMem.name} ${statusLabel}</strong> a transferência da atividade "${task.title}".</span>
-            <button class="btn btn-ack-sender-notice" data-id="${firstNotice.id}" style="padding:0.2rem 0.6rem; font-size:0.75rem; background:#374151; border:none; color:white; font-weight:700; cursor:pointer; border-radius:4px;">OK</button>
+            <button class="btn btn-ack-sender-notice" data-id="${firstNotice.id}" style="padding:0.2rem 0.6rem; font-size:0.75rem; background:#374151; border:none; color:white; font-weight:700; cursor:pointer; border-radius:4px;" translate="no">OK</button>
           </div>
         `;
       } else if (urgentTasks.length > 0) {
@@ -572,32 +504,30 @@ document.addEventListener('DOMContentLoaded', async () => {
       html += '</div>';
       container.innerHTML = html;
 
-      // ========================================================
-      // EVENTO: ACEITAR TRANSFERÊNCIA
-      // ========================================================
-      const btnAccept = container.querySelector('.btn-accept-transfer');
-      if (btnAccept) {
-        btnAccept.addEventListener('click', async (e) => {
-          e.preventDefault();
-          const transferId = btnAccept.dataset.id;
-          const transfer = await DB.get('activity_transfers', transferId);
-          if (!transfer) return;
+      // EVENT DELEGATION
+      container.onclick = async (e) => {
+        const target = e.target.closest('button');
+        if (!target) return;
 
-          // Atualização de Status
+        const transferId = target.dataset.id;
+        if (!transferId) return;
+
+        const transfer = await DB.get('activity_transfers', transferId);
+        if (!transfer) return;
+
+        const now = new Date().toISOString();
+
+        if (target.classList.contains('btn-accept-transfer')) {
+          e.preventDefault();
+
           transfer.status = 'ACEITO';
           transfer.sender_acknowledged = false;
-          transfer.senderAcknowledged = false;
-          transfer.remetenteConfirmado = false;
-
-          const now = new Date().toISOString();
           transfer.responded_at = now;
-          transfer.respondeuEm = now;
 
           await DB.save('activity_transfers', transfer);
 
-          // Atualização da Tarefa Relacionada
-          const taskId = getTransferTaskId(transfer);
-          const toMemberId = getTransferToMemberId(transfer);
+          const taskId = transfer.task_id || transfer.taskId;
+          const toMemberId = transfer.to_member_id || transfer.toMemberId;
 
           if (taskId && toMemberId) {
             const task = await DB.get('tasks', taskId);
@@ -608,70 +538,38 @@ document.addEventListener('DOMContentLoaded', async () => {
           }
 
           showToast('Transferência de atividade aceita!', 'success');
-
-          // Oculta imediatamente da tela para evitar delay
           bar.style.display = 'none';
           container.innerHTML = '';
-
           await refreshUI();
-        });
-      }
+        }
 
-      // ========================================================
-      // EVENTO: RECUSAR TRANSFERÊNCIA
-      // ========================================================
-      const btnReject = container.querySelector('.btn-reject-transfer');
-      if (btnReject) {
-        btnReject.addEventListener('click', async (e) => {
+        if (target.classList.contains('btn-reject-transfer')) {
           e.preventDefault();
-          const transferId = btnReject.dataset.id;
-          const transfer = await DB.get('activity_transfers', transferId);
-          if (!transfer) return;
 
           transfer.status = 'REJEITADO';
           transfer.sender_acknowledged = false;
-          transfer.senderAcknowledged = false;
-          transfer.remetenteConfirmado = false;
-
-          const now = new Date().toISOString();
           transfer.responded_at = now;
-          transfer.respondeuEm = now;
 
           await DB.save('activity_transfers', transfer);
           showToast('Solicitação de transferência recusada.', 'info');
 
-          // Oculta imediatamente da tela
           bar.style.display = 'none';
           container.innerHTML = '';
-
           await refreshUI();
-        });
-      }
+        }
 
-      // ========================================================
-      // EVENTO: CONFIRMAÇÃO DO REMETENTE (OK)
-      // ========================================================
-      const btnAckNotice = container.querySelector('.btn-ack-sender-notice');
-      if (btnAckNotice) {
-        btnAckNotice.addEventListener('click', async (e) => {
+        if (target.classList.contains('btn-ack-sender-notice')) {
           e.preventDefault();
-          const transferId = btnAckNotice.dataset.id;
-          const transfer = await DB.get('activity_transfers', transferId);
-          if (!transfer) return;
 
           transfer.sender_acknowledged = true;
-          transfer.senderAcknowledged = true;
-          transfer.remetenteConfirmado = true;
-
           await DB.save('activity_transfers', transfer);
 
-          // Oculta imediatamente
           bar.style.display = 'none';
           container.innerHTML = '';
-
           await refreshUI();
-        });
-      }
+        }
+      };
+
     } catch (error) {
       console.error('❌ ERRO AO CARREGAR NOTIFICAÇÕES:', error);
       bar.style.display = 'none';
@@ -988,7 +886,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ============================================================
-  // CONTRATEMPO
+  // CONTRATEMPO E EVIDÊNCIA
   // ============================================================
 
   function openReportImpedimentModal(taskId) {
@@ -1000,10 +898,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     openModal(modalImpediment);
   }
-
-  // ============================================================
-  // EVIDÊNCIA
-  // ============================================================
 
   function openEvidenceModal(imgDataUrl) {
     const imgEl = document.getElementById('evidence-modal-img');
@@ -1033,7 +927,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   // ============================================================
-  // NOVO MEMBRO
+  // NOVO MEMBRO E NOVA TAREFA
   // ============================================================
 
   if (btnNewMember) {
@@ -1044,17 +938,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
 
       formMember.reset();
-
       const preview = document.getElementById('member-photo-preview');
       if (preview) preview.classList.remove('active');
 
       openModal(modalMember);
     });
   }
-
-  // ============================================================
-  // NOVA TAREFA
-  // ============================================================
 
   if (btnNewTask) {
     btnNewTask.addEventListener('click', async () => {
@@ -1078,7 +967,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ============================================================
-  // NAVEGAÇÃO
+  // NAVEGAÇÃO E FILTROS
   // ============================================================
 
   if (btnViewManager) {
@@ -1116,10 +1005,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  // ============================================================
-  // FILTRO DE PERÍODO
-  // ============================================================
-
   document.querySelectorAll('.btn-period-filter').forEach((btn) => {
     btn.addEventListener('click', () => {
       document
@@ -1133,7 +1018,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   // ============================================================
-  // SELECT MEMBRO DA TAREFA
+  // SELECTS
   // ============================================================
 
   async function populateTaskMemberSelect() {
@@ -1156,10 +1041,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       .join('');
   }
 
-  // ============================================================
-  // SELECT PROJETO
-  // ============================================================
-
   async function populateTaskProjectSelect() {
     const select = document.getElementById('task-project');
     if (!select) return;
@@ -1169,16 +1050,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     select.innerHTML =
       `<option value="">-- Sem Projeto --</option>` +
       projects
-        .map(
-          (project) => `
-            <option value="${project.id}">${project.name}</option>
-          `
-        )
+        .map((project) => `<option value="${project.id}">${project.name}</option>`)
         .join('');
   }
 
   // ============================================================
-  // INPUTS DE IMAGEM / UPLOAD
+  // UPLOADS DE IMAGEM
   // ============================================================
 
   const memberPhotoInput = document.getElementById('member-photo');
@@ -1516,7 +1393,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ============================================================
-  // DRAG AND DROP
+  // DRAG AND DROP, CRONÔMETRO E SHORTCUTS
   // ============================================================
 
   KanbanEngine.initDragAndDrop(async (task, fromStatus, toStatus) => {
@@ -1524,21 +1401,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     refreshUI();
   });
 
-  // ============================================================
-  // CRONÔMETRO
-  // ============================================================
-
   TimerEngine.startGlobalTicker();
-
-  // ============================================================
-  // CTRL + Z
-  // ============================================================
-
   UndoEngine.initKeyboardShortcut(refreshUI, showToast);
-
-  // ============================================================
-  // ATUALIZA NOTIFICAÇÕES A CADA 20 SEGUNDOS
-  // ============================================================
 
   setInterval(() => {
     if (!loginOverlay || !loginOverlay.classList.contains('active')) {
@@ -1547,7 +1411,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }, 20000);
 
   // ============================================================
-  // INICIALIZAÇÃO DA UI
+  // INICIALIZAÇÃO
   // ============================================================
 
   await refreshUI();
