@@ -171,16 +171,12 @@ export const MapEngine = {
     const container = document.getElementById('map-organogram-grid');
     if (!container) return;
 
-    const isManager = localStorage.getItem('logged_access_level') === 'gestor';
-
     let html = `
-      ${isManager ? `
-        <div style="grid-column: 1 / -1; display:flex; justify-content:flex-end; margin-bottom: 0.5rem;">
-          <button id="btn-add-map-process" class="btn btn-primary" style="font-size: 0.8rem; padding: 0.4rem 0.8rem;">
-            ➕ Adicionar Nova Atividade Padrão
-          </button>
-        </div>
-      ` : ''}
+      <div style="grid-column: 1 / -1; display:flex; justify-content:flex-end; margin-bottom: 0.5rem;">
+        <button id="btn-add-map-process" class="btn btn-primary" style="font-size: 0.8rem; padding: 0.4rem 0.8rem;">
+          ➕ Adicionar Nova Atividade Padrão
+        </button>
+      </div>
     `;
 
     html += processes.map(proc => {
@@ -220,10 +216,8 @@ export const MapEngine = {
                     <strong style="font-size:0.85rem; color:var(--text-main);">${t.title}</strong>
                     <div style="display:flex; align-items:center; gap:0.3rem;">
                       ${statusBadge}
-                      ${isManager ? `
-                        <button class="btn-edit-process-item" data-proc-id="${proc.id}" data-task-id="${t.id}" title="Editar Atividade Padrão" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:0.75rem; padding:0 0.2rem;">✏️</button>
-                        <button class="btn-delete-process-item" data-proc-id="${proc.id}" data-task-id="${t.id}" title="Excluir Atividade Padrão" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:0.75rem; padding:0 0.2rem;">🗑️</button>
-                      ` : ''}
+                      <button class="btn-edit-process-item" data-proc-id="${proc.id}" data-task-id="${t.id}" title="Editar Atividade Padrão" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:0.75rem; padding:0 0.2rem;">✏️</button>
+                      <button class="btn-delete-process-item" data-proc-id="${proc.id}" data-task-id="${t.id}" title="Excluir Atividade Padrão" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:0.75rem; padding:0 0.2rem;">🗑️</button>
                     </div>
                   </div>
                   
@@ -318,7 +312,7 @@ export const MapEngine = {
   },
 
   /**
-   * Eventos dos botões do Organograma DP (Edição e Criação)
+   * Eventos dos botões do Organograma DP (Edição e Criação liberados para todos)
    */
   attachEvents(processes) {
     // 1. Iniciar ciclo mensal
