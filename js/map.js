@@ -27,8 +27,10 @@ export const MapEngine = {
   /**
    * Renderiza a tela do Portfólio do Setor
    */
-  async renderSectorMap(memberId = 'all') {
-    if (memberId) this.activeMemberFilter = memberId;
+  async renderSectorMap(memberId = null) {
+    if (memberId !== null) {
+      this.activeMemberFilter = memberId;
+    }
 
     const tasks = (await DB.getAll('tasks')) || [];
     const members = (await DB.getAll('members')) || [];
@@ -47,6 +49,28 @@ export const MapEngine = {
     this.renderRoadmapTable(tasks, membersMap, impMap);
 
     this.attachEvents(portfolio);
+    this.bindMemberTabsAutoListener(); // 🎯 Escuta o clique nas abas dos membros automaticamente
+  },
+
+  /**
+   * Adiciona um ouvinte nos botões de membros (.tab-btn) para atualizar o Portfólio em tempo real
+   */
+  bindMemberTabsAutoListener() {
+    const bar = document.getElementById('member-tabs-bar');
+    if (!bar || bar.dataset.mapListenerBound) return;
+    bar.dataset.mapListenerBound = 'true';
+
+    bar.addEventListener('click', (e) => {
+      const btn = e.target.closest('.tab-btn');
+      if (!btn) return;
+
+      const sectionMap = document.getElementById('section-map');
+      // Apenas re-renderiza o portfólio se a seção do Portfólio estiver visível na tela
+      if (sectionMap && (sectionMap.classList.contains('active') || sectionMap.style.display !== 'none')) {
+        const selectedId = btn.dataset.id || 'all';
+        this.renderSectorMap(selectedId);
+      }
+    });
   },
 
   /**
@@ -56,7 +80,7 @@ export const MapEngine = {
     const container = document.getElementById('map-metrics-summary');
     if (!container) return;
 
-    // Filtra por competência e também por membro (se um membro específico estiver selecionado)
+    // Filtra por competência e também por membro selecionado
     const competenceTasks = tasks.filter(t => {
       const dateStr = t.dueDate || (t.createdAt ? t.createdAt.slice(0, 10) : null);
       if (!dateStr || dateStr.slice(0, 7) !== this.selectedCompetence) return false;
@@ -162,7 +186,7 @@ export const MapEngine = {
   },
 
   /**
-   * Renderiza a grade de Cartões Informativos por Colaborador (Filtrável pela barra superior)
+   * Renderiza a grade de Cartões Informativos por Colaborador
    */
   renderMembersPortfolioGrid(portfolio, members) {
     const container = document.getElementById('map-organogram-grid');
@@ -171,7 +195,6 @@ export const MapEngine = {
     const isManager = localStorage.getItem('logged_access_level') === 'gestor';
     const loggedMemberId = localStorage.getItem('logged_member_id');
 
-    // Se o filtro estiver definido para um membro específico, exibe apenas o cartão dele
     let visibleMembers = members;
     if (this.activeMemberFilter !== 'all') {
       visibleMembers = members.filter(m => String(m.id) === String(this.activeMemberFilter));
@@ -242,7 +265,6 @@ export const MapEngine = {
     const container = document.getElementById('map-roadmap-table-body');
     if (!container) return;
 
-    // Filtra tarefas pela competência e pelo membro selecionado
     const filteredTasks = tasks.filter(t => {
       const dateStr = t.dueDate || (t.createdAt ? t.createdAt.slice(0, 10) : null);
       if (!dateStr || dateStr.slice(0, 7) !== this.selectedCompetence) return false;
