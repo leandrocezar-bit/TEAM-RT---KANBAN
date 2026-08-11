@@ -16,8 +16,8 @@
     href="data:image/svg+xml,<svg xmlns=%22http://w3.org viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📋</text></svg>">
 
   <!-- ============================================================
-       FOTO DO USUÁRIO LOGADO
-       ============================================================ -->
+        FOTO DO USUÁRIO LOGADO
+        ============================================================ -->
   <style>
     #user-avatar {
       width: 32px !important;
@@ -58,8 +58,8 @@
 <body>
 
   <!-- ============================================================
-       OVERLAY DE LOGIN / PASSCODE GATE
-       ============================================================ -->
+        OVERLAY DE LOGIN / PASSCODE GATE
+        ============================================================ -->
   <div id="login-overlay" class="login-overlay active">
 
     <div class="login-card">
@@ -83,8 +83,8 @@
 
         <div class="form-group" style="margin-bottom:1.25rem;">
 
-          <input type="password" id="input-passcode" class="input-control" placeholder="Digite a senha da equipe..."
-            required style="text-align:center; font-size:1.2rem; letter-spacing:0.3em;">
+          <input type="password" id="input-passcode" class="input-control" placeholder="Digite sua senha..." required
+            style="text-align:center; font-size:1.2rem; letter-spacing:0.3em;">
 
         </div>
 
@@ -101,8 +101,8 @@
 
 
   <!-- ============================================================
-       BARRA DE NOTIFICAÇÕES
-       ============================================================ -->
+        BARRA DE NOTIFICAÇÕES
+        ============================================================ -->
   <div id="top-notification-bar" class="top-notification-bar" style="display:none;">
 
     <div class="notification-content" id="top-notification-list"></div>
@@ -111,8 +111,8 @@
 
 
   <!-- ============================================================
-       HEADER DA APLICAÇÃO
-       ============================================================ -->
+        HEADER DA APLICAÇÃO
+        ============================================================ -->
   <header class="app-header">
 
     <div class="brand">
@@ -149,7 +149,7 @@
 
 
       <button id="btn-view-map" class="btn btn-secondary">
-        🗺️ Fluxo RT
+        🗺️ Portfólio do Setor
       </button>
 
 
@@ -175,8 +175,8 @@
 
 
       <!-- ========================================================
-           PERFIL DO USUÁRIO LOGADO
-           ======================================================== -->
+            PERFIL DO USUÁRIO LOGADO
+            ======================================================== -->
       <div id="user-profile-header" class="user-profile-bar">
 
         <img id="user-avatar" src="https://via.placeholder.com/32" alt="Foto" class="avatar-img">
@@ -198,22 +198,22 @@
 
 
   <!-- ============================================================
-       ABAS DOS MEMBROS
-       ============================================================ -->
+        ABAS DOS MEMBROS
+        ============================================================ -->
   <nav class="member-tabs-container" id="member-tabs-bar" aria-label="Navegação por Membro da Equipe">
     <!-- Renderizado dinamicamente pelo JS -->
   </nav>
 
 
   <!-- ============================================================
-       CONTEÚDO PRINCIPAL
-       ============================================================ -->
+        CONTEÚDO PRINCIPAL
+        ============================================================ -->
   <main class="main-wrapper">
 
 
     <!-- ==========================================================
-         SEÇÃO 1: KANBAN
-         ========================================================== -->
+          SEÇÃO 1: KANBAN
+          ========================================================== -->
     <section id="section-kanban" class="view-section active">
 
       <div style="
@@ -350,8 +350,8 @@
 
 
     <!-- ==========================================================
-         SEÇÃO 2: DASHBOARD
-         ========================================================== -->
+          SEÇÃO 2: DASHBOARD
+          ========================================================== -->
     <section id="section-manager" class="view-section">
 
       <h2 style="
@@ -419,63 +419,13 @@
 
 
     <!-- ==========================================================
-         SEÇÃO 3: MAPA
-         ========================================================== -->
+          SEÇÃO 3: MAPA / PORTFÓLIO
+          ========================================================== -->
     <section id="section-map" class="view-section">
-
-      <div style="
-          display:flex;
-          justify-content:space-between;
-          align-items:center;
-          flex-wrap:wrap;
-          gap:1rem;
-          margin-bottom:1.25rem;
-        ">
-
-        <div>
-
-          <h2 style="
-              font-size:1.25rem;
-              font-weight:800;
-              display:flex;
-              align-items:center;
-              gap:0.5rem;
-            ">
-            🏢 Organograma & Processos Recorrentes do DP / RT
-          </h2>
-
-          <p style="
-              font-size:0.8rem;
-              color:var(--text-muted);
-            ">
-            Mapeamento de rotinas recorrentes do setor.
-          </p>
-
-        </div>
-
-
-        <button id="btn-start-dp-cycle" class="btn btn-primary" style="box-shadow:var(--shadow-glow);">
-          📅 Iniciar Ciclo Mensal do DP
-        </button>
-
-      </div>
-
 
       <div class="metrics-grid" id="map-metrics-summary" style="margin-bottom:1.5rem;"></div>
 
-
-      <h2 style="
-          font-size:1.15rem;
-          font-weight:800;
-          margin-bottom:1rem;
-          display:flex;
-          align-items:center;
-          gap:0.5rem;
-        ">
-        🗺️ Processsos e Responsáveis do DP
-      </h2>
-
-
+      <!-- Grade dinâmica do Portfólio das Caixas de cada Colaborador -->
       <div style="
           display:grid;
           grid-template-columns:repeat(auto-fit, minmax(320px, 1fr));
@@ -493,7 +443,7 @@
           </h3>
 
           <span class="summary-pill">
-            Setor de Departamento Pessoal
+            Acompanhamento Geral
           </span>
 
         </div>
@@ -506,7 +456,7 @@
             <thead>
 
               <tr>
-                <th>Demanda / Atividade DP</th>
+                <th>Demanda / Atividade</th>
                 <th>Responsável</th>
                 <th>Prioridade</th>
                 <th>Status</th>
@@ -529,22 +479,22 @@
 
 
     <!-- ==========================================================
-         SEÇÃO 4: CONFIGURAÇÕES
-         ========================================================== -->
+          SEÇÃO 4: CONFIGURAÇÕES
+          ========================================================== -->
     <section id="section-settings" class="view-section"></section>
 
 
     <!-- ==========================================================
-         SEÇÃO 5: PROJETOS
-         ========================================================== -->
+          SEÇÃO 5: PROJETOS
+          ========================================================== -->
     <section id="section-projects" class="view-section"></section>
 
   </main>
 
 
   <!-- ============================================================
-       MODAL 1: CADASTRAR MEMBRO
-       ============================================================ -->
+        MODAL 1: CADASTRAR MEMBRO (ATUALIZADO COM E-MAIL, SENHA E NÍVEL)
+        ============================================================ -->
   <div class="modal-overlay" id="modal-member">
 
     <div class="modal-card">
@@ -583,7 +533,44 @@
               Cargo / Função *
             </label>
 
-            <input type="text" id="member-role" class="input-control" required placeholder="Ex: Desenvolvedor Frontend">
+            <input type="text" id="member-role" class="input-control" required placeholder="Ex: Analista de RT Sr.">
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label for="member-email" class="form-label">
+              E-mail de Acesso *
+            </label>
+
+            <input type="email" id="member-email" class="input-control" required placeholder="Ex: roberto@empresa.com">
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label for="member-password" class="form-label">
+              Senha de Acesso *
+            </label>
+
+            <input type="password" id="member-password" class="input-control" required
+              placeholder="Digite uma senha inicial">
+
+          </div>
+
+
+          <div class="form-group">
+
+            <label for="member-access-level" class="form-label">
+              Nível de Permissão *
+            </label>
+
+            <select id="member-access-level" class="select-control" required>
+              <option value="colaborador">Colaborador</option>
+              <option value="gestor">Gestor</option>
+            </select>
 
           </div>
 
@@ -591,10 +578,10 @@
           <div class="form-group">
 
             <label for="member-contact" class="form-label">
-              Contato / E-mail
+              Telefone / Contato (Opcional)
             </label>
 
-            <input type="text" id="member-contact" class="input-control" placeholder="Ex: roberto@empresa.com">
+            <input type="text" id="member-contact" class="input-control" placeholder="Ex: (83) 99999-0000">
 
           </div>
 
@@ -634,8 +621,8 @@
 
 
   <!-- ============================================================
-       MODAL 2: EDITAR PERFIL
-       ============================================================ -->
+        MODAL 2: EDITAR PERFIL
+        ============================================================ -->
   <div class="modal-overlay" id="modal-edit-profile">
 
     <div class="modal-card">
@@ -734,8 +721,8 @@
 
 
   <!-- ============================================================
-       MODAL 3: CRIAR / EDITAR ATIVIDADE
-       ============================================================ -->
+        MODAL 3: CRIAR / EDITAR ATIVIDADE
+        ============================================================ -->
   <div class="modal-overlay" id="modal-task">
 
     <div class="modal-card">
@@ -870,8 +857,8 @@
 
 
   <!-- ============================================================
-       MODAL 4: DETALHES DA ATIVIDADE
-       ============================================================ -->
+        MODAL 4: DETALHES DA ATIVIDADE
+        ============================================================ -->
   <div class="modal-overlay" id="modal-task-details">
 
     <div class="modal-card" style="max-width:650px;">
@@ -906,8 +893,8 @@
 
 
   <!-- ============================================================
-       MODAL 5: REGISTRAR CONTRATEMPO
-       ============================================================ -->
+        MODAL 5: REGISTRAR CONTRATEMPO
+        ============================================================ -->
   <div class="modal-overlay" id="modal-impediment">
 
     <div class="modal-card">
@@ -976,8 +963,8 @@
 
 
   <!-- ============================================================
-       MODAL 6: VISUALIZAR EVIDÊNCIA
-       ============================================================ -->
+        MODAL 6: VISUALIZAR EVIDÊNCIA
+        ============================================================ -->
   <div class="modal-overlay" id="modal-evidence">
 
     <div class="modal-card" style="max-width:680px;">
@@ -1021,8 +1008,8 @@
 
 
   <!-- ============================================================
-       MODAL 7: AGENDA DO DIA
-       ============================================================ -->
+        MODAL 7: AGENDA DO DIA
+        ============================================================ -->
   <div class="modal-overlay" id="modal-calendar-day">
 
     <div class="modal-card" style="max-width:650px;">
@@ -1057,8 +1044,8 @@
 
 
   <!-- ============================================================
-       MODAL 8: CRIAR / EDITAR PROJETO
-       ============================================================ -->
+        MODAL 8: CRIAR / EDITAR PROJETO
+        ============================================================ -->
   <div class="modal-overlay" id="modal-project">
 
     <div class="modal-card">
@@ -1129,8 +1116,8 @@
 
 
   <!-- ============================================================
-       MODAL 9: GRUPO DA ATIVIDADE
-       ============================================================ -->
+        MODAL 9: GRUPO DA ATIVIDADE
+        ============================================================ -->
   <div class="modal-overlay" id="modal-task-group">
 
     <div class="modal-card" style="max-width:500px;">
@@ -1183,14 +1170,14 @@
 
 
   <!-- ============================================================
-       CONTAINER DE TOASTS
-       ============================================================ -->
+        CONTAINER DE TOASTS
+        ============================================================ -->
   <div id="toast-container" class="toast-container"></div>
 
 
   <!-- ============================================================
-       SCRIPT PRINCIPAL
-       ============================================================ -->
+        SCRIPT PRINCIPAL
+        ============================================================ -->
   <script type="module" src="js/app.js"></script>
 
 </body>
