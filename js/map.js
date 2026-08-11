@@ -1,17 +1,15 @@
 /**
- * Organograma e Mapa de Processos Recorrentes Editável (100% Personalizado)
+ * Portfólio do Setor & Matriz de Responsabilidades por Colaborador
  */
 
 import { DB } from './db.js';
 import { TimerEngine } from './timer.js';
 
 export const MapEngine = {
-  defaultDpProcesses: [],
-
   /**
-   * Obtém a lista atualizada de processos da tabela "cycle_templates" do Supabase
+   * Obtém a lista atualizada de responsabilidades da tabela "cycle_templates"
    */
-  async getDpProcesses() {
+  async getSectorPortfolio() {
     try {
       const records = await DB.getAll('cycle_templates');
       if (records && records.length > 0) {
@@ -20,17 +18,17 @@ export const MapEngine = {
     } catch (e) {
       console.warn('⚡ Tabela cycle_templates vazia ou indisponível.', e);
     }
-    return this.defaultDpProcesses;
+    return [];
   },
 
   /**
-   * Renderiza a tela do Mapa de Demandas
+   * Renderiza a tela do Portfólio do Setor
    */
   async renderSectorMap() {
     const tasks = (await DB.getAll('tasks')) || [];
     const members = (await DB.getAll('members')) || [];
     const impediments = (await DB.getAll('impediments')) || [];
-    const processes = await this.getDpProcesses();
+    const portfolio = await this.getSectorPortfolio();
 
     const membersMap = new Map(members.map(m => [String(m.id), m]));
     const impMap = new Map();
@@ -40,14 +38,14 @@ export const MapEngine = {
     });
 
     this.renderHeaderMetrics(tasks);
-    this.renderDPOrganogram(processes, tasks, members);
+    this.renderMembersPortfolioGrid(portfolio, tasks, members);
     this.renderRoadmapTable(tasks, membersMap, impMap);
 
-    this.attachEvents(processes, members);
+    this.attachEvents(portfolio, members);
   },
 
   /**
-   * Renderiza as métricas no topo do mapa
+   * Métricas do Topo
    */
   renderHeaderMetrics(tasks) {
     const container = document.getElementById('map-metrics-summary');
@@ -66,7 +64,7 @@ export const MapEngine = {
     container.innerHTML = `
       <div class="metric-card" style="--card-accent: #6366f1;">
         <div class="metric-header">
-          <span class="metric-title">Fechamento do Mês</span>
+          <span class="metric-title">Progresso do Setor</span>
           <div class="metric-icon">📈</div>
         </div>
         <div class="metric-value">${completionPercent}%</div>
@@ -77,112 +75,125 @@ export const MapEngine = {
 
       <div class="metric-card" style="--card-accent: #10b981;">
         <div class="metric-header">
-          <span class="metric-title">Demandas no Quadro</span>
+          <span class="metric-title">Demandas em Execução</span>
           <div class="metric-icon">💼</div>
         </div>
         <div class="metric-value">${total}</div>
         <div class="metric-sub positive">
-          <span>${done} concluídas • ${wip} em execução</span>
+          <span>${done} concluídas • ${wip} ativas</span>
         </div>
       </div>
 
       <div class="metric-card" style="--card-accent: #06b6d4;">
         <div class="metric-header">
-          <span class="metric-title">Horas Trabalhadas</span>
+          <span class="metric-title">Horas Efetivas no Setor</span>
           <div class="metric-icon">⏱️</div>
         </div>
         <div class="metric-value">${TimerEngine.formatTime(totalSeconds)}</div>
         <div class="metric-sub">
-          <span>Tempo total acumulado</span>
+          <span>Tempo acumulado</span>
         </div>
       </div>
     `;
   },
 
   /**
-   * Renderiza o Organograma por Categoria (Sem os cabeçalhos antigos)
+   * Renderiza a grade de Caixas por Colaborador com suas Responsabilidades
    */
-  renderDPOrganogram(processes, tasks, members) {
+  renderMembersPortfolioGrid(portfolio, tasks, members) {
     const container = document.getElementById('map-organogram-grid');
     if (!container) return;
 
-    let html = `
-      <div style="grid-column: 1 / -1; display:flex; justify-content:flex-end; margin-bottom: 0.5rem;">
-        <button id="btn-add-map-process" class="btn btn-primary" style="font-size: 0.85rem; padding: 0.5rem 1rem;">
-          📌 + Criar Nova Atividade Padrão
-        </button>
-      </div>
-    `;
-
-    if (processes.length === 0) {
-      html += `
+    if (members.length === 0) {
+      container.innerHTML = `
         <div style="grid-column: 1 / -1; text-align: center; padding: 3rem; background: var(--bg-card); border: 1px dashed var(--border-color); border-radius: var(--radius-lg);">
-          <p style="font-size: 1rem; color: var(--text-muted); margin-bottom: 1rem;">Nenhuma atividade padrão cadastrada no mapa.</p>
-          <p style="font-size: 0.8rem; color: var(--text-dim);">Clique no botão acima para criar suas próprias categorias e processos recorrentes.</p>
+          <p style="font-size: 1rem; color: var(--text-muted);">Nenhum colaborador cadastrado na equipe.</p>
         </div>
       `;
-      container.innerHTML = html;
       return;
     }
 
-    html += processes.map(proc => {
-      const defaultMember = members.find(m => String(m.id) === String(proc.defaultMemberId)) || members[0];
+    container.innerHTML = members.map(member => {
+      // Encontra ou cria a caixa de responsabilidades do colaborador no portfólio
+      const memberData = portfolio.find(p => String(p.memberId) === String(member.id)) || {
+        id: 'port-' + member.id,
+        memberId: member.id,
+        tasks: []
+      };
+
+      const memberResponsibilities = memberData.tasks || [];
 
       return `
-        <div class="card-panel" style="border-top: 3px solid var(--accent-primary);">
-          <div class="panel-header" style="margin-bottom:0.75rem;">
-            <h3 class="panel-title" style="font-size:0.95rem;">
-              <span>${proc.icon || '📋'}</span> ${proc.category}
-            </h3>
+        <div class="card-panel" style="border-top: 3px solid #6366f1; background: var(--bg-card); border-radius: var(--radius-lg); padding: 1.25rem;">
+          
+          <!-- Cabeçalho da Caixa do Colaborador -->
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border-color);">
+            <div style="display: flex; align-items: center; gap: 0.75rem;">
+              <img src="${member.photo || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(member.name)}" 
+                   alt="${member.name}" 
+                   style="width: 42px; height: 48px; border-radius: 50%; object-fit: cover; border: 2px solid var(--accent-primary);">
+              <div>
+                <h3 style="font-size: 0.95rem; font-weight: 700; color: var(--text-main); margin: 0;">${member.name}</h3>
+                <span style="font-size: 0.75rem; color: var(--text-muted); display: block;">${member.role || 'Colaborador'}</span>
+              </div>
+            </div>
+
+            <button class="btn btn-primary btn-add-member-task" data-member-id="${member.id}" style="font-size: 0.75rem; padding: 0.35rem 0.65rem;">
+              ➕ Add Responsabilidade
+            </button>
           </div>
 
-          <div style="display:flex; flex-direction:column; gap:0.75rem;">
-            ${(proc.tasks || []).map(t => {
-        const activeTask = tasks.find(item => item.title === t.title);
+          <!-- Lista de Responsabilidades do Colaborador -->
+          <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+            ${memberResponsibilities.length === 0 ? `
+              <div style="text-align: center; padding: 1.5rem 0.5rem; color: var(--text-dim); font-size: 0.8rem; border: 1px dashed var(--border-color); border-radius: var(--radius-md);">
+                Nenhuma responsabilidade vinculada a este colaborador ainda.
+              </div>
+            ` : memberResponsibilities.map(t => {
+        const activeTask = tasks.find(item => item.title === t.title && String(item.member_id || item.memberId) === String(member.id));
 
-        let statusBadge = `<span class="badge" style="background:rgba(255,255,255,0.08); color:var(--text-dim);">Padrão</span>`;
+        let statusBadge = `<span class="badge" style="background:rgba(255,255,255,0.08); color:var(--text-dim);">Fixo do Setor</span>`;
         if (activeTask) {
           const badgeClass = activeTask.status === 'EM EXECUÇÃO' ? 'badge-pending' : activeTask.status === 'CONCLUÍDO' ? 'badge-approved' : 'badge-rate';
           statusBadge = `<span class="badge ${badgeClass}">${activeTask.status}</span>`;
         }
 
         return `
-                <div style="background:var(--bg-input); border:1px solid var(--border-color); border-radius:var(--radius-md); padding:0.85rem; position:relative;">
-                  <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:0.35rem; gap:0.5rem;">
-                    <strong style="font-size:0.85rem; color:var(--text-main);">${t.title}</strong>
-                    <div style="display:flex; align-items:center; gap:0.3rem;">
+                <div style="background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 0.85rem;">
+                  <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.35rem; gap: 0.5rem;">
+                    <strong style="font-size: 0.85rem; color: var(--text-main);">${t.title}</strong>
+                    <div style="display: flex; align-items: center; gap: 0.3rem;">
                       ${statusBadge}
-                      <button class="btn-edit-process-item" data-proc-id="${proc.id}" data-task-id="${t.id}" title="Editar Atividade" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:0.75rem; padding:0 0.2rem;">✏️</button>
-                      <button class="btn-delete-process-item" data-proc-id="${proc.id}" data-task-id="${t.id}" title="Excluir Atividade" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:0.75rem; padding:0 0.2rem;">🗑️</button>
+                      <button class="btn-edit-member-task" data-member-id="${member.id}" data-task-id="${t.id}" title="Editar Responsabilidade" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:0.75rem; padding:0 0.2rem;">✏️</button>
+                      <button class="btn-delete-member-task" data-member-id="${member.id}" data-task-id="${t.id}" title="Excluir Responsabilidade" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:0.75rem; padding:0 0.2rem;">🗑️</button>
                     </div>
                   </div>
-                  
-                  <p style="font-size:0.75rem; color:var(--text-muted); margin-bottom:0.6rem;">${t.desc || 'Sem detalhes cadastrados.'}</p>
 
-                  <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid var(--border-color); padding-top:0.4rem; font-size:0.75rem;">
-                    <span style="color:var(--text-dim); font-weight:600;">🗓️ Limite: ${t.dayLimit || 'A definir'}</span>
+                  <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.6rem;">${t.desc || 'Sem detalhes cadastrados.'}</p>
+
+                  <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border-color); padding-top: 0.4rem; font-size: 0.75rem;">
+                    <span style="color: var(--text-dim); font-weight: 600;">🗓️ Limite: ${t.dayLimit || 'A definir'}</span>
                     <button class="btn btn-secondary btn-launch-dp-task" 
                             data-title="${t.title}" 
                             data-desc="${t.desc || ''}" 
                             data-priority="${t.priority || 'Média'}" 
-                            data-member="${defaultMember ? defaultMember.id : ''}"
-                            style="font-size:0.7rem; padding:0.25rem 0.5rem;">
-                      ⚡ ${activeTask ? 'Já no Kanban' : '+ Lançar no Kanban'}
+                            data-member="${member.id}"
+                            style="font-size: 0.7rem; padding: 0.25rem 0.5rem;">
+                      ⚡ ${activeTask ? 'No Kanban' : '+ Lançar no Kanban'}
                     </button>
                   </div>
                 </div>
               `;
       }).join('')}
           </div>
+
         </div>
       `;
     }).join('');
-
-    container.innerHTML = html;
   },
 
   /**
-   * Renderiza a Tabela Roadmap
+   * Tabela Roadmap Geral
    */
   renderRoadmapTable(tasks, membersMap, impMap) {
     const container = document.getElementById('map-roadmap-table-body');
@@ -191,7 +202,7 @@ export const MapEngine = {
     if (tasks.length === 0) {
       container.innerHTML = `
         <tr>
-          <td colspan="7" style="text-align:center; padding:2rem; color:var(--text-dim);">Nenhuma demanda ativa no momento. Clique no botão de lançar para enviar atividades para o Kanban.</td>
+          <td colspan="7" style="text-align:center; padding:2rem; color:var(--text-dim);">Nenhuma demanda em execução no momento.</td>
         </tr>
       `;
       return;
@@ -248,20 +259,10 @@ export const MapEngine = {
   },
 
   /**
-   * Associa os eventos aos elementos interativos
+   * Eventos Interativos
    */
-  attachEvents(processes, members) {
-    // 1. Iniciar ciclo mensal
-    const btnCycle = document.getElementById('btn-start-dp-cycle');
-    if (btnCycle) {
-      btnCycle.addEventListener('click', async () => {
-        if (confirm('Deseja instanciar todas as atividades mensais recorrentes no Quadro Kanban da equipe?')) {
-          await this.startDPMonthlyCycle();
-        }
-      });
-    }
-
-    // 2. Lançar uma única tarefa no Kanban
+  attachEvents(portfolio, members) {
+    // 1. Lançar no Kanban
     document.querySelectorAll('.btn-launch-dp-task').forEach(btn => {
       btn.addEventListener('click', async () => {
         const title = btn.dataset.title;
@@ -270,10 +271,10 @@ export const MapEngine = {
         const memberId = btn.dataset.member;
 
         const tasks = (await DB.getAll('tasks')) || [];
-        const exists = tasks.some(t => t.title === title);
+        const exists = tasks.some(t => t.title === title && String(t.member_id || t.memberId) === String(memberId));
 
         if (exists) {
-          alert('Esta atividade já foi inserida no Quadro Kanban!');
+          alert('Esta atividade já foi enviada para o Kanban deste colaborador!');
           return;
         }
 
@@ -281,8 +282,8 @@ export const MapEngine = {
           id: 't-dp-' + Date.now(),
           title,
           description: desc,
-          member_id: memberId || (members[0] ? members[0].id : 'm-1'),
-          memberId: memberId || (members[0] ? members[0].id : 'm-1'),
+          member_id: memberId,
+          memberId: memberId,
           priority: priority || 'Média',
           dueDate: new Date().toISOString().slice(0, 10),
           status: 'A FAZER',
@@ -293,46 +294,46 @@ export const MapEngine = {
         };
 
         await DB.save('tasks', newTask);
-        alert(`Atividade "${title}" lançada no Quadro Kanban!`);
+        alert(`Atividade "${title}" enviada para o Kanban!`);
         this.renderSectorMap();
       });
     });
 
-    // 3. Adicionar Nova Atividade Padrão
-    const btnAdd = document.getElementById('btn-add-map-process');
-    if (btnAdd) {
-      btnAdd.addEventListener('click', () => {
-        this.openCustomModal(null, null, processes, members);
-      });
-    }
-
-    // 4. Editar Atividade Padrão
-    document.querySelectorAll('.btn-edit-process-item').forEach(btn => {
+    // 2. Adicionar Responsabilidade ao Colaborador
+    document.querySelectorAll('.btn-add-member-task').forEach(btn => {
       btn.addEventListener('click', () => {
-        const procId = btn.dataset.procId;
-        const taskId = btn.dataset.taskId;
-        this.openCustomModal(procId, taskId, processes, members);
+        const memberId = btn.dataset.memberId;
+        this.openCustomModal(memberId, null, portfolio, members);
       });
     });
 
-    // 5. Excluir Atividade Padrão
-    document.querySelectorAll('.btn-delete-process-item').forEach(btn => {
+    // 3. Editar Responsabilidade do Colaborador
+    document.querySelectorAll('.btn-edit-member-task').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const memberId = btn.dataset.memberId;
+        const taskId = btn.dataset.taskId;
+        this.openCustomModal(memberId, taskId, portfolio, members);
+      });
+    });
+
+    // 4. Excluir Responsabilidade
+    document.querySelectorAll('.btn-delete-member-task').forEach(btn => {
       btn.addEventListener('click', async () => {
-        const procId = btn.dataset.procId;
+        const memberId = btn.dataset.memberId;
         const taskId = btn.dataset.taskId;
 
-        if (confirm('Deseja realmente remover esta atividade do Mapa de Processos?')) {
-          const procIndex = processes.findIndex(p => String(p.id) === String(procId));
-          if (procIndex !== -1) {
-            processes[procIndex].tasks = processes[procIndex].tasks.filter(t => String(t.id) !== String(taskId));
+        if (confirm('Deseja remover esta responsabilidade da lista deste colaborador?')) {
+          const memberData = portfolio.find(p => String(p.memberId) === String(memberId));
+          if (memberData) {
+            memberData.tasks = (memberData.tasks || []).filter(t => String(t.id) !== String(taskId));
 
             const payload = {
-              id: processes[procIndex].id,
-              data: processes[procIndex]
+              id: memberData.id,
+              data: memberData
             };
             await DB.save('cycle_templates', payload);
 
-            alert('Atividade removida com sucesso!');
+            alert('Responsabilidade removida!');
             this.renderSectorMap();
           }
         }
@@ -341,21 +342,16 @@ export const MapEngine = {
   },
 
   /**
-   * Exibe o Modal de Criação / Edição estilo "Nova Atividade"
+   * Modal de Formulário Completo
    */
-  openCustomModal(procId, taskId, processes, members) {
+  openCustomModal(memberId, taskId, portfolio, members) {
     let currentTask = { title: '', desc: '', dayLimit: '', priority: 'Média' };
-    let currentCategory = 'Geral';
-    let currentMemberId = members[0] ? members[0].id : '';
+    const currentMember = members.find(m => String(m.id) === String(memberId)) || members[0];
 
-    if (procId && taskId) {
-      const proc = processes.find(p => String(p.id) === String(procId));
-      if (proc) {
-        currentCategory = proc.category;
-        currentMemberId = proc.defaultMemberId || currentMemberId;
-        const t = (proc.tasks || []).find(item => String(item.id) === String(taskId));
-        if (t) currentTask = t;
-      }
+    let memberData = portfolio.find(p => String(p.memberId) === String(memberId));
+    if (memberData && taskId) {
+      const t = (memberData.tasks || []).find(item => String(item.id) === String(taskId));
+      if (t) currentTask = t;
     }
 
     const oldModal = document.getElementById('modal-custom-map-task');
@@ -365,43 +361,37 @@ export const MapEngine = {
       <div id="modal-custom-map-task" class="modal-overlay active" style="position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.75); display:flex; align-items:center; justify-content:center; z-index:9999;">
         <div style="background: #111827; border: 1px solid #1f2937; border-radius: 12px; width: 100%; max-width: 580px; padding: 1.5rem; color: #f3f4f6; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);">
           
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
-            <h3 style="font-size: 1.15rem; font-weight: 700; color: #ffffff; display: flex; align-items: center; gap: 0.5rem;">
-              📌 ${taskId ? 'Editar Atividade' : 'Nova Atividade'}
+          <div style="display: flex; justify- space-between; align-items: center; margin-bottom: 1.25rem;">
+            <h3 style="font-size: 1.15rem; font-weight: 700; color: #ffffff; display: flex; align-items: center; gap: 0.5rem; margin:0;">
+              📌 ${taskId ? 'Editar Responsabilidade' : 'Nova Responsabilidade Direta'}
             </h3>
             <button id="btn-close-map-modal" style="background: none; border: none; color: #9ca3af; font-size: 1.25rem; cursor: pointer;">✕</button>
           </div>
 
           <form id="form-custom-map-task">
+            <!-- Título -->
             <div style="margin-bottom: 1rem;">
               <label style="display: block; font-size: 0.8rem; font-weight: 600; color: #9ca3af; margin-bottom: 0.35rem;">
-                Título da Atividade *
+                Título da Atividade / Requisito *
               </label>
               <input type="text" id="map-input-title" required value="${currentTask.title}" placeholder="Ex: Fechamento da Folha de Pagamento" style="width: 100%; background: #1f2937; border: 1px solid #374151; border-radius: 6px; padding: 0.6rem 0.8rem; color: #ffffff; font-size: 0.875rem; outline: none;">
             </div>
 
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem; margin-bottom: 1rem;">
-              <div>
-                <label style="display: block; font-size: 0.8rem; font-weight: 600; color: #9ca3af; margin-bottom: 0.35rem;">
-                  Categoria / Macro-Área *
-                </label>
-                <input type="text" id="map-input-category" required value="${currentCategory}" placeholder="Ex: Folha de Pagamento" style="width: 100%; background: #1f2937; border: 1px solid #374151; border-radius: 6px; padding: 0.6rem 0.8rem; color: #ffffff; font-size: 0.85rem; outline: none;">
-              </div>
-
-              <div>
-                <label style="display: block; font-size: 0.8rem; font-weight: 600; color: #9ca3af; margin-bottom: 0.35rem;">
-                  Responsável Principal *
-                </label>
-                <select id="map-select-member" required style="width: 100%; background: #1f2937; border: 1px solid #374151; border-radius: 6px; padding: 0.6rem 0.8rem; color: #ffffff; font-size: 0.85rem; outline: none;">
-                  ${members.map(m => `
-                    <option value="${m.id}" ${String(m.id) === String(currentMemberId) ? 'selected' : ''}>
-                      ${m.name} (${m.role || 'Membro'})
-                    </option>
-                  `).join('')}
-                </select>
-              </div>
+            <!-- Responsável Fixo -->
+            <div style="margin-bottom: 1rem;">
+              <label style="display: block; font-size: 0.8rem; font-weight: 600; color: #9ca3af; margin-bottom: 0.35rem;">
+                Responsável Direto no Setor *
+              </label>
+              <select id="map-select-member" required style="width: 100%; background: #1f2937; border: 1px solid #374151; border-radius: 6px; padding: 0.6rem 0.8rem; color: #ffffff; font-size: 0.85rem; outline: none;">
+                ${members.map(m => `
+                  <option value="${m.id}" ${String(m.id) === String(currentMember.id) ? 'selected' : ''}>
+                    ${m.name} (${m.role || 'Membro'})
+                  </option>
+                `).join('')}
+              </select>
             </div>
 
+            <!-- Prioridade e Prazo -->
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem; margin-bottom: 1rem;">
               <div>
                 <label style="display: block; font-size: 0.8rem; font-weight: 600; color: #9ca3af; margin-bottom: 0.35rem;">
@@ -416,25 +406,27 @@ export const MapEngine = {
 
               <div>
                 <label style="display: block; font-size: 0.8rem; font-weight: 600; color: #9ca3af; margin-bottom: 0.35rem;">
-                  Prazo (Data Limite / Texto) *
+                  Prazo Limite / Frequência *
                 </label>
-                <input type="text" id="map-input-limit" required value="${currentTask.dayLimit || 'Dia 05'}" placeholder="Ex: Dia 05, Dia 15 ou 11/08/2026" style="width: 100%; background: #1f2937; border: 1px solid #374151; border-radius: 6px; padding: 0.6rem 0.8rem; color: #ffffff; font-size: 0.85rem; outline: none;">
+                <input type="text" id="map-input-limit" required value="${currentTask.dayLimit || 'Dia 05'}" placeholder="Ex: Dia 05, Semanal, Recorrente" style="width: 100%; background: #1f2937; border: 1px solid #374151; border-radius: 6px; padding: 0.6rem 0.8rem; color: #ffffff; font-size: 0.85rem; outline: none;">
               </div>
             </div>
 
+            <!-- Descrição -->
             <div style="margin-bottom: 1.5rem;">
               <label style="display: block; font-size: 0.8rem; font-weight: 600; color: #9ca3af; margin-bottom: 0.35rem;">
-                Descrição dos Detalhes
+                Instruções e Requisitos
               </label>
-              <textarea id="map-input-desc" rows="3" placeholder="Instruções e requisitos da atividade..." style="width: 100%; background: #1f2937; border: 1px solid #374151; border-radius: 6px; padding: 0.6rem 0.8rem; color: #ffffff; font-size: 0.85rem; outline: none; resize: vertical;">${currentTask.desc || ''}</textarea>
+              <textarea id="map-input-desc" rows="3" placeholder="Detalhes de como executar essa responsabilidade..." style="width: 100%; background: #1f2937; border: 1px solid #374151; border-radius: 6px; padding: 0.6rem 0.8rem; color: #ffffff; font-size: 0.85rem; outline: none; resize: vertical;">${currentTask.desc || ''}</textarea>
             </div>
 
+            <!-- Botões de Ação -->
             <div style="display: flex; justify-content: flex-end; gap: 0.75rem;">
               <button type="button" id="btn-cancel-map-modal" style="background: #374151; color: #ffffff; border: none; border-radius: 8px; padding: 0.6rem 1.25rem; font-size: 0.875rem; font-weight: 600; cursor: pointer;">
                 Cancelar
               </button>
               <button type="submit" style="background: linear-gradient(135deg, #8b5cf6, #6366f1); color: #ffffff; border: none; border-radius: 8px; padding: 0.6rem 1.25rem; font-size: 0.875rem; font-weight: 700; cursor: pointer;">
-                ${taskId ? 'Salvar Alterações' : 'Criar Atividade'}
+                ${taskId ? 'Salvar Alterações' : 'Salvar Responsabilidade'}
               </button>
             </div>
           </form>
@@ -459,32 +451,28 @@ export const MapEngine = {
       e.preventDefault();
 
       const title = document.getElementById('map-input-title').value.trim();
-      const category = document.getElementById('map-input-category').value.trim();
-      const memberId = document.getElementById('map-select-member').value;
+      const selectedMemberId = document.getElementById('map-select-member').value;
       const priority = document.getElementById('map-select-priority').value;
       const dayLimit = document.getElementById('map-input-limit').value.trim();
       const desc = document.getElementById('map-input-desc').value.trim();
 
-      let targetProc = processes.find(p => p.category.toLowerCase() === category.toLowerCase());
+      // Busca ou cria o registro do colaborador no portfólio
+      let targetMemberData = portfolio.find(p => String(p.memberId) === String(selectedMemberId));
 
-      if (!targetProc) {
-        targetProc = {
-          id: 'proc-' + Date.now(),
-          category: category,
-          icon: '📋',
-          defaultMemberId: memberId,
+      if (!targetMemberData) {
+        targetMemberData = {
+          id: 'port-' + selectedMemberId,
+          memberId: selectedMemberId,
           tasks: []
         };
-        processes.push(targetProc);
-      } else {
-        targetProc.defaultMemberId = memberId;
+        portfolio.push(targetMemberData);
       }
 
       if (taskId) {
-        const taskIndex = targetProc.tasks.findIndex(t => String(t.id) === String(taskId));
+        const taskIndex = (targetMemberData.tasks || []).findIndex(t => String(t.id) === String(taskId));
         if (taskIndex !== -1) {
-          targetProc.tasks[taskIndex] = {
-            ...targetProc.tasks[taskIndex],
+          targetMemberData.tasks[taskIndex] = {
+            ...targetMemberData.tasks[taskIndex],
             title,
             desc,
             dayLimit,
@@ -492,8 +480,9 @@ export const MapEngine = {
           };
         }
       } else {
-        targetProc.tasks.push({
-          id: 'dp-t-' + Date.now(),
+        if (!targetMemberData.tasks) targetMemberData.tasks = [];
+        targetMemberData.tasks.push({
+          id: 'resp-' + Date.now(),
           title,
           desc,
           dayLimit,
@@ -502,55 +491,13 @@ export const MapEngine = {
       }
 
       const payload = {
-        id: targetProc.id,
-        data: targetProc
+        id: targetMemberData.id,
+        data: targetMemberData
       };
 
       await DB.save('cycle_templates', payload);
       closeModal();
       this.renderSectorMap();
     });
-  },
-
-  /**
-   * Gera automaticamente todo o ciclo de tarefas mensais na tabela "tasks"
-   */
-  async startDPMonthlyCycle() {
-    const members = (await DB.getAll('members')) || [];
-    const existingTasks = (await DB.getAll('tasks')) || [];
-    const processes = await this.getDpProcesses();
-    const todayStr = new Date().toISOString().slice(0, 10);
-
-    let countAdded = 0;
-
-    for (const proc of processes) {
-      const defaultMember = members.find(m => String(m.id) === String(proc.defaultMemberId)) || members[0];
-      const memberId = defaultMember ? defaultMember.id : 'm-1';
-
-      for (const t of (proc.tasks || [])) {
-        const alreadyExists = existingTasks.some(item => item.title === t.title);
-        if (!alreadyExists) {
-          const newTask = {
-            id: 't-dp-' + Date.now() + Math.floor(Math.random() * 1000),
-            title: t.title,
-            description: t.desc,
-            member_id: memberId,
-            memberId: memberId,
-            priority: t.priority,
-            dueDate: todayStr,
-            status: 'A FAZER',
-            elapsedSeconds: 0,
-            isTimerRunning: false,
-            lastTimerStartedAt: null,
-            createdAt: new Date().toISOString()
-          };
-          await DB.save('tasks', newTask);
-          countAdded++;
-        }
-      }
-    }
-
-    alert(`${countAdded} atividades foram geradas e atribuídas no Quadro Kanban!`);
-    this.renderSectorMap();
   }
 };
