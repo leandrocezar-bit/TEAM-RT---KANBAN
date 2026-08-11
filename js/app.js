@@ -648,30 +648,36 @@ document.addEventListener('DOMContentLoaded', async () => {
   };
 
   // ============================================================
-  // ABAS DOS MEMBROS
+  // ABAS DOS MEMBROS (Filtro do Kanban por Colaborador)
   // ============================================================
 
   async function renderMemberTabs() {
     const container = document.getElementById('member-tabs-bar');
     if (!container) return;
 
+    // Se não for gestor, a barra de abas fica oculta
     if (!isManager()) {
       container.innerHTML = '';
+      container.style.display = 'none';
       return;
     }
 
+    container.style.display = 'flex';
     const members = (await DB.getAll('members')) || [];
 
+    // Botão para exibir "Todos os Membros"
     let html = `
       <button class="tab-btn ${currentMemberFilter === 'all' ? 'active' : ''}" data-id="all">
         👥 Todos os Membros
       </button>
     `;
 
+    // Botão individual para cada membro da equipe
     members.forEach((member) => {
+      const isActive = String(currentMemberFilter) === String(member.id);
       html += `
-        <button class="tab-btn ${currentMemberFilter === member.id ? 'active' : ''}" data-id="${member.id}">
-          <img src="${member.photo}" alt="${member.name}" class="tab-avatar">
+        <button class="tab-btn ${isActive ? 'active' : ''}" data-id="${member.id}">
+          <img src="${member.photo || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(member.name)}" alt="${member.name}" class="tab-avatar">
           <span>${member.name.split(' ')[0]}</span>
         </button>
       `;
@@ -679,11 +685,23 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     container.innerHTML = html;
 
+    // Adiciona o evento de clique em cada botão de membro
     container.querySelectorAll('.tab-btn').forEach((btn) => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
+        // Remove 'active' dos outros botões e ativa o clicado
+        container.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        // Atualiza a variável global do filtro de membro
         currentMemberFilter = btn.dataset.id;
         activeView = 'kanban';
-        refreshUI();
+
+        // Atualiza e renderiza o Quadro Kanban imediatamente com o novo filtro
+        await KanbanEngine.renderBoard(currentMemberFilter, {
+          onRefresh: refreshUI,
+          onReportImpediment: openReportImpedimentModal,
+          onOpenTaskDetails: openTaskDetailsModal,
+        });
       });
     });
   }
