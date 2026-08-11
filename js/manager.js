@@ -18,33 +18,54 @@ export const ManagerEngine = {
     const tasks = (await DB.getAll('tasks')) || [];
     const impediments = (await DB.getAll('impediments')) || [];
 
+    // Renderiza o cabeçalho e os botões de filtro dinamicamente
+    this.renderFilterHeader(members, tasks, impediments);
+
     this.renderMemberCards(members, tasks, impediments);
     this.renderImpedimentsAlertList(impediments, tasks, members, onViewEvidenceCallback);
     this.renderCalendarGrid(tasks, members, onOpenDayDetailsCallback);
-    this.setupPeriodFilterListeners(members, tasks, impediments);
   },
 
   /**
-   * Configura os botões de filtro de período do Dashboard
+   * Renderiza dinamicamente o cabeçalho do Dashboard com os botões de filtro de data
    */
-  setupPeriodFilterListeners(members, tasks, impediments) {
-    const buttons = document.querySelectorAll('.btn-dashboard-period-filter');
-    buttons.forEach(btn => {
-      if (btn.dataset.listenerBound) return;
-      btn.dataset.listenerBound = 'true';
+  renderFilterHeader(members, tasks, impediments) {
+    const section = document.getElementById('section-manager');
+    if (!section) return;
 
+    let headerContainer = document.getElementById('manager-dashboard-header');
+    if (!headerContainer) {
+      headerContainer = document.createElement('div');
+      headerContainer.id = 'manager-dashboard-header';
+      headerContainer.style.cssText = 'display:flex; justify-space-between; align-items:center; flex-wrap:wrap; gap:0.75rem; margin-bottom:1.25rem;';
+      section.insertBefore(headerContainer, section.firstChild);
+    }
+
+    headerContainer.innerHTML = `
+      <h2 style="font-size:1.15rem; font-weight:800; display:flex; align-items:center; gap:0.5rem; margin:0;">
+        👥 Desempenho e Horas da Equipe
+      </h2>
+
+      <div style="display:flex; align-items:center; gap:0.5rem; background:var(--bg-secondary, #1f2937); padding:0.4rem 0.75rem; border-radius:var(--radius-md, 8px); border:1px solid var(--border-color, #374151);">
+        <span style="font-size:0.8rem; font-weight:700; color:var(--text-muted, #9ca3af);">🗓️ Período:</span>
+        <button class="btn btn-secondary btn-dash-filter ${this.currentPeriodFilter === 'all' ? 'active' : ''}" data-period="all" style="padding:0.25rem 0.6rem; font-size:0.75rem;">Todos</button>
+        <button class="btn btn-secondary btn-dash-filter ${this.currentPeriodFilter === 'daily' ? 'active' : ''}" data-period="daily" style="padding:0.25rem 0.6rem; font-size:0.75rem;">Diário</button>
+        <button class="btn btn-secondary btn-dash-filter ${this.currentPeriodFilter === 'weekly' ? 'active' : ''}" data-period="weekly" style="padding:0.25rem 0.6rem; font-size:0.75rem;">Semanal</button>
+        <button class="btn btn-secondary btn-dash-filter ${this.currentPeriodFilter === 'monthly' ? 'active' : ''}" data-period="monthly" style="padding:0.25rem 0.6rem; font-size:0.75rem;">Mensal</button>
+      </div>
+    `;
+
+    headerContainer.querySelectorAll('.btn-dash-filter').forEach(btn => {
       btn.addEventListener('click', () => {
-        buttons.forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-
         this.currentPeriodFilter = btn.dataset.period;
+        this.renderFilterHeader(members, tasks, impediments);
         this.renderMemberCards(members, tasks, impediments);
       });
     });
   },
 
   /**
-   * Filtra tarefas de acordo com a data limite (dueDate) ou criação/atualização
+   * Filtra as tarefas baseando-se no período selecionado
    */
   filterTasksByPeriod(tasksList) {
     if (this.currentPeriodFilter === 'all') return tasksList;
@@ -75,7 +96,7 @@ export const ManagerEngine = {
   },
 
   /**
-   * Renderiza os cards de desempenho individual por membro da equipe
+   * Renderiza os cards de desempenho por membro da equipe
    */
   renderMemberCards(members, tasks, impediments) {
     const container = document.getElementById('manager-members-grid');
@@ -94,11 +115,11 @@ export const ManagerEngine = {
       return;
     }
 
-    // Aplica o filtro de período nas tarefas
-    const periodFilteredTasks = this.filterTasksByPeriod(tasks);
+    // Aplica o filtro selecionado (Todos, Diário, Semanal, Mensal)
+    const filteredTasks = this.filterTasksByPeriod(tasks);
 
     container.innerHTML = visibleMembers.map(member => {
-      const memberTasks = periodFilteredTasks.filter(t => String(t.member_id || t.memberId) === String(member.id));
+      const memberTasks = filteredTasks.filter(t => String(t.member_id || t.memberId) === String(member.id));
 
       const todoCount = memberTasks.filter(t => t.status === 'A FAZER').length;
       const wipCount = memberTasks.filter(t => t.status === 'EM EXECUÇÃO').length;
@@ -214,7 +235,7 @@ export const ManagerEngine = {
       const dateFormatted = new Date(imp.createdAt).toLocaleString('pt-BR');
 
       return `
-        <div style="background:var(--bg-input); border:1px solid var(--border-color); border-radius:var(--radius-md); padding:1rem; margin-bottom:0.75rem; display:flex; justify-content:space-between; align-items:flex-start; gap:1rem; flex-wrap:wrap;">
+        <div style="background:var(--bg-input); border:1px solid var(--border-color); border-radius:var(--radius-md); padding:1rem; margin-bottom:0.75rem; display:flex; justify-space-between; align-items:flex-start; gap:1rem; flex-wrap:wrap;">
           <div style="flex:1;">
             <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.4rem;">
               <span class="badge-impediment">⚠️ Contratempo</span>
