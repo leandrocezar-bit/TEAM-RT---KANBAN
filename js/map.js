@@ -1,11 +1,14 @@
 /**
- * Portfólio do Setor - Matriz Fixa de Responsabilidades por Colaborador
+ * Portfólio do Setor - Matriz Fixa de Responsabilidades por Colaborador & Métricas por Competência
  */
 
 import { DB } from './db.js';
 import { TimerEngine } from './timer.js';
 
 export const MapEngine = {
+  // Define a competência padrão como o mês/ano atual (YYYY-MM)
+  selectedCompetence: new Date().toISOString().slice(0, 7),
+
   /**
    * Obtém a lista atualizada de dados do portfólio da tabela "cycle_templates"
    */
@@ -45,60 +48,117 @@ export const MapEngine = {
   },
 
   /**
-   * Métricas do Topo
+   * Métricas do Topo com Filtro de Competência Mensal
    */
   renderHeaderMetrics(tasks) {
     const container = document.getElementById('map-metrics-summary');
     if (!container) return;
 
-    const total = tasks.length;
-    const done = tasks.filter(t => t.status === 'CONCLUÍDO').length;
-    const wip = tasks.filter(t => t.status === 'EM EXECUÇÃO').length;
+    // 1. Filtra as tarefas pertencentes à competência selecionada (YYYY-MM)
+    const competenceTasks = tasks.filter(t => {
+      const dateStr = t.dueDate || (t.createdAt ? t.createdAt.slice(0, 10) : null);
+      if (!dateStr) return false;
+      return dateStr.slice(0, 7) === this.selectedCompetence;
+    });
+
+    const total = competenceTasks.length;
+    const done = competenceTasks.filter(t => t.status === 'CONCLUÍDO').length;
+    const wip = competenceTasks.filter(t => t.status === 'EM EXECUÇÃO').length;
+    const todo = competenceTasks.filter(t => t.status === 'A FAZER').length;
     const completionPercent = total > 0 ? Math.round((done / total) * 100) : 0;
 
     let totalSeconds = 0;
-    tasks.forEach(t => {
+    competenceTasks.forEach(t => {
       totalSeconds += TimerEngine.getCurrentElapsedSeconds(t);
     });
 
+    // Formata o título da competência (ex: "agosto de 2026")
+    const [year, month] = this.selectedCompetence.split('-');
+    const competenceName = new Date(parseInt(year), parseInt(month) - 1, 1)
+      .toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+
+    container.style.cssText = 'display: flex; flex-direction: column; gap: 1rem; margin-bottom: 1.75rem; width: 100%;';
+
     container.innerHTML = `
-      <div class="metric-card" style="--card-accent: #6366f1;">
-        <div class="metric-header">
-          <span class="metric-title">Progresso do Setor</span>
-          <div class="metric-icon">📈</div>
+      <!-- Seletor de Competência Mensal -->
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; background: var(--bg-card, #111827); border: 1px solid var(--border-color, #1f2937); padding: 0.75rem 1.25rem; border-radius: 12px;">
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <span style="font-size: 1rem; font-weight: 800; color: #ffffff;">🗓️ Competência:</span>
+          <span style="font-size: 0.95rem; font-weight: 700; color: #8b5cf6; text-transform: capitalize;">${competenceName}</span>
         </div>
-        <div class="metric-value">${completionPercent}%</div>
-        <div style="background:rgba(255,255,255,0.1); border-radius:10px; height:8px; width:100%; margin-top:0.5rem; overflow:hidden;">
-          <div style="background:var(--accent-gradient); width:${completionPercent}%; height:100%; border-radius:10px;"></div>
+
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <label style="font-size: 0.8rem; font-weight: 600; color: #9ca3af;">Mudar Competência:</label>
+          <input type="month" id="select-map-competence" value="${this.selectedCompetence}" 
+                 style="background: var(--bg-input, #1f2937); border: 1px solid var(--border-color, #374151); border-radius: 6px; padding: 0.35rem 0.6rem; color: #ffffff; font-size: 0.8rem; outline: none; cursor: pointer;">
         </div>
       </div>
 
-      <div class="metric-card" style="--card-accent: #10b981;">
-        <div class="metric-header">
-          <span class="metric-title">Demandas em Execução</span>
-          <div class="metric-icon">💼</div>
+      <!-- Cards de Métricas da Competência -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.25rem; width: 100%;">
+        
+        <!-- Card 1: Progresso da Competência -->
+        <div style="background: var(--bg-card, #111827); border: 1px solid var(--border-color, #1f2937); border-left: 4px solid #8b5cf6; border-radius: 12px; padding: 1.25rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+            <span style="font-size: 0.85rem; font-weight: 700; color: #9ca3af;">📈 Progresso da Competência</span>
+            <span style="font-size: 1.25rem;">📊</span>
+          </div>
+          <div style="font-size: 1.75rem; font-weight: 800; color: #ffffff; margin-bottom: 0.5rem;">
+            ${completionPercent}%
+          </div>
+          <div style="background: rgba(255,255,255,0.08); border-radius: 10px; height: 8px; width: 100%; overflow: hidden;">
+            <div style="background: linear-gradient(135deg, #8b5cf6, #6366f1); width: ${completionPercent}%; height: 100%; border-radius: 10px; transition: width 0.4s ease;"></div>
+          </div>
+          <span style="font-size: 0.75rem; color: #6b7280; margin-top: 0.5rem; display: block;">${done} de ${total} entregas no mês</span>
         </div>
-        <div class="metric-value">${total}</div>
-        <div class="metric-sub positive">
-          <span>${done} concluídas • ${wip} ativas</span>
-        </div>
-      </div>
 
-      <div class="metric-card" style="--card-accent: #06b6d4;">
-        <div class="metric-header">
-          <span class="metric-title">Horas Efetivas no Setor</span>
-          <div class="metric-icon">⏱️</div>
+        <!-- Card 2: Demandas no Mês -->
+        <div style="background: var(--bg-card, #111827); border: 1px solid var(--border-color, #1f2937); border-left: 4px solid #10b981; border-radius: 12px; padding: 1.25rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+            <span style="font-size: 0.85rem; font-weight: 700; color: #9ca3af;">💼 Demandas da Competência</span>
+            <span style="font-size: 1.25rem;">💼</span>
+          </div>
+          <div style="font-size: 1.75rem; font-weight: 800; color: #ffffff; margin-bottom: 0.5rem;">
+            ${total} <span style="font-size: 0.85rem; font-weight: 600; color: #9ca3af;">Atividades</span>
+          </div>
+          <div style="display: flex; gap: 0.75rem; font-size: 0.75rem; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 0.5rem; margin-top: 0.25rem;">
+            <span style="color: #f59e0b; font-weight: 600;">📋 ${todo} a fazer</span>
+            <span style="color: #6366f1; font-weight: 600;">⚡ ${wip} ativas</span>
+            <span style="color: #10b981; font-weight: 600;">✅ ${done} concluídas</span>
+          </div>
         </div>
-        <div class="metric-value">${TimerEngine.formatTime(totalSeconds)}</div>
-        <div class="metric-sub">
-          <span>Tempo acumulado</span>
+
+        <!-- Card 3: Horas no Mês -->
+        <div style="background: var(--bg-card, #111827); border: 1px solid var(--border-color, #1f2937); border-left: 4px solid #06b6d4; border-radius: 12px; padding: 1.25rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+            <span style="font-size: 0.85rem; font-weight: 700; color: #9ca3af;">⏱️ Horas na Competência</span>
+            <span style="font-size: 1.25rem;">⏱️</span>
+          </div>
+          <div style="font-size: 1.75rem; font-weight: 800; color: #38bdf8; font-family: monospace; margin-bottom: 0.5rem;">
+            ${TimerEngine.formatTime(totalSeconds)}
+          </div>
+          <span style="font-size: 0.75rem; color: #6b7280; display: block; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 0.5rem;">
+            Tempo total acumulado neste mês
+          </span>
         </div>
+
       </div>
     `;
+
+    // Evento de alteração do mês/ano
+    const compInput = document.getElementById('select-map-competence');
+    if (compInput) {
+      compInput.addEventListener('change', (e) => {
+        if (e.target.value) {
+          this.selectedCompetence = e.target.value;
+          this.renderSectorMap();
+        }
+      });
+    }
   },
 
   /**
-   * Renderiza a grade de Cartões Informativos por Colaborador (Informativo de Atribuições)
+   * Renderiza a grade de Cartões Informativos por Colaborador
    */
   renderMembersPortfolioGrid(portfolio, members) {
     const container = document.getElementById('map-organogram-grid');
@@ -174,10 +234,17 @@ export const MapEngine = {
     const container = document.getElementById('map-roadmap-table-body');
     if (!container) return;
 
-    if (tasks.length === 0) {
+    // Exibe na tabela apenas as tarefas pertencentes à competência selecionada
+    const filteredTasks = tasks.filter(t => {
+      const dateStr = t.dueDate || (t.createdAt ? t.createdAt.slice(0, 10) : null);
+      if (!dateStr) return false;
+      return dateStr.slice(0, 7) === this.selectedCompetence;
+    });
+
+    if (filteredTasks.length === 0) {
       container.innerHTML = `
         <tr>
-          <td colspan="8" style="text-align:center; padding:2rem; color:var(--text-dim);">Nenhuma demanda cadastrada no momento.</td>
+          <td colspan="8" style="text-align:center; padding:2rem; color:var(--text-dim);">Nenhuma demanda cadastrada para esta competência.</td>
         </tr>
       `;
       return;
@@ -185,10 +252,9 @@ export const MapEngine = {
 
     const todayStr = new Date().toISOString().slice(0, 10);
 
-    container.innerHTML = tasks.map(task => {
+    container.innerHTML = filteredTasks.map(task => {
       const taskOwnerId = task.member_id || task.memberId;
       const member = membersMap.get(String(taskOwnerId)) || { name: 'Não atribuído', photo: '' };
-      const taskImpediments = impMap.get(String(task.id)) || [];
 
       let deadlineBadge = '';
       if (task.status === 'CONCLUÍDO') {
