@@ -29,8 +29,19 @@ export const ManagerEngine = {
    * Renderiza os controles de seleção por Calendário (De / Até) no topo
    */
   renderDateFilterControls(members, tasks, impediments) {
-    const container = document.getElementById('dashboard-date-filter-container');
-    if (!container) return;
+    let container = document.getElementById('dashboard-date-filter-container');
+
+    // Fallback: se o container não existir no HTML, cria automaticamente no header
+    if (!container) {
+      const header = document.getElementById('manager-dashboard-header');
+      if (header) {
+        container = document.createElement('div');
+        container.id = 'dashboard-date-filter-container';
+        header.appendChild(container);
+      } else {
+        return;
+      }
+    }
 
     container.innerHTML = `
       <div style="display:flex; align-items:center; gap:0.5rem; background:var(--bg-secondary, #1f2937); padding:0.4rem 0.75rem; border-radius:var(--radius-md, 8px); border:1px solid var(--border-color, #374151); flex-wrap:wrap;">
@@ -68,8 +79,8 @@ export const ManagerEngine = {
       clearBtn.addEventListener('click', () => {
         this.startDateFilter = null;
         this.endDateFilter = null;
-        startInput.value = '';
-        endInput.value = '';
+        if (startInput) startInput.value = '';
+        if (endInput) endInput.value = '';
         this.renderMemberCards(members, tasks, impediments);
       });
     }
@@ -93,7 +104,7 @@ export const ManagerEngine = {
   },
 
   /**
-   * Renderiza os cards de desempenho por membro da equipe
+   * Renderiza os cards de desempenho individual por membro da equipe
    */
   renderMemberCards(members, tasks, impediments) {
     const container = document.getElementById('manager-members-grid');
