@@ -19,29 +19,56 @@ export const ManagerEngine = {
     const tasks = (await DB.getAll('tasks')) || [];
     const impediments = (await DB.getAll('impediments')) || [];
 
+    // Garante que o painel de filtro seja montado no topo da seção
+    this.injectDateFilterContainer();
     this.renderDateFilterControls(members, tasks, impediments);
+
     this.renderMemberCards(members, tasks, impediments);
     this.renderImpedimentsAlertList(impediments, tasks, members, onViewEvidenceCallback);
     this.renderCalendarGrid(tasks, members, onOpenDayDetailsCallback);
   },
 
   /**
+   * Injeta o contêiner do cabeçalho com filtro no topo da seção do Dashboard caso ele não exista no HTML
+   */
+  injectDateFilterContainer() {
+    const section = document.getElementById('section-manager');
+    if (!section) return;
+
+    let header = document.getElementById('manager-dashboard-header');
+    if (!header) {
+      header = document.createElement('div');
+      header.id = 'manager-dashboard-header';
+      header.style.cssText = 'display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.75rem; margin-bottom:1.25rem; width:100%;';
+
+      const title = document.createElement('h2');
+      title.style.cssText = 'font-size:1.15rem; font-weight:800; display:flex; align-items:center; gap:0.5rem; margin:0;';
+      title.innerHTML = '👥 Desempenho e Horas da Equipe';
+      header.appendChild(title);
+
+      const filterBox = document.createElement('div');
+      filterBox.id = 'dashboard-date-filter-container';
+      header.appendChild(filterBox);
+
+      // Insere no topo da section
+      section.insertBefore(header, section.firstChild);
+    } else {
+      // Se o cabeçalho existe, garante que o box de filtro esteja dentro dele
+      let filterBox = document.getElementById('dashboard-date-filter-container');
+      if (!filterBox) {
+        filterBox = document.createElement('div');
+        filterBox.id = 'dashboard-date-filter-container';
+        header.appendChild(filterBox);
+      }
+    }
+  },
+
+  /**
    * Renderiza os controles de seleção por Calendário (De / Até) no topo
    */
   renderDateFilterControls(members, tasks, impediments) {
-    let container = document.getElementById('dashboard-date-filter-container');
-
-    // Fallback: se o container não existir no HTML, cria automaticamente no header
-    if (!container) {
-      const header = document.getElementById('manager-dashboard-header');
-      if (header) {
-        container = document.createElement('div');
-        container.id = 'dashboard-date-filter-container';
-        header.appendChild(container);
-      } else {
-        return;
-      }
-    }
+    const container = document.getElementById('dashboard-date-filter-container');
+    if (!container) return;
 
     container.innerHTML = `
       <div style="display:flex; align-items:center; gap:0.5rem; background:var(--bg-secondary, #1f2937); padding:0.4rem 0.75rem; border-radius:var(--radius-md, 8px); border:1px solid var(--border-color, #374151); flex-wrap:wrap;">
@@ -243,7 +270,7 @@ export const ManagerEngine = {
       const dateFormatted = new Date(imp.createdAt).toLocaleString('pt-BR');
 
       return `
-        <div style="background:var(--bg-input); border:1px solid var(--border-color); border-radius:var(--radius-md); padding:1rem; margin-bottom:0.75rem; display:flex; justify-space-between; align-items:flex-start; gap:1rem; flex-wrap:wrap;">
+        <div style="background:var(--bg-input); border:1px solid var(--border-color); border-radius:var(--radius-md); padding:1rem; margin-bottom:0.75rem; display:flex; justify-content:space-between; align-items:flex-start; gap:1rem; flex-wrap:wrap;">
           <div style="flex:1;">
             <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.4rem;">
               <span class="badge-impediment">⚠️ Contratempo</span>
