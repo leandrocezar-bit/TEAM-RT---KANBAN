@@ -182,31 +182,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   const btnViewMap = document.getElementById('btn-view-map');
   const btnViewSettings = document.getElementById('btn-view-settings');
   const btnViewProjects = document.getElementById('btn-view-projects');
-  const btnResetDb = document.getElementById('btn-reset-db');
-
-  // ============================================================
-  // RESET DATABASE
-  // ============================================================
-
-  if (btnResetDb) {
-    btnResetDb.addEventListener('click', async () => {
-      if (!isManager()) {
-        showToast('Apenas gestores podem restaurar os dados.', 'warning');
-        return;
-      }
-
-      if (
-        confirm(
-          'Deseja realmente restaurar os dados iniciais padrão no Supabase/App?'
-        )
-      ) {
-        await DB.resetDatabase();
-        currentMemberFilter = 'all';
-        showToast('Dados iniciais restaurados com sucesso!', 'success');
-        await refreshUI();
-      }
-    });
-  }
 
   // ============================================================
   // SEÇÕES E MODAIS
@@ -235,7 +210,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const formProject = document.getElementById('form-project');
 
   // ============================================================
-  // FUNÇÕES HELPER PARA COLUNAS
+  // FUNÇÕES HELPER PARA COLUNAS DO SUPABASE
   // ============================================================
 
   function getTransferFromMemberId(transfer) {
@@ -289,7 +264,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // BOTÕES DE VISIBILIDADE
-    const managerOnlyButtons = [btnNewMember, btnResetDb];
+    const managerOnlyButtons = [btnNewMember];
     managerOnlyButtons.forEach((btn) => {
       if (btn) {
         btn.style.display = manager ? 'inline-block' : 'none';
@@ -400,7 +375,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ============================================================
-  // BARRA DE NOTIFICAÇÕES (BUSCA TAREFA PELO ID E MUDA RESPONSÁVEL)
+  // BARRA DE NOTIFICAÇÕES
   // ============================================================
 
   async function renderTopNotificationBar() {
@@ -547,7 +522,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const now = new Date().toISOString();
 
-        // 1. ACEITAR SOLICITAÇÃO DE TRANSFERÊNCIA
+        // 1. ACEITAR
         if (target.classList.contains('btn-accept-transfer')) {
           e.preventDefault();
 
@@ -564,15 +539,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             const fromMemberId = getTransferFromMemberId(transfer);
 
             if (taskId && toMemberId) {
-              // Busca a tarefa na tabela tasks pelo seu id
               const task = await DB.get('tasks', taskId);
               if (task) {
                 task.member_id = toMemberId;
                 task.memberId = toMemberId;
                 await DB.save('tasks', task);
-                console.log('✅ Tarefa reatribuída no Supabase com sucesso para:', toMemberId);
-              } else {
-                console.error('❌ Não foi possível encontrar a tarefa na tabela tasks com id:', taskId);
               }
 
               // Remove o antigo dono da tabela de grupos
@@ -588,7 +559,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             showToast('Transferência de atividade aceita!', 'success');
           } catch (err) {
-            console.error('❌ Erro ao aceitar transferência:', err);
+            console.error('❌ Erro ao aceitar:', err);
           }
 
           await refreshUI();
@@ -628,14 +599,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ============================================================
-  // SOLICITAR TRANSFERÊNCIA (GARANTE task_id NA TABELA activity_transfers)
+  // SOLICITAR TRANSFERÊNCIA
   // ============================================================
 
   window.requestTaskTransfer = async function (taskId, toMemberId) {
     try {
       const fromMemberId = getLoggedMemberId();
 
-      // Garante que o taskId não esteja nulo nem undefined
       const cleanTaskId = String(taskId || '').trim();
 
       if (!cleanTaskId || cleanTaskId === 'null' || cleanTaskId === 'undefined') {
@@ -652,7 +622,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       const newTransfer = {
         id: 'tr-' + Date.now(),
-        task_id: cleanTaskId,       // 👈 Grava na coluna task_id da tabela activity_transfers
+        task_id: cleanTaskId,
         taskId: cleanTaskId,
         fromMemberId: fromMemberId,
         from_member_id: fromMemberId,
@@ -665,7 +635,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         responded_at: null
       };
 
-      console.log('🔄 Gravando em activity_transfers:', newTransfer);
       await DB.save('activity_transfers', newTransfer);
 
       showToast('Solicitação de transferência enviada com sucesso!', 'success');
@@ -902,6 +871,10 @@ document.addEventListener('DOMContentLoaded', async () => {
           document.getElementById('task-priority').value = task.priority || 'Média';
           document.getElementById('task-date').value = task.dueDate || '';
 
+          // Renderiza outros integrantes selecionados anteriormente
+          const currentGroupMemberIds = groupMembers.map((m) => m.id);
+          await renderTeamMembersCheckboxes(currentTaskMemberId, currentGroupMemberIds);
+
           const headerTitle = document.getElementById('modal-task-title-header');
           if (headerTitle) {
             headerTitle.textContent = '✏️ Editar Atividade';
@@ -1061,6 +1034,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       await populateTaskMemberSelect();
       await populateTaskProjectSelect();
 
+      const selectedMemberId = document.getElementById('task-member').value;
+      await renderTeamMembersCheckboxes(selectedMemberId, []);
+
       document.getElementById('task-date').value = new Date()
         .toISOString()
         .slice(0, 10);
@@ -1121,8 +1097,40 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   // ============================================================
-  // SELECTS
+  // SELECTS E RENDERIZAÇÃO DE EQUIPE/GRUPO DE MEMBROS
   // ============================================================
+
+  async function renderTeamMembersCheckboxes(selectedMemberId, selectedTeamMemberIds = []) {
+    const container = document.getElementById('task-team-members-container');
+    if (!container) return;
+
+    const members = (await DB.getAll('members')) || [];
+    const otherMembers = members.filter((m) => String(m.id) !== String(selectedMemberId));
+
+    if (otherMembers.length === 0) {
+      container.innerHTML = `<span style="font-size: 0.75rem; color: var(--text-dim);">Nenhum outro integrante disponível.</span>`;
+      return;
+    }
+
+    container.innerHTML = otherMembers
+      .map((m) => {
+        const isChecked = selectedTeamMemberIds.map(String).includes(String(m.id));
+        return `
+          <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem; color: var(--text-main); cursor: pointer;">
+            <input type="checkbox" class="chk-task-team-member" value="${m.id}" ${isChecked ? 'checked' : ''}>
+            <span>${m.name} <small style="color: var(--text-dim);">(${m.role || 'Membro'})</small></span>
+          </label>
+        `;
+      })
+      .join('');
+  }
+
+  const selectTaskMember = document.getElementById('task-member');
+  if (selectTaskMember) {
+    selectTaskMember.addEventListener('change', (e) => {
+      renderTeamMembersCheckboxes(e.target.value, []);
+    });
+  }
 
   async function populateTaskMemberSelect() {
     const select = document.getElementById('task-member');
@@ -1327,6 +1335,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       const priority = document.getElementById('task-priority').value;
       const dueDate = document.getElementById('task-date').value;
 
+      // Obtém os IDs dos colaboradores adicionais marcados
+      const teamMemberIds = Array.from(
+        document.querySelectorAll('.chk-task-team-member:checked')
+      ).map((cb) => cb.value);
+
       if (existingTaskId) {
         const task = await DB.get('tasks', existingTaskId);
 
@@ -1351,6 +1364,29 @@ document.addEventListener('DOMContentLoaded', async () => {
           task.dueDate = dueDate;
 
           await DB.save('tasks', task);
+
+          // Atualiza registros da tabela de grupo (task_members)
+          const existingTaskMembers = (await DB.getAll('task_members')) || [];
+          const currentGroupTasks = existingTaskMembers.filter(
+            (tm) => String(tm.taskId) === String(task.id)
+          );
+
+          for (const tm of currentGroupTasks) {
+            await DB.delete('task_members', tm.id);
+          }
+
+          for (const tMemberId of teamMemberIds) {
+            const newTm = {
+              id: 'tm-' + Date.now() + Math.floor(Math.random() * 1000),
+              taskId: task.id,
+              memberId: tMemberId,
+              member_id: tMemberId,
+              roleInTask: 'Colaborador',
+              createdAt: new Date().toISOString(),
+            };
+            await DB.save('task_members', newTm);
+          }
+
           UndoEngine.pushAction({
             type: 'TASK_UPDATE',
             previousState,
@@ -1377,6 +1413,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         };
 
         await DB.save('tasks', newTask);
+
+        // Cria os registros de integrantes adicionais na tabela task_members
+        for (const tMemberId of teamMemberIds) {
+          const newTm = {
+            id: 'tm-' + Date.now() + Math.floor(Math.random() * 1000),
+            taskId: newTask.id,
+            memberId: tMemberId,
+            member_id: tMemberId,
+            roleInTask: 'Colaborador',
+            createdAt: new Date().toISOString(),
+          };
+          await DB.save('task_members', newTm);
+        }
+
         UndoEngine.pushAction({
           type: 'TASK_CREATE',
           taskId: newTask.id,
