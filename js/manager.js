@@ -1,5 +1,5 @@
 /**
- * Visão do Gestor / Dashboard - Apresentação das Responsabilidades e Contratempos
+ * Visão do Gestor / Dashboard - Apresentação Fixa de Responsabilidades e Contratempos
  */
 
 import { DB } from './db.js';
@@ -16,23 +16,32 @@ export const ManagerEngine = {
     const tasks = (await DB.getAll('tasks')) || [];
     const impediments = (await DB.getAll('impediments')) || [];
 
-    this.renderMemberCards(members, tasks);
+    // Busca a matriz fixa de responsabilidades cadastrada no Portfólio
+    let portfolio = [];
+    try {
+      const records = await DB.getAll('cycle_templates');
+      if (records && records.length > 0) {
+        portfolio = records.map(r => r.data || r);
+      }
+    } catch (e) {
+      console.warn('⚡ Não foi possível carregar o portfólio no Dashboard.', e);
+    }
+
+    this.renderMemberCards(members, portfolio);
     this.renderImpedimentsAlertList(impediments, tasks, members, onViewEvidenceCallback);
     this.renderCalendarGrid(tasks, members, onOpenDayDetailsCallback);
   },
 
   /**
-   * Renderiza os cards de apresentação de responsabilidades por membro
+   * Renderiza os cards de apresentação de responsabilidades fixas por membro
    */
-  renderMemberCards(members, tasks) {
+  renderMemberCards(members, portfolio) {
     const container = document.getElementById('manager-members-grid');
     if (!container) return;
 
-    // 1. Identifica o nível de acesso e o ID do usuário logado
     const isManager = localStorage.getItem('logged_access_level') === 'gestor';
     const loggedMemberId = localStorage.getItem('logged_member_id');
 
-    // 2. SE FOR COLABORADOR: Exibe apenas o seu próprio perfil
     let visibleMembers = members;
     if (!isManager && loggedMemberId) {
       visibleMembers = members.filter(m => String(m.id) === String(loggedMemberId));
@@ -44,17 +53,15 @@ export const ManagerEngine = {
     }
 
     container.innerHTML = visibleMembers.map(member => {
-      // Busca as tarefas vinculadas a este colaborador
-      const memberTasks = tasks.filter(t => String(t.member_id || t.memberId) === String(member.id));
-
-      // Filtra tarefas ativas (A Fazer e Em Execução)
-      const activeTasks = memberTasks.filter(t => t.status !== 'CONCLUÍDO');
+      // Busca as responsabilidades fixas do colaborador no Portfólio
+      const memberData = portfolio.find(p => String(p.memberId) === String(member.id)) || { tasks: [] };
+      const responsibilities = memberData.tasks || [];
 
       return `
         <div class="manager-card member-summary-card" data-id="${member.id}" style="cursor: pointer; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 1.25rem; transition: transform 0.2s, border-color 0.2s;">
           
           <!-- Cabeçalho do Perfil -->
-          <div style="display:flex; align-items:center; justify-content:space-between; width:100%; margin-bottom: 1rem;">
+          <div style="display:flex; align-items:center; justify-space-between; width:100%; margin-bottom: 1rem;">
             <div style="display:flex; align-items:center; gap:0.75rem;">
               <img src="${member.photo || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(member.name)}" alt="${member.name}" class="manager-avatar" style="width: 44px; height: 44px; border-radius: 50%; object-fit: cover;">
               <div>
@@ -71,35 +78,35 @@ export const ManagerEngine = {
 
           <hr style="border: 0; border-top: 1px dashed var(--border-color); margin-bottom: 0.85rem;">
 
-          <!-- Resumo em Texto das Responsabilidades Atual -->
+          <!-- Apresentação em Texto das Responsabilidades Diretas no Setor -->
           <div style="font-size: 0.825rem;">
             <div style="font-weight: 700; color: var(--text-muted); margin-bottom: 0.5rem; display: flex; align-items: center; justify-content: space-between;">
-              <span>📋 Atividades Sob Responsabilidade:</span>
+              <span>📌 Responsabilidades Diretas no Setor:</span>
               <span style="font-size: 0.725rem; background: rgba(99,102,241,0.2); color: #a5b4fc; padding: 0.1rem 0.4rem; border-radius: 4px;">
-                ${activeTasks.length} ativa(s)
+                ${responsibilities.length} atribuição(ões)
               </span>
             </div>
 
-            ${activeTasks.length === 0 ? `
+            ${responsibilities.length === 0 ? `
               <p style="color: var(--text-dim); font-size: 0.775rem; font-style: italic; margin: 0;">
-                Sem atividades pendentes no momento.
+                Nenhuma responsabilidade vinculada a este perfil no portfólio.
               </p>
             ` : `
               <ul style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.4rem;">
-                ${activeTasks.slice(0, 4).map(t => `
-                  <li style="display: flex; align-items: center; justify-content: space-between; background: var(--bg-input); padding: 0.4rem 0.65rem; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
-                    <span style="color: var(--text-main); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px;">
-                      • ${t.title}
+                ${responsibilities.slice(0, 4).map(r => `
+                  <li style="display: flex; align-items: center; justify-content: space-between; background: var(--bg-input); padding: 0.45rem 0.65rem; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+                    <span style="color: var(--text-main); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 250px;">
+                      • ${r.title}
                     </span>
-                    <span class="badge-priority priority-${(t.priority || 'média').toLowerCase()}" style="font-size: 0.65rem; padding: 0.1rem 0.35rem;">
-                      ${t.status === 'EM EXECUÇÃO' ? '⚡ Em Andamento' : '📌 A Fazer'}
+                    <span style="font-size: 0.65rem; color: var(--text-dim); background: rgba(255,255,255,0.05); padding: 0.1rem 0.3rem; border-radius: 3px;">
+                      ${r.dayLimit || 'Recorrente'}
                     </span>
                   </li>
                 `).join('')}
 
-                ${activeTasks.length > 4 ? `
+                ${responsibilities.length > 4 ? `
                   <p style="font-size: 0.725rem; color: var(--accent-primary); font-weight: 700; margin-top: 0.2rem; text-align: right;">
-                    + ver mais ${activeTasks.length - 4} atividade(s)...
+                    + ver mais ${responsibilities.length - 4} responsabilidade(s)...
                   </p>
                 ` : ''}
               </ul>
@@ -110,17 +117,16 @@ export const ManagerEngine = {
       `;
     }).join('');
 
-    // Evento de clique para abrir o resumo completo em formato de texto
+    // Clique no Card para ver a Apresentação Completa das Responsabilidades
     container.querySelectorAll('.member-summary-card').forEach(card => {
       card.addEventListener('click', (e) => {
-        // Evita disparar ao clicar no botão "Perfil"
         if (e.target.closest('.btn-edit-member-profile')) return;
         const memberId = card.dataset.id;
-        this.openMemberResponsibilitiesModal(memberId, members, tasks);
+        this.openMemberResponsibilitiesModal(memberId, members, portfolio);
       });
     });
 
-    // Evento para editar perfil
+    // Clique no Botão Perfil
     container.querySelectorAll('.btn-edit-member-profile').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -141,15 +147,15 @@ export const ManagerEngine = {
   },
 
   /**
-   * Modal com a apresentação textual detalhada das responsabilidades da pessoa
+   * Modal de Apresentação das Atribuições do Colaborador no Setor
    */
-  openMemberResponsibilitiesModal(memberId, members, tasks) {
+  openMemberResponsibilitiesModal(memberId, members, portfolio) {
     const member = members.find(m => String(m.id) === String(memberId));
     if (!member) return;
 
-    const memberTasks = tasks.filter(t => String(t.member_id || t.memberId) === String(member.id));
+    const memberData = portfolio.find(p => String(p.memberId) === String(member.id)) || { tasks: [] };
+    const responsibilities = memberData.tasks || [];
 
-    // Remove modal antigo se houver
     const oldModal = document.getElementById('modal-member-text-summary');
     if (oldModal) oldModal.remove();
 
@@ -157,10 +163,10 @@ export const ManagerEngine = {
       <div id="modal-member-text-summary" class="modal-overlay active" style="position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.8); display:flex; align-items:center; justify-content:center; z-index:9999;">
         <div style="background: #111827; border: 1px solid #1f2937; border-radius: 12px; width: 100%; max-width: 620px; padding: 1.5rem; color: #f3f4f6; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);">
           
-          <!-- Cabeçalho -->
+          <!-- Cabeçalho com dados do Membro -->
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; border-bottom: 1px solid #1f2937; padding-bottom: 0.75rem;">
             <div style="display: flex; align-items: center; gap: 0.75rem;">
-              <img src="${member.photo || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(member.name)}" alt="${member.name}" style="width: 46px; height: 46px; border-radius: 50%; object-fit: cover; border: 2px solid #6366f1;">
+              <img src="${member.photo || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(member.name)}" alt="${member.name}" style="width: 48px; height: 48px; border-radius: 50%; object-fit: cover; border: 2px solid #6366f1;">
               <div>
                 <h3 style="font-size: 1.1rem; font-weight: 700; color: #ffffff; margin: 0;">${member.name}</h3>
                 <span style="font-size: 0.8rem; color: #9ca3af;">${member.role || 'Colaborador'}</span>
@@ -169,33 +175,28 @@ export const ManagerEngine = {
             <button id="btn-close-summary-modal" style="background: none; border: none; color: #9ca3af; font-size: 1.25rem; cursor: pointer;">✕</button>
           </div>
 
-          <!-- Apresentação em Texto das Atividades -->
+          <!-- Texto de Apresentação das Responsabilidades -->
           <div style="max-height: 380px; overflow-y: auto; padding-right: 0.5rem;">
-            <h4 style="font-size: 0.9rem; font-weight: 700; color: #a5b4fc; margin-bottom: 0.75rem;">
-              📋 Apresentação de Responsabilidades Atuais (${memberTasks.length})
+            <h4 style="font-size: 0.9rem; font-weight: 700; color: #a5b4fc; margin-bottom: 0.85rem;">
+              📌 Matriz de Responsabilidades do Setor (${responsibilities.length})
             </h4>
 
-            ${memberTasks.length === 0 ? `
+            ${responsibilities.length === 0 ? `
               <p style="text-align: center; color: #9ca3af; padding: 2rem 0; font-size: 0.85rem;">
-                Este colaborador não possui nenhuma atividade atribuída no momento.
+                Nenhuma responsabilidade fixada para este colaborador no portfólio do setor.
               </p>
-            ` : memberTasks.map(t => `
+            ` : responsibilities.map(r => `
               <div style="background: #1f2937; border: 1px solid #374151; border-radius: 8px; padding: 0.85rem; margin-bottom: 0.75rem;">
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.35rem;">
-                  <strong style="font-size: 0.9rem; color: #ffffff;">${t.title}</strong>
-                  <span style="font-size: 0.7rem; font-weight: 700; padding: 0.15rem 0.5rem; border-radius: 4px; background: ${t.status === 'CONCLUÍDO' ? '#10b981' : t.status === 'EM EXECUÇÃO' ? '#f59e0b' : '#6366f1'}; color: #ffffff;">
-                    ${t.status}
+                  <strong style="font-size: 0.9rem; color: #ffffff;">${r.title}</strong>
+                  <span style="font-size: 0.7rem; font-weight: 700; padding: 0.15rem 0.5rem; border-radius: 4px; background: rgba(99, 102, 241, 0.2); color: #818cf8;">
+                    ${r.dayLimit || 'Recorrente'}
                   </span>
                 </div>
                 
-                <p style="font-size: 0.8rem; color: #9ca3af; margin: 0 0 0.5rem 0; line-height: 1.4;">
-                  ${t.description || 'Sem descrição cadastrada.'}
+                <p style="font-size: 0.8rem; color: #9ca3af; margin: 0; line-height: 1.4;">
+                  ${r.desc || 'Sem requisitos ou detalhes cadastrados.'}
                 </p>
-
-                <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; color: #6b7280; border-top: 1px solid #374151; padding-top: 0.4rem;">
-                  <span>🎯 Prioridade: <strong style="color: #d1d5db;">${t.priority || 'Média'}</strong></span>
-                  <span>🗓️ Prazo: <strong style="color: #d1d5db;">${t.dueDate ? t.dueDate.split('-').reverse().join('/') : 'Sem Prazo'}</strong></span>
-                </div>
               </div>
             `).join('')}
           </div>
@@ -224,7 +225,7 @@ export const ManagerEngine = {
   },
 
   /**
-   * Renderiza a lista detalhada de contratempos
+   * Renderiza a lista de contratempos
    */
   renderImpedimentsAlertList(impediments, tasks, members, onViewEvidence) {
     const container = document.getElementById('impediments-list-container');
@@ -262,7 +263,7 @@ export const ManagerEngine = {
       const dateFormatted = new Date(imp.createdAt).toLocaleString('pt-BR');
 
       return `
-        <div style="background:var(--bg-input); border:1px solid var(--border-color); border-radius:var(--radius-md); padding:1rem; margin-bottom:0.75rem; display:flex; justify-content:space-between; align-items:flex-start; gap:1rem; flex-wrap:wrap;">
+        <div style="background:var(--bg-input); border:1px solid var(--border-color); border-radius:var(--radius-md); padding:1rem; margin-bottom:0.75rem; display:flex; justify-space-between; align-items:flex-start; gap:1rem; flex-wrap:wrap;">
           <div style="flex:1;">
             <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.4rem;">
               <span class="badge-impediment">⚠️ Contratempo</span>
