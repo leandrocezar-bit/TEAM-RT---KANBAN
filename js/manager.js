@@ -17,7 +17,7 @@ export const ManagerEngine = {
     const tasks = (await DB.getAll('tasks')) || [];
     const impediments = (await DB.getAll('impediments')) || [];
 
-    this.renderMemberCards(members, tasks, impediments, onDeleteMemberCallback);
+    this.renderMemberCards(members, tasks, impediments);
     this.renderImpedimentsAlertList(impediments, tasks, members, onViewEvidenceCallback);
     this.renderCalendarGrid(tasks, members, onOpenDayDetailsCallback);
   },
@@ -25,7 +25,7 @@ export const ManagerEngine = {
   /**
    * Renderiza os cards de desempenho individual por membro da equipe
    */
-  renderMemberCards(members, tasks, impediments, onDeleteMember) {
+  renderMemberCards(members, tasks, impediments) {
     const container = document.getElementById('manager-members-grid');
     if (!container) return;
 
@@ -75,14 +75,6 @@ export const ManagerEngine = {
               <button class="btn-edit-member-profile" data-id="${member.id}" title="Editar Perfil" style="background:rgba(99,102,241,0.12); color:#818cf8; border:1px solid rgba(99,102,241,0.3); border-radius:var(--radius-sm); padding:0.3rem 0.5rem; font-size:0.75rem; font-weight:700; cursor:pointer;">
                 ✏️ Perfil
               </button>
-
-              ${/* Botão Excluir renderiza SOMENTE para Gestores */
-        isManager ? `
-                  <button class="btn-delete-member" data-id="${member.id}" data-name="${member.name}" title="Excluir Membro" style="background:rgba(239,68,68,0.12); color:#ef4444; border:1px solid rgba(239,68,68,0.3); border-radius:var(--radius-sm); padding:0.3rem 0.5rem; font-size:0.75rem; font-weight:700; cursor:pointer;">
-                    🗑️
-                  </button>
-                ` : ''
-        }
             </div>
           </div>
 
@@ -114,12 +106,6 @@ export const ManagerEngine = {
       `;
     }).join('');
 
-    container.querySelectorAll('.btn-delete-member').forEach(btn => {
-      btn.addEventListener('click', () => {
-        if (onDeleteMember) onDeleteMember(btn.dataset.id, btn.dataset.name);
-      });
-    });
-
     container.querySelectorAll('.btn-edit-member-profile').forEach(btn => {
       btn.addEventListener('click', async () => {
         const member = members.find(m => String(m.id) === String(btn.dataset.id));
@@ -139,20 +125,18 @@ export const ManagerEngine = {
   },
 
   /**
-   * Renderiza a lista detalhada de contratempos (Filtrada por permissão)
+   * Renderiza a lista detalhada de contratempos
    */
   renderImpedimentsAlertList(impediments, tasks, members, onViewEvidence) {
     const container = document.getElementById('impediments-list-container');
     if (!container) return;
 
-    // 1. Identifica o nível de acesso e o ID do usuário logado
     const isManager = localStorage.getItem('logged_access_level') === 'gestor';
     const loggedMemberId = localStorage.getItem('logged_member_id');
 
     const tasksMap = new Map(tasks.map(t => [String(t.id), t]));
     const membersMap = new Map(members.map(m => [String(m.id), m]));
 
-    // 2. SE FOR COLABORADOR: Filtra apenas os contratempos das suas próprias tarefas
     let visibleImpediments = impediments;
     if (!isManager && loggedMemberId) {
       visibleImpediments = impediments.filter(imp => {
@@ -208,7 +192,7 @@ export const ManagerEngine = {
   },
 
   /**
-   * Renderiza a Visão de Calendário Editável com Avisos de 2 dias e Filtros
+   * Renderiza a Visão de Calendário Editável
    */
   renderCalendarGrid(tasks, members, onOpenDayDetails) {
     const container = document.getElementById('calendar-grid-container');
@@ -225,13 +209,11 @@ export const ManagerEngine = {
     const weekDays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
     const today = new Date();
 
-    // Filtra tarefas por membro selecionado no calendário (Agenda do Colaborador)
     const calendarTasks = this.selectedCalendarMemberId === 'all'
       ? tasks
       : tasks.filter(t => String(t.member_id || t.memberId) === String(this.selectedCalendarMemberId));
 
     let html = `
-      <!-- Filtro por Colaborador no Calendário -->
       <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.75rem; grid-column:span 7; margin-bottom:1rem;">
         <div style="display:flex; align-items:center; gap:0.5rem;">
           <label style="font-size:0.8rem; font-weight:700; color:var(--text-muted);">👤 Agenda do Colaborador:</label>
@@ -264,7 +246,6 @@ export const ManagerEngine = {
       const dayTasks = calendarTasks.filter(t => t.dueDate === dateStr);
       const isToday = isCurrentMonth && day === today.getDate();
 
-      // Verifica avisos de 2 dias de antecedência
       const dayDate = new Date(year, month, day);
       const diffTime = dayDate.getTime() - today.getTime();
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
@@ -288,7 +269,6 @@ export const ManagerEngine = {
 
     container.innerHTML = html;
 
-    // Attach de eventos
     const selectMember = document.getElementById('select-calendar-member-filter');
     if (selectMember) {
       selectMember.addEventListener('change', (e) => {
@@ -314,7 +294,6 @@ export const ManagerEngine = {
       });
     }
 
-    // Clique no dia abre o modal com as tarefas daquele dia específico
     container.querySelectorAll('.calendar-day-clickable').forEach(cell => {
       cell.addEventListener('click', () => {
         const dateStr = cell.dataset.date;
