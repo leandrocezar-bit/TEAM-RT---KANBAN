@@ -1,5 +1,5 @@
 /**
- * Portfólio do Setor & Matriz de Responsabilidades por Colaborador
+ * Portfólio do Setor - Matriz Fixa de Responsabilidades por Colaborador
  */
 
 import { DB } from './db.js';
@@ -7,7 +7,7 @@ import { TimerEngine } from './timer.js';
 
 export const MapEngine = {
   /**
-   * Obtém a lista atualizada de responsabilidades da tabela "cycle_templates"
+   * Obtém a lista atualizada de dados do portfólio da tabela "cycle_templates"
    */
   async getSectorPortfolio() {
     try {
@@ -38,10 +38,10 @@ export const MapEngine = {
     });
 
     this.renderHeaderMetrics(tasks);
-    this.renderMembersPortfolioGrid(portfolio, tasks, members);
+    this.renderMembersPortfolioGrid(portfolio, members);
     this.renderRoadmapTable(tasks, membersMap, impMap);
 
-    this.attachEvents(portfolio, members);
+    this.attachEvents(portfolio);
   },
 
   /**
@@ -98,13 +98,12 @@ export const MapEngine = {
   },
 
   /**
-   * Renderiza a grade de Caixas por Colaborador (Com trava de permissão)
+   * Renderiza a grade de Cartões Informativos por Colaborador (Informativo de Atribuições)
    */
-  renderMembersPortfolioGrid(portfolio, tasks, members) {
+  renderMembersPortfolioGrid(portfolio, members) {
     const container = document.getElementById('map-organogram-grid');
     if (!container) return;
 
-    // 1. Identifica permissão e ID do usuário logado
     const isManager = localStorage.getItem('logged_access_level') === 'gestor';
     const loggedMemberId = localStorage.getItem('logged_member_id');
 
@@ -118,88 +117,49 @@ export const MapEngine = {
     }
 
     container.innerHTML = members.map(member => {
-      // 2. Verifica se o usuário atual pode editar esta caixa específica
       const canEditCard = isManager || String(loggedMemberId) === String(member.id);
 
-      // Encontra ou inicializa o portfólio deste colaborador
       const memberData = portfolio.find(p => String(p.memberId) === String(member.id)) || {
         id: 'port-' + member.id,
         memberId: member.id,
-        tasks: []
+        responsibilitiesText: ''
       };
 
-      const memberResponsibilities = memberData.tasks || [];
+      const responsibilitiesText = memberData.responsibilitiesText || (memberData.tasks ? memberData.tasks.map(t => `• ${t.title}: ${t.desc || ''}`).join('\n') : '');
 
       return `
-        <div class="card-panel" style="border-top: 3px solid ${canEditCard ? '#6366f1' : 'var(--border-color)'}; background: var(--bg-card); border-radius: var(--radius-lg); padding: 1.25rem;">
+        <div class="card-panel" style="background: var(--bg-card, #111827); border: 1px solid var(--border-color, #1f2937); border-radius: var(--radius-lg, 12px); padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
           
-          <!-- Cabeçalho da Caixa do Colaborador -->
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border-color);">
-            <div style="display: flex; align-items: center; gap: 0.75rem;">
-              <img src="${member.photo || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(member.name)}" 
-                   alt="${member.name}" 
-                   style="width: 42px; height: 42px; border-radius: 50%; object-fit: cover; border: 2px solid var(--accent-primary);">
-              <div>
-                <h3 style="font-size: 0.95rem; font-weight: 700; color: var(--text-main); margin: 0;">${member.name}</h3>
-                <span style="font-size: 0.75rem; color: var(--text-muted); display: block;">${member.role || 'Colaborador'}</span>
-              </div>
+          <!-- Cabeçalho do Perfil -->
+          <div style="display: flex; align-items: center; gap: 1rem; background: rgba(255,255,255,0.03); padding: 0.85rem 1rem; border-radius: 8px; border: 1px solid var(--border-color, #1f2937);">
+            <img src="${member.photo || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(member.name)}" 
+                 alt="${member.name}" 
+                 style="width: 52px; height: 52px; border-radius: 50%; object-fit: cover; border: 2px solid var(--accent-primary, #6366f1); flex-shrink: 0;">
+            <div>
+              <h3 style="font-size: 1.05rem; font-weight: 800; color: #ffffff; margin: 0;">${member.name}</h3>
+              <span style="font-size: 0.8rem; color: var(--text-muted, #9ca3af); display: block; margin-top: 0.15rem;">${member.role || 'Colaborador'}</span>
             </div>
-
-            ${/* Botão só aparece se for o dono da caixa ou se for Gestor */
-        canEditCard ? `
-                <button class="btn btn-primary btn-add-member-task" data-member-id="${member.id}" style="font-size: 0.75rem; padding: 0.35rem 0.65rem;">
-                  ➕ Add Responsabilidade
-                </button>
-              ` : ''
-        }
           </div>
 
-          <!-- Lista de Responsabilidades do Colaborador -->
-          <div style="display: flex; flex-direction: column; gap: 0.75rem;">
-            ${memberResponsibilities.length === 0 ? `
-              <div style="text-align: center; padding: 1.5rem 0.5rem; color: var(--text-dim); font-size: 0.8rem; border: 1px dashed var(--border-color); border-radius: var(--radius-md);">
-                Nenhuma responsabilidade vinculada a este colaborador ainda.
+          <!-- Caixa de Atribuições / Responsabilidades do Membro -->
+          <div style="display: flex; flex-direction: column; gap: 0.5rem; flex: 1;">
+            <label style="font-size: 0.9rem; font-weight: 700; color: var(--text-main, #f3f4f6); display: flex; align-items: center; gap: 0.4rem;">
+              📌 Responsabilidades:
+            </label>
+            
+            <textarea class="textarea-responsibilities" 
+                      data-member-id="${member.id}" 
+                      ${!canEditCard ? 'readonly' : ''} 
+                      placeholder="Descreva aqui as atribuições, escopo e responsabilidades do membro no setor..." 
+                      style="width: 100%; min-height: 120px; background: var(--bg-input, #1f2937); border: 1px solid var(--border-color, #374151); border-radius: 8px; padding: 0.75rem; color: #f3f4f6; font-size: 0.85rem; line-height: 1.5; resize: vertical; outline: none; ${!canEditCard ? 'opacity: 0.85; cursor: default;' : ''}">${responsibilitiesText}</textarea>
+
+            ${canEditCard ? `
+              <div style="display: flex; justify-content: flex-end; margin-top: 0.25rem;">
+                <button class="btn btn-primary btn-save-responsibilities" data-member-id="${member.id}" style="font-size: 0.75rem; padding: 0.4rem 0.85rem; font-weight: 700;">
+                  💾 Salvar Responsabilidades
+                </button>
               </div>
-            ` : memberResponsibilities.map(t => {
-          const activeTask = tasks.find(item => item.title === t.title && String(item.member_id || item.memberId) === String(member.id));
-
-          let statusBadge = `<span class="badge" style="background:rgba(255,255,255,0.08); color:var(--text-dim);">Fixo do Setor</span>`;
-          if (activeTask) {
-            const badgeClass = activeTask.status === 'EM EXECUÇÃO' ? 'badge-pending' : activeTask.status === 'CONCLUÍDO' ? 'badge-approved' : 'badge-rate';
-            statusBadge = `<span class="badge ${badgeClass}">${activeTask.status}</span>`;
-          }
-
-          return `
-                <div style="background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 0.85rem;">
-                  <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.35rem; gap: 0.5rem;">
-                    <strong style="font-size: 0.85rem; color: var(--text-main);">${t.title}</strong>
-                    <div style="display: flex; align-items: center; gap: 0.3rem;">
-                      ${statusBadge}
-                      ${/* Botões de Edição/Exclusão aparecem apenas para quem tem permissão nesta caixa */
-            canEditCard ? `
-                          <button class="btn-edit-member-task" data-member-id="${member.id}" data-task-id="${t.id}" title="Editar Responsabilidade" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:0.75rem; padding:0 0.2rem;">✏️</button>
-                          <button class="btn-delete-member-task" data-member-id="${member.id}" data-task-id="${t.id}" title="Excluir Responsabilidade" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:0.75rem; padding:0 0.2rem;">🗑️</button>
-                        ` : ''
-            }
-                    </div>
-                  </div>
-
-                  <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.6rem;">${t.desc || 'Sem detalhes cadastrados.'}</p>
-
-                  <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border-color); padding-top: 0.4rem; font-size: 0.75rem;">
-                    <span style="color: var(--text-dim); font-weight: 600;">🗓️ Limite: ${t.dayLimit || 'A definir'}</span>
-                    <button class="btn btn-secondary btn-launch-dp-task" 
-                            data-title="${t.title}" 
-                            data-desc="${t.desc || ''}" 
-                            data-priority="${t.priority || 'Média'}" 
-                            data-member="${member.id}"
-                            style="font-size: 0.7rem; padding: 0.25rem 0.5rem;">
-                      ⚡ ${activeTask ? 'No Kanban' : '+ Lançar no Kanban'}
-                    </button>
-                  </div>
-                </div>
-              `;
-        }).join('')}
+            ` : ''}
           </div>
 
         </div>
@@ -208,7 +168,7 @@ export const MapEngine = {
   },
 
   /**
-   * Tabela Roadmap Geral
+   * Renderiza a Tabela Roadmap Geral de Acompanhamento no Fundo da Tela
    */
   renderRoadmapTable(tasks, membersMap, impMap) {
     const container = document.getElementById('map-roadmap-table-body');
@@ -217,7 +177,7 @@ export const MapEngine = {
     if (tasks.length === 0) {
       container.innerHTML = `
         <tr>
-          <td colspan="7" style="text-align:center; padding:2rem; color:var(--text-dim);">Nenhuma demanda em execução no momento.</td>
+          <td colspan="8" style="text-align:center; padding:2rem; color:var(--text-dim);">Nenhuma demanda cadastrada no momento.</td>
         </tr>
       `;
       return;
@@ -229,7 +189,6 @@ export const MapEngine = {
       const taskOwnerId = task.member_id || task.memberId;
       const member = membersMap.get(String(taskOwnerId)) || { name: 'Não atribuído', photo: '' };
       const taskImpediments = impMap.get(String(task.id)) || [];
-      const elapsedSecs = TimerEngine.getCurrentElapsedSeconds(task);
 
       let deadlineBadge = '';
       if (task.status === 'CONCLUÍDO') {
@@ -244,11 +203,35 @@ export const MapEngine = {
         deadlineBadge = `<span class="badge" style="background:rgba(16,185,129,0.2); color:#10b981; border:1px solid rgba(16,185,129,0.4);">🟢 No Prazo</span>`;
       }
 
+      let timeIntervalStr = '-';
+      const startIso = task.lastTimerStartedAt || task.createdAt;
+      if (startIso) {
+        const startTime = new Date(startIso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        let endTime = 'Em andamento';
+        if (task.status === 'CONCLUÍDO') {
+          const endIso = task.completedAt || task.lastTimerStoppedAt || task.updatedAt;
+          if (endIso) {
+            endTime = new Date(endIso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+          }
+        } else if (!task.isTimerRunning && task.lastTimerStoppedAt) {
+          endTime = new Date(task.lastTimerStoppedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        }
+        timeIntervalStr = `🕒 ${startTime} às ${endTime}`;
+      }
+
+      let completionDateStr = '-';
+      if (task.status === 'CONCLUÍDO') {
+        const rawCompletion = task.completedAt || task.updatedAt;
+        if (rawCompletion) {
+          completionDateStr = new Date(rawCompletion).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        }
+      }
+
       return `
         <tr>
           <td>
             <strong>${task.title}</strong>
-            <div style="font-size:0.75rem; color:var(--text-dim); text-overflow:ellipsis; overflow:hidden; white-space:nowrap; max-width:260px;">
+            <div style="font-size:0.75rem; color:var(--text-dim); text-overflow:ellipsis; overflow:hidden; white-space:nowrap; max-width:240px;">
               ${task.description || ''}
             </div>
           </td>
@@ -264,9 +247,11 @@ export const MapEngine = {
           <td><strong>${task.status}</strong></td>
           <td>${task.dueDate ? task.dueDate.split('-').reverse().join('/') : '-'}</td>
           <td>${deadlineBadge}</td>
-          <td>
-            <span style="font-family:monospace; font-weight:700;">⏱️ ${TimerEngine.formatTime(elapsedSecs)}</span>
-            ${taskImpediments.length > 0 ? `<div style="font-size:0.7rem; color:#ef4444;">⚠️ Contratempo</div>` : ''}
+          <td style="font-size:0.775rem; color:var(--text-main); font-weight:600; white-space:nowrap;">
+            ${timeIntervalStr}
+          </td>
+          <td style="font-size:0.775rem; font-weight:700; color:${task.status === 'CONCLUÍDO' ? '#10b981' : 'var(--text-dim)'}; white-space:nowrap;">
+            ${completionDateStr}
           </td>
         </tr>
       `;
@@ -274,262 +259,38 @@ export const MapEngine = {
   },
 
   /**
-   * Eventos Interativos com travas de segurança
+   * Evento para salvar o texto das responsabilidades
    */
-  attachEvents(portfolio, members) {
-    const isManager = localStorage.getItem('logged_access_level') === 'gestor';
-    const loggedMemberId = localStorage.getItem('logged_member_id');
-
-    // Helper para verificar permissão antes de salvar
-    const checkPermission = (targetMemberId) => {
-      if (!isManager && String(loggedMemberId) !== String(targetMemberId)) {
-        alert('Você só tem permissão para alterar as responsabilidades do seu próprio cartão!');
-        return false;
-      }
-      return true;
-    };
-
-    // 1. Lançar no Kanban
-    document.querySelectorAll('.btn-launch-dp-task').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const title = btn.dataset.title;
-        const desc = btn.dataset.desc;
-        const priority = btn.dataset.priority;
-        const memberId = btn.dataset.member;
-
-        const tasks = (await DB.getAll('tasks')) || [];
-        const exists = tasks.some(t => t.title === title && String(t.member_id || t.memberId) === String(memberId));
-
-        if (exists) {
-          alert('Esta atividade já foi enviada para o Kanban deste colaborador!');
-          return;
-        }
-
-        const newTask = {
-          id: 't-dp-' + Date.now(),
-          title,
-          description: desc,
-          member_id: memberId,
-          memberId: memberId,
-          priority: priority || 'Média',
-          dueDate: new Date().toISOString().slice(0, 10),
-          status: 'A FAZER',
-          elapsedSeconds: 0,
-          isTimerRunning: false,
-          lastTimerStartedAt: null,
-          createdAt: new Date().toISOString()
-        };
-
-        await DB.save('tasks', newTask);
-        alert(`Atividade "${title}" enviada para o Kanban!`);
-        this.renderSectorMap();
-      });
-    });
-
-    // 2. Adicionar Responsabilidade ao Colaborador
-    document.querySelectorAll('.btn-add-member-task').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const memberId = btn.dataset.memberId;
-        if (!checkPermission(memberId)) return;
-        this.openCustomModal(memberId, null, portfolio, members);
-      });
-    });
-
-    // 3. Editar Responsabilidade
-    document.querySelectorAll('.btn-edit-member-task').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const memberId = btn.dataset.memberId;
-        const taskId = btn.dataset.taskId;
-        if (!checkPermission(memberId)) return;
-        this.openCustomModal(memberId, taskId, portfolio, members);
-      });
-    });
-
-    // 4. Excluir Responsabilidade
-    document.querySelectorAll('.btn-delete-member-task').forEach(btn => {
+  attachEvents(portfolio) {
+    document.querySelectorAll('.btn-save-responsibilities').forEach(btn => {
       btn.addEventListener('click', async () => {
         const memberId = btn.dataset.memberId;
-        const taskId = btn.dataset.taskId;
+        const textarea = document.querySelector(`.textarea-responsibilities[data-member-id="${memberId}"]`);
+        if (!textarea) return;
 
-        if (!checkPermission(memberId)) return;
+        const newText = textarea.value.trim();
 
-        if (confirm('Deseja remover esta responsabilidade da lista deste colaborador?')) {
-          const memberData = portfolio.find(p => String(p.memberId) === String(memberId));
-          if (memberData) {
-            memberData.tasks = (memberData.tasks || []).filter(t => String(t.id) !== String(taskId));
+        let memberData = portfolio.find(p => String(p.memberId) === String(memberId));
 
-            const payload = {
-              id: memberData.id,
-              data: memberData
-            };
-            await DB.save('cycle_templates', payload);
-
-            alert('Responsabilidade removida!');
-            this.renderSectorMap();
-          }
-        }
-      });
-    });
-  },
-
-  /**
-   * Modal de Formulário Completo
-   */
-  openCustomModal(memberId, taskId, portfolio, members) {
-    let currentTask = { title: '', desc: '', dayLimit: '', priority: 'Média' };
-    const currentMember = members.find(m => String(m.id) === String(memberId)) || members[0];
-
-    let memberData = portfolio.find(p => String(p.memberId) === String(memberId));
-    if (memberData && taskId) {
-      const t = (memberData.tasks || []).find(item => String(item.id) === String(taskId));
-      if (t) currentTask = t;
-    }
-
-    const isManager = localStorage.getItem('logged_access_level') === 'gestor';
-
-    const oldModal = document.getElementById('modal-custom-map-task');
-    if (oldModal) oldModal.remove();
-
-    const modalHtml = `
-      <div id="modal-custom-map-task" class="modal-overlay active" style="position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.75); display:flex; align-items:center; justify-content:center; z-index:9999;">
-        <div style="background: #111827; border: 1px solid #1f2937; border-radius: 12px; width: 100%; max-width: 580px; padding: 1.5rem; color: #f3f4f6; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);">
-          
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
-            <h3 style="font-size: 1.15rem; font-weight: 700; color: #ffffff; display: flex; align-items: center; gap: 0.5rem; margin:0;">
-              📌 ${taskId ? 'Editar Responsabilidade' : 'Nova Responsabilidade Direta'}
-            </h3>
-            <button id="btn-close-map-modal" style="background: none; border: none; color: #9ca3af; font-size: 1.25rem; cursor: pointer;">✕</button>
-          </div>
-
-          <form id="form-custom-map-task">
-            <!-- Título -->
-            <div style="margin-bottom: 1rem;">
-              <label style="display: block; font-size: 0.8rem; font-weight: 600; color: #9ca3af; margin-bottom: 0.35rem;">
-                Título da Atividade / Requisito *
-              </label>
-              <input type="text" id="map-input-title" required value="${currentTask.title}" placeholder="Ex: Fechamento da Folha de Pagamento" style="width: 100%; background: #1f2937; border: 1px solid #374151; border-radius: 6px; padding: 0.6rem 0.8rem; color: #ffffff; font-size: 0.875rem; outline: none;">
-            </div>
-
-            <!-- Responsável -->
-            <div style="margin-bottom: 1rem;">
-              <label style="display: block; font-size: 0.8rem; font-weight: 600; color: #9ca3af; margin-bottom: 0.35rem;">
-                Responsável Direto no Setor *
-              </label>
-              <select id="map-select-member" required ${!isManager ? 'disabled style="opacity:0.7; width: 100%; background: #1f2937; border: 1px solid #374151; border-radius: 6px; padding: 0.6rem 0.8rem; color: #ffffff; font-size: 0.85rem; outline: none;"' : 'style="width: 100%; background: #1f2937; border: 1px solid #374151; border-radius: 6px; padding: 0.6rem 0.8rem; color: #ffffff; font-size: 0.85rem; outline: none;"'}>
-                ${members.map(m => `
-                  <option value="${m.id}" ${String(m.id) === String(currentMember.id) ? 'selected' : ''}>
-                    ${m.name} (${m.role || 'Membro'})
-                  </option>
-                `).join('')}
-              </select>
-            </div>
-
-            <!-- Prioridade e Prazo -->
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem; margin-bottom: 1rem;">
-              <div>
-                <label style="display: block; font-size: 0.8rem; font-weight: 600; color: #9ca3af; margin-bottom: 0.35rem;">
-                  Prioridade *
-                </label>
-                <select id="map-select-priority" required style="width: 100%; background: #1f2937; border: 1px solid #374151; border-radius: 6px; padding: 0.6rem 0.8rem; color: #ffffff; font-size: 0.85rem; outline: none;">
-                  <option value="Baixa" ${currentTask.priority === 'Baixa' ? 'selected' : ''}>Baixa</option>
-                  <option value="Média" ${currentTask.priority === 'Média' || !currentTask.priority ? 'selected' : ''}>Média</option>
-                  <option value="Alta" ${currentTask.priority === 'Alta' ? 'selected' : ''}>Alta</option>
-                </select>
-              </div>
-
-              <div>
-                <label style="display: block; font-size: 0.8rem; font-weight: 600; color: #9ca3af; margin-bottom: 0.35rem;">
-                  Prazo Limite / Frequência *
-                </label>
-                <input type="text" id="map-input-limit" required value="${currentTask.dayLimit || 'Dia 05'}" placeholder="Ex: Dia 05, Semanal, Recorrente" style="width: 100%; background: #1f2937; border: 1px solid #374151; border-radius: 6px; padding: 0.6rem 0.8rem; color: #ffffff; font-size: 0.85rem; outline: none;">
-              </div>
-            </div>
-
-            <!-- Descrição -->
-            <div style="margin-bottom: 1.5rem;">
-              <label style="display: block; font-size: 0.8rem; font-weight: 600; color: #9ca3af; margin-bottom: 0.35rem;">
-                Instruções e Requisitos
-              </label>
-              <textarea id="map-input-desc" rows="3" placeholder="Detalhes de como executar essa responsabilidade..." style="width: 100%; background: #1f2937; border: 1px solid #374151; border-radius: 6px; padding: 0.6rem 0.8rem; color: #ffffff; font-size: 0.85rem; outline: none; resize: vertical;">${currentTask.desc || ''}</textarea>
-            </div>
-
-            <!-- Botões de Ação -->
-            <div style="display: flex; justify-content: flex-end; gap: 0.75rem;">
-              <button type="button" id="btn-cancel-map-modal" style="background: #374151; color: #ffffff; border: none; border-radius: 8px; padding: 0.6rem 1.25rem; font-size: 0.875rem; font-weight: 600; cursor: pointer;">
-                Cancelar
-              </button>
-              <button type="submit" style="background: linear-gradient(135deg, #8b5cf6, #6366f1); color: #ffffff; border: none; border-radius: 8px; padding: 0.6rem 1.25rem; font-size: 0.875rem; font-weight: 700; cursor: pointer;">
-                ${taskId ? 'Salvar Alterações' : 'Salvar Responsabilidade'}
-              </button>
-            </div>
-          </form>
-
-        </div>
-      </div>
-    `;
-
-    document.body.insertAdjacentHTML('beforeend', modalHtml);
-
-    const modal = document.getElementById('modal-custom-map-task');
-    const closeBtn = document.getElementById('btn-close-map-modal');
-    const cancelBtn = document.getElementById('btn-cancel-map-modal');
-    const form = document.getElementById('form-custom-map-task');
-
-    const closeModal = () => modal.remove();
-
-    closeBtn.addEventListener('click', closeModal);
-    cancelBtn.addEventListener('click', closeModal);
-
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-
-      const title = document.getElementById('map-input-title').value.trim();
-      const selectedMemberId = document.getElementById('map-select-member').value;
-      const priority = document.getElementById('map-select-priority').value;
-      const dayLimit = document.getElementById('map-input-limit').value.trim();
-      const desc = document.getElementById('map-input-desc').value.trim();
-
-      let targetMemberData = portfolio.find(p => String(p.memberId) === String(selectedMemberId));
-
-      if (!targetMemberData) {
-        targetMemberData = {
-          id: 'port-' + selectedMemberId,
-          memberId: selectedMemberId,
-          tasks: []
-        };
-        portfolio.push(targetMemberData);
-      }
-
-      if (taskId) {
-        const taskIndex = (targetMemberData.tasks || []).findIndex(t => String(t.id) === String(taskId));
-        if (taskIndex !== -1) {
-          targetMemberData.tasks[taskIndex] = {
-            ...targetMemberData.tasks[taskIndex],
-            title,
-            desc,
-            dayLimit,
-            priority
+        if (!memberData) {
+          memberData = {
+            id: 'port-' + memberId,
+            memberId: memberId,
+            responsibilitiesText: newText
           };
+          portfolio.push(memberData);
+        } else {
+          memberData.responsibilitiesText = newText;
         }
-      } else {
-        if (!targetMemberData.tasks) targetMemberData.tasks = [];
-        targetMemberData.tasks.push({
-          id: 'resp-' + Date.now(),
-          title,
-          desc,
-          dayLimit,
-          priority
-        });
-      }
 
-      const payload = {
-        id: targetMemberData.id,
-        data: targetMemberData
-      };
+        const payload = {
+          id: memberData.id,
+          data: memberData
+        };
 
-      await DB.save('cycle_templates', payload);
-      closeModal();
-      this.renderSectorMap();
+        await DB.save('cycle_templates', payload);
+        alert('Responsabilidades atualizadas com sucesso!');
+      });
     });
   }
 };
