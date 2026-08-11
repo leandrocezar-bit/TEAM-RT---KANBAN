@@ -26,7 +26,7 @@ export const ProjectsEngine = {
             📁 Gestão de Projetos e Atividades em Grupo
           </h2>
           <p style="font-size:0.8rem; color:var(--text-muted, #aaa);">
-            Crie projetos, atribua múltiplos colaboradores e acompanhe as entregas.
+            Crie projetos, atribua múltiplos colaboradores e acompanhe entregáveis da equipe em tempo real.
           </p>
         </div>
 
