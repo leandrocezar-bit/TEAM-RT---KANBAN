@@ -61,21 +61,20 @@ export const ManagerEngine = {
 
       return `
         <div class="manager-card">
-          <div class="manager-card-header" style="display:flex; align-items:center; justify-space-between; width:100%;">
-            <div style="display:flex; align-items:center; gap:0.75rem;">
-              <img src="${member.photo}" alt="${member.name}" class="manager-avatar">
-              <div>
-                <h3 style="font-size:1rem; font-weight:700;">${member.name}</h3>
-                <p style="font-size:0.775rem; color:var(--text-muted);">${member.role || 'Membro da Equipe'}</p>
-                <p style="font-size:0.7rem; color:var(--text-dim);">${member.email || member.contact || ''}</p>
+          <div class="manager-card-header" style="display:flex; align-items:center; justify-content:space-between; width:100%; gap:0.5rem;">
+            <div style="display:flex; align-items:center; gap:0.75rem; flex:1; min-width:0;">
+              <img src="${member.photo}" alt="${member.name}" class="manager-avatar" style="flex-shrink:0;">
+              <div style="min-width:0; overflow:hidden;">
+                <h3 style="font-size:1rem; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${member.name}</h3>
+                <p style="font-size:0.775rem; color:var(--text-muted); margin:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${member.role || 'Membro da Equipe'}</p>
+                <p style="font-size:0.7rem; color:var(--text-dim); margin:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${member.email || member.contact || ''}</p>
               </div>
             </div>
 
-            <div style="display:flex; gap:0.4rem;">
-              <button class="btn-edit-member-profile" data-id="${member.id}" title="Editar Perfil" style="display:inline-flex; align-items:center; gap:0.35rem; background:rgba(99,102,241,0.12); color:#818cf8; border:1px solid rgba(99,102,241,0.3); border-radius:var(--radius-sm); padding:0.4rem 0.65rem; font-size:0.75rem; font-weight:700; cursor:pointer; line-height:1; white-space:nowrap; flex-shrink:0;">
-                <span>✏️</span> <span>Perfil</span>
-              </button>
-            </div>
+            <!-- Botão com layout rígido e sem quebra -->
+            <button class="btn-edit-member-profile" data-id="${member.id}" title="Editar Perfil" style="background:rgba(99,102,241,0.12); color:#818cf8; border:1px solid rgba(99,102,241,0.3); border-radius:var(--radius-sm); padding:0.4rem 0.75rem; font-size:0.75rem; font-weight:700; cursor:pointer; flex-shrink:0; white-space:nowrap; display:block;">
+              ✏️ Perfil
+            </button>
           </div>
 
           <div style="margin-bottom:0.75rem;">
@@ -163,7 +162,7 @@ export const ManagerEngine = {
       const dateFormatted = new Date(imp.createdAt).toLocaleString('pt-BR');
 
       return `
-        <div style="background:var(--bg-input); border:1px solid var(--border-color); border-radius:var(--radius-md); padding:1rem; margin-bottom:0.75rem; display:flex; justify-space-between; align-items:flex-start; gap:1rem; flex-wrap:wrap;">
+        <div style="background:var(--bg-input); border:1px solid var(--border-color); border-radius:var(--radius-md); padding:1rem; margin-bottom:0.75rem; display:flex; justify-content:space-between; align-items:flex-start; gap:1rem; flex-wrap:wrap;">
           <div style="flex:1;">
             <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.4rem;">
               <span class="badge-impediment">⚠️ Contratempo</span>
@@ -192,7 +191,7 @@ export const ManagerEngine = {
   },
 
   /**
-   * Renderiza a Visão de Calendário Editável com Avisos de 2 dias e Filtros
+   * Renderiza a Visão de Calendário Editável
    */
   renderCalendarGrid(tasks, members, onOpenDayDetails) {
     const container = document.getElementById('calendar-grid-container');
