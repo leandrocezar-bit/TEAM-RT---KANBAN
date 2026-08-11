@@ -8,6 +8,7 @@ import { TimerEngine } from './timer.js';
 export const ManagerEngine = {
   selectedCalendarMemberId: 'all',
   currentCalendarDate: new Date(),
+  currentPeriodFilter: 'all', // 'all', 'daily', 'weekly', 'monthly'
 
   /**
    * Renderiza o Dashboard Completo do Gestor
@@ -20,6 +21,57 @@ export const ManagerEngine = {
     this.renderMemberCards(members, tasks, impediments);
     this.renderImpedimentsAlertList(impediments, tasks, members, onViewEvidenceCallback);
     this.renderCalendarGrid(tasks, members, onOpenDayDetailsCallback);
+    this.setupPeriodFilterListeners(members, tasks, impediments);
+  },
+
+  /**
+   * Configura os botões de filtro de período do Dashboard
+   */
+  setupPeriodFilterListeners(members, tasks, impediments) {
+    const buttons = document.querySelectorAll('.btn-dashboard-period-filter');
+    buttons.forEach(btn => {
+      if (btn.dataset.listenerBound) return;
+      btn.dataset.listenerBound = 'true';
+
+      btn.addEventListener('click', () => {
+        buttons.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        this.currentPeriodFilter = btn.dataset.period;
+        this.renderMemberCards(members, tasks, impediments);
+      });
+    });
+  },
+
+  /**
+   * Filtra tarefas de acordo com a data limite (dueDate) ou criação/atualização
+   */
+  filterTasksByPeriod(tasksList) {
+    if (this.currentPeriodFilter === 'all') return tasksList;
+
+    const now = new Date();
+    const todayStr = now.toISOString().slice(0, 10);
+
+    return tasksList.filter(t => {
+      const taskDateStr = t.dueDate || (t.createdAt ? t.createdAt.slice(0, 10) : null);
+      if (!taskDateStr) return false;
+
+      if (this.currentPeriodFilter === 'daily') {
+        return taskDateStr === todayStr;
+      }
+
+      if (this.currentPeriodFilter === 'weekly') {
+        const taskDate = new Date(taskDateStr);
+        const diffDays = (taskDate - now) / (1000 * 60 * 60 * 24);
+        return diffDays >= -1 && diffDays <= 7;
+      }
+
+      if (this.currentPeriodFilter === 'monthly') {
+        return taskDateStr.slice(0, 7) === todayStr.slice(0, 7);
+      }
+
+      return true;
+    });
   },
 
   /**
@@ -29,11 +81,9 @@ export const ManagerEngine = {
     const container = document.getElementById('manager-members-grid');
     if (!container) return;
 
-    // 1. Identifica o nível de acesso e o ID do usuário logado
     const isManager = localStorage.getItem('logged_access_level') === 'gestor';
     const loggedMemberId = localStorage.getItem('logged_member_id');
 
-    // 2. SE FOR COLABORADOR: Exibe apenas o card do seu próprio perfil
     let visibleMembers = members;
     if (!isManager && loggedMemberId) {
       visibleMembers = members.filter(m => String(m.id) === String(loggedMemberId));
@@ -44,8 +94,11 @@ export const ManagerEngine = {
       return;
     }
 
+    // Aplica o filtro de período nas tarefas
+    const periodFilteredTasks = this.filterTasksByPeriod(tasks);
+
     container.innerHTML = visibleMembers.map(member => {
-      const memberTasks = tasks.filter(t => String(t.member_id || t.memberId) === String(member.id));
+      const memberTasks = periodFilteredTasks.filter(t => String(t.member_id || t.memberId) === String(member.id));
 
       const todoCount = memberTasks.filter(t => t.status === 'A FAZER').length;
       const wipCount = memberTasks.filter(t => t.status === 'EM EXECUÇÃO').length;
@@ -71,7 +124,6 @@ export const ManagerEngine = {
               </div>
             </div>
 
-            <!-- Botão com layout rígido e sem quebra -->
             <button class="btn-edit-member-profile" data-id="${member.id}" title="Editar Perfil" style="background:rgba(99,102,241,0.12); color:#818cf8; border:1px solid rgba(99,102,241,0.3); border-radius:var(--radius-sm); padding:0.4rem 0.75rem; font-size:0.75rem; font-weight:700; cursor:pointer; flex-shrink:0; white-space:nowrap; display:block;">
               ✏️ Perfil
             </button>
