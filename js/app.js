@@ -10,6 +10,7 @@ import { MapEngine } from './map.js';
 import { SettingsEngine } from './settings.js';
 import { ProjectsEngine } from './projects.js';
 import { UndoEngine } from './undo.js';
+import { ChatEngine } from './chat.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
 
@@ -182,6 +183,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const btnViewMap = document.getElementById('btn-view-map');
   const btnViewSettings = document.getElementById('btn-view-settings');
   const btnViewProjects = document.getElementById('btn-view-projects');
+  const btnViewChat = document.getElementById('btn-view-chat');
 
   // ============================================================
   // SEÇÕES E MODAIS
@@ -192,6 +194,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const sectionMap = document.getElementById('section-map');
   const sectionSettings = document.getElementById('section-settings');
   const sectionProjects = document.getElementById('section-projects');
+  const sectionChat = document.getElementById('section-chat');
 
   const modalMember = document.getElementById('modal-member');
   const modalEditProfile = document.getElementById('modal-edit-profile');
@@ -277,6 +280,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       btnViewMap,
       btnViewSettings,
       btnViewProjects,
+      btnViewChat,
       btnNewTask,
     ];
 
@@ -293,6 +297,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       btnViewMap,
       btnViewSettings,
       btnViewProjects,
+      btnViewChat,
     ].forEach((btn) => {
       if (btn) {
         btn.classList.remove('btn-primary');
@@ -306,6 +311,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       sectionMap,
       sectionSettings,
       sectionProjects,
+      sectionChat,
     ].forEach((sec) => {
       if (sec) {
         sec.classList.remove('active');
@@ -341,7 +347,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         btnViewMap.classList.add('btn-primary');
         btnViewMap.classList.remove('btn-secondary');
       }
-      await MapEngine.renderSectorMap();
+      await MapEngine.renderSectorMap(currentMemberFilter);
+
     } else if (activeView === 'settings') {
       if (sectionSettings) sectionSettings.classList.add('active');
       if (btnViewSettings) {
@@ -352,6 +359,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         isManager: manager,
         memberId: loggedId,
       });
+
     } else if (activeView === 'projects') {
       if (sectionProjects) sectionProjects.classList.add('active');
       if (btnViewProjects) {
@@ -359,6 +367,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         btnViewProjects.classList.remove('btn-secondary');
       }
       await ProjectsEngine.renderProjectsSection(showToast, refreshUI);
+
+    } else if (activeView === 'chat') {
+      if (sectionChat) sectionChat.classList.add('active');
+      if (btnViewChat) {
+        btnViewChat.classList.add('btn-primary');
+        btnViewChat.classList.remove('btn-secondary');
+      }
+      await ChatEngine.renderChatSection();
+
     } else {
       activeView = 'kanban';
       if (sectionKanban) sectionKanban.classList.add('active');
@@ -648,14 +665,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   };
 
   // ============================================================
-  // ABAS DOS MEMBROS (Filtro do Kanban por Colaborador)
+  // ABAS DOS MEMBROS (Filtro por Colaborador)
   // ============================================================
 
   async function renderMemberTabs() {
     const container = document.getElementById('member-tabs-bar');
     if (!container) return;
 
-    // Se não for gestor, a barra de abas fica oculta
     if (!isManager()) {
       container.innerHTML = '';
       container.style.display = 'none';
@@ -665,14 +681,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     container.style.display = 'flex';
     const members = (await DB.getAll('members')) || [];
 
-    // Botão para exibir "Todos os Membros"
     let html = `
       <button class="tab-btn ${currentMemberFilter === 'all' ? 'active' : ''}" data-id="all">
         👥 Todos os Membros
       </button>
     `;
 
-    // Botão individual para cada membro da equipe
     members.forEach((member) => {
       const isActive = String(currentMemberFilter) === String(member.id);
       html += `
@@ -685,23 +699,22 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     container.innerHTML = html;
 
-    // Adiciona o evento de clique em cada botão de membro
     container.querySelectorAll('.tab-btn').forEach((btn) => {
       btn.addEventListener('click', async () => {
-        // Remove 'active' dos outros botões e ativa o clicado
         container.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
 
-        // Atualiza a variável global do filtro de membro
         currentMemberFilter = btn.dataset.id;
-        activeView = 'kanban';
 
-        // Atualiza e renderiza o Quadro Kanban imediatamente com o novo filtro
-        await KanbanEngine.renderBoard(currentMemberFilter, {
-          onRefresh: refreshUI,
-          onReportImpediment: openReportImpedimentModal,
-          onOpenTaskDetails: openTaskDetailsModal,
-        });
+        if (activeView === 'map') {
+          await MapEngine.renderSectorMap(currentMemberFilter);
+        } else if (activeView === 'kanban') {
+          await KanbanEngine.renderBoard(currentMemberFilter, {
+            onRefresh: refreshUI,
+            onReportImpediment: openReportImpedimentModal,
+            onOpenTaskDetails: openTaskDetailsModal,
+          });
+        }
       });
     });
   }
@@ -801,7 +814,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (bodyEl) {
       bodyEl.innerHTML = `
         <div style="background:var(--bg-input); padding:1rem; border-radius:var(--radius-md); border:1px solid var(--border-color); margin-bottom:1rem;">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.6rem;">
+          <div style="display:flex; justify-space-between; align-items:center; margin-bottom:0.6rem;">
             <span class="badge-priority priority-${(task.priority || 'média').toLowerCase()}">
               ${task.priority || 'Média'}
             </span>
@@ -889,7 +902,6 @@ document.addEventListener('DOMContentLoaded', async () => {
           document.getElementById('task-priority').value = task.priority || 'Média';
           document.getElementById('task-date').value = task.dueDate || '';
 
-          // Renderiza outros integrantes selecionados anteriormente
           const currentGroupMemberIds = groupMembers.map((m) => m.id);
           await renderTeamMembersCheckboxes(currentTaskMemberId, currentGroupMemberIds);
 
@@ -1098,6 +1110,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (btnViewProjects) {
     btnViewProjects.addEventListener('click', () => {
       activeView = 'projects';
+      refreshUI();
+    });
+  }
+
+  if (btnViewChat) {
+    btnViewChat.addEventListener('click', () => {
+      activeView = 'chat';
       refreshUI();
     });
   }
@@ -1353,7 +1372,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       const priority = document.getElementById('task-priority').value;
       const dueDate = document.getElementById('task-date').value;
 
-      // Obtém os IDs dos colaboradores adicionais marcados
       const teamMemberIds = Array.from(
         document.querySelectorAll('.chk-task-team-member:checked')
       ).map((cb) => cb.value);
@@ -1383,7 +1401,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
           await DB.save('tasks', task);
 
-          // Atualiza registros da tabela de grupo (task_members)
           const existingTaskMembers = (await DB.getAll('task_members')) || [];
           const currentGroupTasks = existingTaskMembers.filter(
             (tm) => String(tm.taskId) === String(task.id)
@@ -1432,7 +1449,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         await DB.save('tasks', newTask);
 
-        // Cria os registros de integrantes adicionais na tabela task_members
         for (const tMemberId of teamMemberIds) {
           const newTm = {
             id: 'tm-' + Date.now() + Math.floor(Math.random() * 1000),
