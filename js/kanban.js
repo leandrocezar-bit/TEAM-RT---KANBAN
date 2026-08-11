@@ -61,13 +61,28 @@ export const KanbanEngine = {
     if (!task || task.status === targetStatus) return;
 
     const oldStatus = task.status;
+    const nowIso = new Date().toISOString();
+
     task.status = targetStatus;
 
     // Regras de Timer Automático por Mudança de Coluna
     if (targetStatus === 'EM EXECUÇÃO') {
+      if (!task.lastTimerStartedAt) {
+        task.lastTimerStartedAt = nowIso;
+      }
       await TimerEngine.startTimer(task);
     } else if (oldStatus === 'EM EXECUÇÃO') {
+      task.lastTimerStoppedAt = nowIso;
       await TimerEngine.stopTimer(task);
+    }
+
+    // 🗓️ Se a tarefa for movida para CONCLUÍDO, registra a data e hora exata
+    if (targetStatus === 'CONCLUÍDO') {
+      task.completedAt = nowIso;
+      if (task.isTimerRunning) {
+        task.lastTimerStoppedAt = nowIso;
+        await TimerEngine.stopTimer(task);
+      }
     }
 
     await DB.save('tasks', task);
@@ -87,7 +102,7 @@ export const KanbanEngine = {
       memberId: task.member_id || task.memberId,
       fromStatus: oldStatus,
       toStatus: targetStatus,
-      timestamp: new Date().toISOString()
+      timestamp: nowIso
     };
     await DB.save('audit_logs', auditLog);
 
@@ -168,7 +183,7 @@ export const KanbanEngine = {
       impMap.get(imp.taskId).push(imp);
     });
 
-    // 🔍 LÓGICA ATUALIZADA: Exibe a tarefa se a pessoa for Responsável Principal OU Integrante do Grupo (task_members)
+    // 🔍 LÓGICA: Exibe a tarefa se a pessoa for Responsável Principal OU Integrante do Grupo (task_members)
     let filteredTasks = memberId === 'all'
       ? tasks
       : tasks.filter(t => {
