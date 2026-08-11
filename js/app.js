@@ -18,15 +18,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   let currentMemberFilter = 'all';
   let reportingTaskId = null;
 
-  // ============================================================
-  // VIEWS RESTRITAS
-  // ============================================================
-
   const MANAGER_ONLY_VIEWS = [];
-
-  // ============================================================
-  // AUTENTICAÇÃO
-  // ============================================================
 
   const loginOverlay = document.getElementById('login-overlay');
   const formLogin = document.getElementById('form-login');
@@ -45,21 +37,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (isAuth === 'true') {
       if (loginOverlay) {
         loginOverlay.classList.remove('active');
+        loginOverlay.style.display = 'none';
       }
-
       const loggedId = getLoggedMemberId();
-      if (loggedId) {
+      if (loggedId && !isManager()) {
         currentMemberFilter = loggedId;
       }
     } else {
       if (loginOverlay) {
         loginOverlay.classList.add('active');
+        loginOverlay.style.display = 'flex';
       }
     }
   }
 
   // ============================================================
-  // LOGIN
+  // LOGIN CORRIGIDO (E-mail e Senha)
   // ============================================================
 
   if (formLogin) {
@@ -71,41 +64,45 @@ document.addEventListener('DOMContentLoaded', async () => {
         .value.trim()
         .toLowerCase();
 
-      const inputPassword = document.getElementById('input-passcode').value;
+      const inputPassword = document.getElementById('input-passcode').value.trim();
 
       if (!inputEmail || !inputPassword) {
         showToast('Informe e-mail e senha para entrar.', 'warning');
         return;
       }
 
+      // Busca todos os membros cadastrados no Supabase / IndexedDB
       const members = (await DB.getAll('members')) || [];
 
+      // Procura pelo e-mail (ou pelo nome caso o usuário tenha digitado o nome)
       const matchedMember = members.find(
-        (m) => m.email && m.email.toLowerCase() === inputEmail
+        (m) => (m.email && m.email.trim().toLowerCase() === inputEmail) ||
+          (m.name && m.name.trim().toLowerCase() === inputEmail)
       );
 
       if (!matchedMember) {
-        showToast('E-mail não encontrado na lista de colaboradores.', 'warning');
+        showToast('Usuário ou E-mail não encontrado.', 'warning');
         return;
       }
 
-      if (!matchedMember.password || matchedMember.password !== inputPassword) {
+      // Validação da senha
+      if (!matchedMember.password || String(matchedMember.password).trim() !== inputPassword) {
         showToast('Senha incorreta. Tente novamente.', 'warning');
         return;
       }
 
-      const accessLevel =
-        matchedMember.accessLevel === 'gestor' ? 'gestor' : 'colaborador';
+      const accessLevel = matchedMember.accessLevel === 'gestor' ? 'gestor' : 'colaborador';
 
       localStorage.setItem('app_authenticated', 'true');
       localStorage.setItem('logged_member_id', matchedMember.id);
       localStorage.setItem('logged_access_level', accessLevel);
 
-      currentMemberFilter = matchedMember.id;
+      currentMemberFilter = accessLevel === 'gestor' ? 'all' : matchedMember.id;
       activeView = 'kanban';
 
       if (loginOverlay) {
         loginOverlay.classList.remove('active');
+        loginOverlay.style.display = 'none';
       }
 
       showToast(`Bem-vindo de volta, ${matchedMember.name}!`, 'success');
@@ -132,8 +129,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       showToast('Você saiu do aplicativo.', 'info');
     });
   }
-
-  checkAuthentication();
 
   // ============================================================
   // PERFIL DO USUÁRIO LOGADO
@@ -171,6 +166,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ============================================================
 
   await DB.init();
+  checkAuthentication();
 
   // ============================================================
   // ELEMENTOS DA INTERFACE
@@ -213,7 +209,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const formProject = document.getElementById('form-project');
 
   // ============================================================
-  // FUNÇÕES HELPER PARA COLUNAS DO SUPABASE
+  // FUNÇÕES HELPER SUPABASE
   // ============================================================
 
   function getTransferFromMemberId(transfer) {
@@ -246,12 +242,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       activeView = 'kanban';
     }
 
-    const backupFilter = currentMemberFilter;
-
     // NOTIFICAÇÕES
-    currentMemberFilter = 'all';
     await renderTopNotificationBar();
-    currentMemberFilter = loggedId ? loggedId : backupFilter;
 
     // ABAS DOS MEMBROS
     await renderMemberTabs();
@@ -267,14 +259,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // BOTÕES DE VISIBILIDADE
-    const managerOnlyButtons = [btnNewMember];
-    managerOnlyButtons.forEach((btn) => {
-      if (btn) {
-        btn.style.display = manager ? 'inline-block' : 'none';
-      }
-    });
+    if (btnNewMember) {
+      btnNewMember.style.display = manager ? 'inline-block' : 'none';
+    }
 
-    const openButtons = [
+    [
       btnViewKanban,
       btnViewManager,
       btnViewMap,
@@ -282,12 +271,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       btnViewProjects,
       btnViewChat,
       btnNewTask,
-    ];
-
-    openButtons.forEach((btn) => {
-      if (btn) {
-        btn.style.display = 'inline-block';
-      }
+    ].forEach((btn) => {
+      if (btn) btn.style.display = 'inline-block';
     });
 
     // RESET NAVEGAÇÃO
@@ -313,9 +298,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       sectionProjects,
       sectionChat,
     ].forEach((sec) => {
-      if (sec) {
-        sec.classList.remove('active');
-      }
+      if (sec) sec.classList.remove('active');
     });
 
     // ROUTING
@@ -412,14 +395,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
       const transfers = (await DB.getAll('activity_transfers')) || [];
 
-      // 1. SOLICITAÇÕES RECEBIDAS PENDENTES
       const pendingTransfers = transfers.filter((transfer) => {
         const toId = getTransferToMemberId(transfer);
         const status = String(transfer.status || '').trim().toUpperCase();
         return String(toId) === String(loggedId) && status === 'PENDENTE';
       });
 
-      // 2. RESPOSTAS FINALIZADAS PARA O REMETENTE
       const senderNotices = transfers.filter((transfer) => {
         const fromId = getTransferFromMemberId(transfer);
         const acknowledged = isTransferSenderAcknowledged(transfer);
@@ -432,12 +413,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         );
       });
 
-      // 3. TAREFAS E MEMBROS
       const tasks = (await DB.getAll('tasks')) || [];
       const members = (await DB.getAll('members')) || [];
       const membersMap = new Map(members.map((m) => [String(m.id), m]));
 
-      // 4. PRAZOS URGENTES
       const today = new Date();
       const relevantTasks = manager
         ? tasks
@@ -466,7 +445,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       bar.style.display = 'block';
       let html = '<div translate="no">';
 
-      // RECEBIDAS PENDENTES
       pendingTransfers.forEach((firstTr) => {
         const taskId = getTransferTaskId(firstTr);
         const fromId = getTransferFromMemberId(firstTr);
@@ -487,7 +465,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         `;
       });
 
-      // RESPOSTA DO COLEGA (ACEITOU/RECUSOU)
       senderNotices.forEach((firstNotice) => {
         const taskId = getTransferTaskId(firstNotice);
         const toId = getTransferToMemberId(firstNotice);
@@ -507,7 +484,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         `;
       });
 
-      // ALERTA DE PRAZOS
       if (
         pendingTransfers.length === 0 &&
         senderNotices.length === 0 &&
@@ -523,7 +499,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       html += '</div>';
       container.innerHTML = html;
 
-      // EVENT DELEGATION
       container.onclick = async (e) => {
         const target = e.target.closest('button');
         if (!target) return;
@@ -539,7 +514,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const now = new Date().toISOString();
 
-        // 1. ACEITAR
         if (target.classList.contains('btn-accept-transfer')) {
           e.preventDefault();
 
@@ -563,7 +537,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 await DB.save('tasks', task);
               }
 
-              // Remove o antigo dono da tabela de grupos
               const taskMembers = (await DB.getAll('task_members')) || [];
               const oldLinks = taskMembers.filter(
                 (tm) => String(tm.taskId) === String(taskId) && String(tm.memberId || tm.member_id) === String(fromMemberId)
@@ -582,7 +555,6 @@ document.addEventListener('DOMContentLoaded', async () => {
           await refreshUI();
         }
 
-        // 2. RECUSAR
         if (target.classList.contains('btn-reject-transfer')) {
           e.preventDefault();
 
@@ -596,7 +568,6 @@ document.addEventListener('DOMContentLoaded', async () => {
           await refreshUI();
         }
 
-        // 3. OK DO REMETENTE
         if (target.classList.contains('btn-ack-sender-notice')) {
           e.preventDefault();
 
@@ -616,56 +587,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ============================================================
-  // SOLICITAR TRANSFERÊNCIA
-  // ============================================================
-
-  window.requestTaskTransfer = async function (taskId, toMemberId) {
-    try {
-      const fromMemberId = getLoggedMemberId();
-
-      const cleanTaskId = String(taskId || '').trim();
-
-      if (!cleanTaskId || cleanTaskId === 'null' || cleanTaskId === 'undefined') {
-        showToast('Erro: ID da tarefa inválido para transferência.', 'warning');
-        return false;
-      }
-
-      if (!toMemberId || !fromMemberId) {
-        showToast('Selecione o destinatário para continuar.', 'warning');
-        return false;
-      }
-
-      const now = new Date().toISOString();
-
-      const newTransfer = {
-        id: 'tr-' + Date.now(),
-        task_id: cleanTaskId,
-        taskId: cleanTaskId,
-        fromMemberId: fromMemberId,
-        from_member_id: fromMemberId,
-        to_member_id: toMemberId,
-        status: 'PENDENTE',
-        created_at: now,
-        requested_at: now,
-        sender_acknowledged: false,
-        senderAcknowledged: false,
-        responded_at: null
-      };
-
-      await DB.save('activity_transfers', newTransfer);
-
-      showToast('Solicitação de transferência enviada com sucesso!', 'success');
-      await refreshUI();
-      return true;
-    } catch (err) {
-      console.error('❌ Erro ao solicitar transferência:', err);
-      showToast('Erro ao gravar solicitação no banco de dados.', 'warning');
-      return false;
-    }
-  };
-
-  // ============================================================
-  // ABAS DOS MEMBROS (Filtro por Colaborador)
+  // ABAS DOS MEMBROS
   // ============================================================
 
   async function renderMemberTabs() {
@@ -720,47 +642,27 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ============================================================
-  // EXCLUIR MEMBRO
+  // NAVEGAÇÃO
   // ============================================================
 
-  async function handleDeleteMember(memberId, memberName) {
-    if (!isManager()) {
-      showToast('Apenas gestores podem remover colaboradores.', 'warning');
-      return;
-    }
+  if (btnViewManager) btnViewManager.addEventListener('click', () => { activeView = 'manager'; refreshUI(); });
+  if (btnViewKanban) btnViewKanban.addEventListener('click', () => { activeView = 'kanban'; refreshUI(); });
+  if (btnViewMap) btnViewMap.addEventListener('click', () => { activeView = 'map'; refreshUI(); });
+  if (btnViewSettings) btnViewSettings.addEventListener('click', () => { activeView = 'settings'; refreshUI(); });
+  if (btnViewProjects) btnViewProjects.addEventListener('click', () => { activeView = 'projects'; refreshUI(); });
+  if (btnViewChat) btnViewChat.addEventListener('click', () => { activeView = 'chat'; refreshUI(); });
 
-    const member = await DB.get('members', memberId);
-
-    if (
-      confirm(
-        `Tem certeza que deseja remover o membro "${memberName}" da equipe?\nEsta ação também removerá as atividades vinculadas.`
-      )
-    ) {
-      await DB.delete('members', memberId);
-
-      const tasks = (await DB.getAll('tasks')) || [];
-      const memberTasks = tasks.filter((task) => task.member_id === memberId || task.memberId === memberId);
-
-      for (const task of memberTasks) {
-        await DB.delete('tasks', task.id);
-      }
-
-      UndoEngine.pushAction({
-        type: 'MEMBER_DELETE',
-        member,
-      });
-
-      if (currentMemberFilter === memberId) {
-        currentMemberFilter = 'all';
-      }
-
-      showToast(`Membro ${memberName} foi removido com sucesso!`, 'success');
+  document.querySelectorAll('.btn-period-filter').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.btn-period-filter').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      KanbanEngine.currentPeriodFilter = btn.dataset.period;
       refreshUI();
-    }
-  }
+    });
+  });
 
   // ============================================================
-  // DETALHES DA TAREFA
+  // DETALHES E MODAIS
   // ============================================================
 
   async function openTaskDetailsModal(taskId) {
@@ -788,18 +690,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     const projects = (await DB.getAll('projects')) || [];
     const taskMembers = (await DB.getAll('task_members')) || [];
 
-    const member = members.find((m) => m.id === currentTaskMemberId) || {
-      name: 'Não atribuído',
-      role: '',
-      photo: '',
-    };
-
+    const member = members.find((m) => m.id === currentTaskMemberId) || { name: 'Não atribuído', role: '', photo: '' };
     const taskImpediments = impediments.filter((imp) => imp.taskId === task.id);
     const project = projects.find((p) => p.id === (task.projectId || task.project_id));
     const groupLinks = taskMembers.filter((tm) => tm.taskId === task.id);
-    const groupMembers = members.filter((m) =>
-      groupLinks.some((gl) => gl.memberId === m.id || gl.member_id === m.id)
-    );
+    const groupMembers = members.filter((m) => groupLinks.some((gl) => gl.memberId === m.id || gl.member_id === m.id));
 
     const elapsedSecs = TimerEngine.getCurrentElapsedSeconds(task);
     const timeFormatted = TimerEngine.formatTime(elapsedSecs);
@@ -807,201 +702,34 @@ document.addEventListener('DOMContentLoaded', async () => {
     const titleEl = document.getElementById('task-details-title');
     const bodyEl = document.getElementById('task-details-body');
 
-    if (titleEl) {
-      titleEl.textContent = `📌 ${task.title}`;
-    }
+    if (titleEl) titleEl.textContent = `📌 ${task.title}`;
 
     if (bodyEl) {
       bodyEl.innerHTML = `
         <div style="background:var(--bg-input); padding:1rem; border-radius:var(--radius-md); border:1px solid var(--border-color); margin-bottom:1rem;">
-          <div style="display:flex; justify-space-between; align-items:center; margin-bottom:0.6rem;">
-            <span class="badge-priority priority-${(task.priority || 'média').toLowerCase()}">
-              ${task.priority || 'Média'}
-            </span>
-            <span style="font-weight:700; color:var(--accent-primary);">
-              Status: ${task.status}
-            </span>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.6rem;">
+            <span class="badge-priority priority-${(task.priority || 'média').toLowerCase()}">${task.priority || 'Média'}</span>
+            <span style="font-weight:700; color:var(--accent-primary);">Status: ${task.status}</span>
           </div>
-
-          <p style="font-size:0.9rem; color:var(--text-main); margin-bottom:0.75rem;">
-            ${task.description || 'Sem descrição cadastrada.'}
-          </p>
-
+          <p style="font-size:0.9rem; color:var(--text-main); margin-bottom:0.75rem;">${task.description || 'Sem descrição cadastrada.'}</p>
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; font-size:0.8rem; color:var(--text-muted); border-top:1px solid var(--border-color); padding-top:0.6rem;">
             <div><strong>👤 Responsável:</strong> ${member.name} (${member.role || 'Membro'})</div>
             <div><strong>📅 Prazo:</strong> ${task.dueDate ? task.dueDate.split('-').reverse().join('/') : '-'}</div>
             <div><strong>⏱️ Tempo Trabalhado:</strong> ${timeFormatted}</div>
             <div><strong>📁 Projeto:</strong> ${project ? project.name : 'Nenhum'}</div>
           </div>
-
-          ${groupMembers.length > 0
-          ? `
-                <div style="margin-top:0.75rem; border-top:1px solid var(--border-color); padding-top:0.5rem; font-size:0.8rem;">
-                  <strong>👥 Equipe no Grupo:</strong>
-                  <div style="display:flex; align-items:center; gap:0.4rem; margin-top:0.3rem;">
-                    ${groupMembers
-            .map(
-              (gm) => `
-                          <span style="display:inline-flex; align-items:center; gap:0.3rem; background:rgba(255,255,255,0.06); padding:0.2rem 0.5rem; border-radius:var(--radius-full);">
-                            <img src="${gm.photo}" style="width:18px; height:18px; border-radius:50%;">
-                            <span>${gm.name}</span>
-                          </span>
-                        `
-            )
-            .join('')}
-                  </div>
-                </div>
-              `
-          : ''
-        }
-        </div>
-
-        <h4 style="font-size:0.95rem; font-weight:700; margin-bottom:0.6rem;">
-          ⚠️ Contratempos Registrados (${taskImpediments.length})
-        </h4>
-
-        ${taskImpediments.length === 0
-          ? `<p style="font-size:0.8rem; color:var(--text-dim);">Nenhum contratempo relatado para esta atividade.</p>`
-          : taskImpediments
-            .map(
-              (imp) => `
-                    <div style="background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.2); border-radius:var(--radius-sm); padding:0.6rem; margin-bottom:0.5rem; font-size:0.8rem;">
-                      <p style="color:#ef4444; font-weight:600;">"${imp.description}"</p>
-                      <span style="font-size:0.7rem; color:var(--text-dim);">
-                        Registrado em: ${new Date(imp.createdAt).toLocaleString('pt-BR')}
-                      </span>
-                    </div>
-                  `
-            )
-            .join('')
-        }
-
-        <div style="display:flex; gap:0.5rem; margin-top:1.25rem; border-top:1px solid var(--border-color); padding-top:1rem;">
-          <button class="btn btn-primary btn-trigger-edit-task" data-id="${task.id}" style="font-size:0.8rem;">
-            ✏️ Editar Atividade
-          </button>
-          <button class="btn btn-secondary btn-trigger-delete-task" data-id="${task.id}" style="font-size:0.8rem; background:rgba(239,68,68,0.15); color:#ef4444;">
-            🗑️ Excluir Atividade
-          </button>
         </div>
       `;
-
-      const editBtn = bodyEl.querySelector('.btn-trigger-edit-task');
-      if (editBtn) {
-        editBtn.addEventListener('click', async () => {
-          closeModal(modalTaskDetails);
-
-          await populateTaskMemberSelect();
-          await populateTaskProjectSelect();
-
-          document.getElementById('task-id').value = task.id;
-          document.getElementById('task-title').value = task.title;
-          document.getElementById('task-desc').value = task.description || '';
-          document.getElementById('task-member').value = currentTaskMemberId;
-          document.getElementById('task-project').value = task.projectId || task.project_id || '';
-          document.getElementById('task-priority').value = task.priority || 'Média';
-          document.getElementById('task-date').value = task.dueDate || '';
-
-          const currentGroupMemberIds = groupMembers.map((m) => m.id);
-          await renderTeamMembersCheckboxes(currentTaskMemberId, currentGroupMemberIds);
-
-          const headerTitle = document.getElementById('modal-task-title-header');
-          if (headerTitle) {
-            headerTitle.textContent = '✏️ Editar Atividade';
-          }
-
-          openModal(modalTask);
-        });
-      }
-
-      const deleteBtn = bodyEl.querySelector('.btn-trigger-delete-task');
-      if (deleteBtn) {
-        deleteBtn.addEventListener('click', async () => {
-          if (confirm(`Tem certeza que deseja excluir a atividade "${task.title}"?`)) {
-            await DB.delete('tasks', task.id);
-            UndoEngine.pushAction({
-              type: 'TASK_DELETE',
-              task,
-            });
-
-            closeModal(modalTaskDetails);
-            showToast(`Atividade "${task.title}" excluída.`, 'info');
-            refreshUI();
-          }
-        });
-      }
     }
 
     openModal(modalTaskDetails);
   }
 
-  // ============================================================
-  // CALENDÁRIO
-  // ============================================================
-
-  async function openCalendarDayModal(dateStr) {
-    const tasks = (await DB.getAll('tasks')) || [];
-    const members = (await DB.getAll('members')) || [];
-    const membersMap = new Map(members.map((m) => [m.id, m]));
-
-    const dayTasks = tasks.filter((task) => task.dueDate === dateStr);
-    const dateFormatted = dateStr.split('-').reverse().join('/');
-
-    const titleEl = document.getElementById('calendar-day-modal-title');
-    const bodyEl = document.getElementById('calendar-day-modal-body');
-
-    if (titleEl) {
-      titleEl.textContent = `📅 Agenda do Dia ${dateFormatted}`;
-    }
-
-    if (bodyEl) {
-      if (dayTasks.length === 0) {
-        bodyEl.innerHTML = `
-          <div style="text-align:center; padding:2rem; color:var(--text-muted);">
-            Nenhuma atividade agendada com prazo para este dia.
-          </div>
-        `;
-      } else {
-        bodyEl.innerHTML = dayTasks
-          .map((task) => {
-            const member = membersMap.get(task.member_id || task.memberId) || {
-              name: 'Desconhecido',
-              photo: '',
-            };
-
-            return `
-              <div style="background:var(--bg-input); border:1px solid var(--border-color); border-radius:var(--radius-md); padding:0.85rem; margin-bottom:0.75rem; display:flex; justify-content:space-between; align-items:center;">
-                <div>
-                  <strong style="font-size:0.9rem;">${task.title}</strong>
-                  <p style="font-size:0.75rem; color:var(--text-muted);">${task.description || ''}</p>
-                  <div style="font-size:0.75rem; color:var(--text-dim); margin-top:0.3rem;">
-                    👤 Responsável: <strong>${member.name}</strong>
-                  </div>
-                </div>
-                <span class="badge-priority priority-${(task.priority || 'média').toLowerCase()}">
-                  ${task.priority || 'Média'}
-                </span>
-              </div>
-            `;
-          })
-          .join('');
-      }
-    }
-
-    openModal(modalCalendarDay);
-  }
-
-  // ============================================================
-  // CONTRATEMPO E EVIDÊNCIA
-  // ============================================================
-
   function openReportImpedimentModal(taskId) {
     reportingTaskId = taskId;
     formImpediment.reset();
-
     const preview = document.getElementById('impediment-preview');
     if (preview) preview.classList.remove('active');
-
     openModal(modalImpediment);
   }
 
@@ -1013,554 +741,45 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  // ============================================================
-  // MODAIS (AUXILIARES)
-  // ============================================================
+  async function openCalendarDayModal(dateStr) {
+    const tasks = (await DB.getAll('tasks')) || [];
+    const dayTasks = tasks.filter((task) => task.dueDate === dateStr);
+    const dateFormatted = dateStr.split('-').reverse().join('/');
 
-  function openModal(modal) {
-    if (modal) modal.classList.add('active');
+    const titleEl = document.getElementById('calendar-day-modal-title');
+    const bodyEl = document.getElementById('calendar-day-modal-body');
+
+    if (titleEl) titleEl.textContent = `📅 Agenda do Dia ${dateFormatted}`;
+
+    if (bodyEl) {
+      if (dayTasks.length === 0) {
+        bodyEl.innerHTML = `<div style="text-align:center; padding:2rem; color:var(--text-muted);">Nenhuma atividade agendada com prazo para este dia.</div>`;
+      } else {
+        bodyEl.innerHTML = dayTasks.map(t => `
+          <div style="background:var(--bg-input); border:1px solid var(--border-color); padding:0.75rem; border-radius:8px; margin-bottom:0.5rem;">
+            <strong>${t.title}</strong>
+          </div>
+        `).join('');
+      }
+    }
+    openModal(modalCalendarDay);
   }
 
-  function closeModal(modal) {
-    if (modal) modal.classList.remove('active');
+  async function handleDeleteMember(memberId, memberName) {
+    if (!isManager()) return;
+    if (confirm(`Remover ${memberName}?`)) {
+      await DB.delete('members', memberId);
+      showToast('Membro removido!', 'success');
+      refreshUI();
+    }
   }
+
+  function openModal(modal) { if (modal) modal.classList.add('active'); }
+  function closeModal(modal) { if (modal) modal.classList.remove('active'); }
 
   document.querySelectorAll('.modal-close, .btn-modal-cancel').forEach((btn) => {
-    btn.addEventListener('click', (e) => {
-      const modal = e.target.closest('.modal-overlay');
-      closeModal(modal);
-    });
+    btn.addEventListener('click', (e) => closeModal(e.target.closest('.modal-overlay')));
   });
-
-  // ============================================================
-  // NOVO MEMBRO E NOVA TAREFA
-  // ============================================================
-
-  if (btnNewMember) {
-    btnNewMember.addEventListener('click', () => {
-      if (!isManager()) {
-        showToast('Apenas gestores podem cadastrar colaboradores.', 'warning');
-        return;
-      }
-
-      formMember.reset();
-      const preview = document.getElementById('member-photo-preview');
-      if (preview) preview.classList.remove('active');
-
-      openModal(modalMember);
-    });
-  }
-
-  if (btnNewTask) {
-    btnNewTask.addEventListener('click', async () => {
-      formTask.reset();
-      document.getElementById('task-id').value = '';
-
-      const headerTitle = document.getElementById('modal-task-title-header');
-      if (headerTitle) {
-        headerTitle.textContent = '📌 Nova Atividade';
-      }
-
-      await populateTaskMemberSelect();
-      await populateTaskProjectSelect();
-
-      const selectedMemberId = document.getElementById('task-member').value;
-      await renderTeamMembersCheckboxes(selectedMemberId, []);
-
-      document.getElementById('task-date').value = new Date()
-        .toISOString()
-        .slice(0, 10);
-
-      openModal(modalTask);
-    });
-  }
-
-  // ============================================================
-  // NAVEGAÇÃO E FILTROS
-  // ============================================================
-
-  if (btnViewManager) {
-    btnViewManager.addEventListener('click', () => {
-      activeView = 'manager';
-      refreshUI();
-    });
-  }
-
-  if (btnViewKanban) {
-    btnViewKanban.addEventListener('click', () => {
-      activeView = 'kanban';
-      refreshUI();
-    });
-  }
-
-  if (btnViewMap) {
-    btnViewMap.addEventListener('click', () => {
-      activeView = 'map';
-      refreshUI();
-    });
-  }
-
-  if (btnViewSettings) {
-    btnViewSettings.addEventListener('click', () => {
-      activeView = 'settings';
-      refreshUI();
-    });
-  }
-
-  if (btnViewProjects) {
-    btnViewProjects.addEventListener('click', () => {
-      activeView = 'projects';
-      refreshUI();
-    });
-  }
-
-  if (btnViewChat) {
-    btnViewChat.addEventListener('click', () => {
-      activeView = 'chat';
-      refreshUI();
-    });
-  }
-
-  document.querySelectorAll('.btn-period-filter').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      document
-        .querySelectorAll('.btn-period-filter')
-        .forEach((b) => b.classList.remove('active'));
-
-      btn.classList.add('active');
-      KanbanEngine.currentPeriodFilter = btn.dataset.period;
-      refreshUI();
-    });
-  });
-
-  // ============================================================
-  // SELECTS E RENDERIZAÇÃO DE EQUIPE/GRUPO DE MEMBROS
-  // ============================================================
-
-  async function renderTeamMembersCheckboxes(selectedMemberId, selectedTeamMemberIds = []) {
-    const container = document.getElementById('task-team-members-container');
-    if (!container) return;
-
-    const members = (await DB.getAll('members')) || [];
-    const otherMembers = members.filter((m) => String(m.id) !== String(selectedMemberId));
-
-    if (otherMembers.length === 0) {
-      container.innerHTML = `<span style="font-size: 0.75rem; color: var(--text-dim);">Nenhum outro integrante disponível.</span>`;
-      return;
-    }
-
-    container.innerHTML = otherMembers
-      .map((m) => {
-        const isChecked = selectedTeamMemberIds.map(String).includes(String(m.id));
-        return `
-          <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem; color: var(--text-main); cursor: pointer;">
-            <input type="checkbox" class="chk-task-team-member" value="${m.id}" ${isChecked ? 'checked' : ''}>
-            <span>${m.name} <small style="color: var(--text-dim);">(${m.role || 'Membro'})</small></span>
-          </label>
-        `;
-      })
-      .join('');
-  }
-
-  const selectTaskMember = document.getElementById('task-member');
-  if (selectTaskMember) {
-    selectTaskMember.addEventListener('change', (e) => {
-      renderTeamMembersCheckboxes(e.target.value, []);
-    });
-  }
-
-  async function populateTaskMemberSelect() {
-    const select = document.getElementById('task-member');
-    if (!select) return;
-
-    const manager = isManager();
-    const loggedId = getLoggedMemberId();
-    const members = (await DB.getAll('members')) || [];
-
-    select.innerHTML = members
-      .map(
-        (member) => `
-          <option value="${member.id}" ${!manager && member.id === loggedId ? 'selected' : ''
-          }>
-            ${member.name} (${member.role || 'Membro'})
-          </option>
-        `
-      )
-      .join('');
-  }
-
-  async function populateTaskProjectSelect() {
-    const select = document.getElementById('task-project');
-    if (!select) return;
-
-    const projects = (await DB.getAll('projects')) || [];
-
-    select.innerHTML =
-      `<option value="">-- Sem Projeto --</option>` +
-      projects
-        .map((project) => `<option value="${project.id}">${project.name}</option>`)
-        .join('');
-  }
-
-  // ============================================================
-  // UPLOADS DE IMAGEM
-  // ============================================================
-
-  const memberPhotoInput = document.getElementById('member-photo');
-  if (memberPhotoInput) {
-    memberPhotoInput.addEventListener('change', (e) => {
-      const file = e.target.files[0];
-      if (file) {
-        const reader = new FileReader();
-        reader.onload = (evt) => {
-          const preview = document.getElementById('member-photo-preview');
-          preview.src = evt.target.result;
-          preview.classList.add('active');
-        };
-        reader.readAsDataURL(file);
-      }
-    });
-  }
-
-  const editProfilePhotoInput = document.getElementById('edit-profile-photo');
-  if (editProfilePhotoInput) {
-    editProfilePhotoInput.addEventListener('change', (e) => {
-      const file = e.target.files[0];
-      if (file) {
-        const reader = new FileReader();
-        reader.onload = (evt) => {
-          const preview = document.getElementById('edit-profile-preview');
-          preview.src = evt.target.result;
-          preview.classList.add('active');
-        };
-        reader.readAsDataURL(file);
-      }
-    });
-  }
-
-  const impedimentPhotoInput = document.getElementById('impediment-file');
-  if (impedimentPhotoInput) {
-    impedimentPhotoInput.addEventListener('change', (e) => {
-      const file = e.target.files[0];
-      if (file) {
-        const reader = new FileReader();
-        reader.onload = (evt) => {
-          const preview = document.getElementById('impediment-preview');
-          preview.src = evt.target.result;
-          preview.classList.add('active');
-        };
-        reader.readAsDataURL(file);
-      }
-    });
-  }
-
-  // ============================================================
-  // SUBMITS DE FORMULÁRIOS
-  // ============================================================
-
-  if (formMember) {
-    formMember.addEventListener('submit', async (e) => {
-      e.preventDefault();
-
-      if (!isManager()) {
-        showToast('Apenas gestores podem cadastrar colaboradores.', 'warning');
-        return;
-      }
-
-      const name = document.getElementById('member-name').value;
-      const role = document.getElementById('member-role').value;
-      const contact = document.getElementById('member-contact').value;
-      const emailField = document.getElementById('member-email');
-      const passwordField = document.getElementById('member-password');
-      const accessLevelField = document.getElementById('member-access-level');
-
-      const email = emailField ? emailField.value.trim() : contact;
-      const password = passwordField ? passwordField.value : '';
-      const accessLevel = accessLevelField ? accessLevelField.value : 'colaborador';
-
-      if (!email || !password) {
-        showToast('E-mail e senha de acesso são obrigatórios.', 'warning');
-        return;
-      }
-
-      const photoPreview = document.getElementById('member-photo-preview');
-      let photoData = photoPreview.src;
-
-      if (!photoPreview.classList.contains('active') || !photoData) {
-        const initials = name
-          .split(' ')
-          .map((n) => n[0])
-          .join('')
-          .substring(0, 2)
-          .toUpperCase();
-
-        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><rect width="100" height="100" fill="#6366f1"/><text x="50%" y="55%" dominant-baseline="middle" text-anchor="middle" fill="#ffffff" font-family="sans-serif" font-size="40" font-weight="bold">${initials}</text></svg>`;
-        photoData = 'data:image/svg+xml;base64,' + btoa(svg);
-      }
-
-      const newMember = {
-        id: 'm-' + Date.now(),
-        name,
-        role,
-        contact,
-        email,
-        password,
-        accessLevel: accessLevel === 'gestor' ? 'gestor' : 'colaborador',
-        photo: photoData,
-      };
-
-      await DB.save('members', newMember);
-      showToast(`Membro ${name} cadastrado com sucesso!`, 'success');
-      closeModal(modalMember);
-      refreshUI();
-    });
-  }
-
-  if (formEditProfile) {
-    formEditProfile.addEventListener('submit', async (e) => {
-      e.preventDefault();
-
-      const memberId = document.getElementById('edit-profile-id').value;
-      const name = document.getElementById('edit-profile-name').value;
-      const role = document.getElementById('edit-profile-role').value;
-      const email = document.getElementById('edit-profile-email').value;
-      const preview = document.getElementById('edit-profile-preview');
-      const passwordField = document.getElementById('edit-profile-password');
-      const accessLevelField = document.getElementById('edit-profile-access-level');
-
-      const member = await DB.get('members', memberId);
-
-      if (member) {
-        member.name = name;
-        member.role = role;
-        member.email = email;
-        member.contact = email;
-
-        if (preview.src) member.photo = preview.src;
-        if (passwordField && passwordField.value) member.password = passwordField.value;
-
-        if (isManager() && accessLevelField && accessLevelField.value) {
-          member.accessLevel =
-            accessLevelField.value === 'gestor' ? 'gestor' : 'colaborador';
-        }
-
-        await DB.save('members', member);
-
-        if (String(memberId) === String(getLoggedMemberId())) {
-          localStorage.setItem(
-            'logged_access_level',
-            member.accessLevel === 'gestor' ? 'gestor' : 'colaborador'
-          );
-        }
-
-        showToast('Perfil atualizado com sucesso!', 'success');
-        closeModal(modalEditProfile);
-        refreshUI();
-      }
-    });
-  }
-
-  if (formTask) {
-    formTask.addEventListener('submit', async (e) => {
-      e.preventDefault();
-
-      const existingTaskId = document.getElementById('task-id').value;
-      const title = document.getElementById('task-title').value;
-      const description = document.getElementById('task-desc').value;
-      const memberId = document.getElementById('task-member').value;
-      const projectId = document.getElementById('task-project').value || null;
-      const priority = document.getElementById('task-priority').value;
-      const dueDate = document.getElementById('task-date').value;
-
-      const teamMemberIds = Array.from(
-        document.querySelectorAll('.chk-task-team-member:checked')
-      ).map((cb) => cb.value);
-
-      if (existingTaskId) {
-        const task = await DB.get('tasks', existingTaskId);
-
-        if (task) {
-          const currentTaskMemberId = task.member_id || task.memberId;
-          if (
-            !isManager() &&
-            String(currentTaskMemberId) !== String(getLoggedMemberId())
-          ) {
-            showToast('Você não tem permissão para editar esta atividade.', 'warning');
-            return;
-          }
-
-          const previousState = { ...task };
-
-          task.title = title;
-          task.description = description;
-          task.member_id = memberId;
-          task.memberId = memberId;
-          task.projectId = projectId;
-          task.priority = priority;
-          task.dueDate = dueDate;
-
-          await DB.save('tasks', task);
-
-          const existingTaskMembers = (await DB.getAll('task_members')) || [];
-          const currentGroupTasks = existingTaskMembers.filter(
-            (tm) => String(tm.taskId) === String(task.id)
-          );
-
-          for (const tm of currentGroupTasks) {
-            await DB.delete('task_members', tm.id);
-          }
-
-          for (const tMemberId of teamMemberIds) {
-            const newTm = {
-              id: 'tm-' + Date.now() + Math.floor(Math.random() * 1000),
-              taskId: task.id,
-              memberId: tMemberId,
-              member_id: tMemberId,
-              roleInTask: 'Colaborador',
-              createdAt: new Date().toISOString(),
-            };
-            await DB.save('task_members', newTm);
-          }
-
-          UndoEngine.pushAction({
-            type: 'TASK_UPDATE',
-            previousState,
-          });
-
-          showToast(`Atividade "${title}" atualizada com sucesso!`, 'success');
-        }
-      } else {
-        const newTask = {
-          id: 't-' + Date.now(),
-          title,
-          description,
-          member_id: memberId,
-          memberId: memberId,
-          projectId,
-          priority,
-          dueDate,
-          status: 'A FAZER',
-          elapsedSeconds: 0,
-          isTimerRunning: false,
-          lastTimerStartedAt: null,
-          sortOrder: Date.now(),
-          createdAt: new Date().toISOString(),
-        };
-
-        await DB.save('tasks', newTask);
-
-        for (const tMemberId of teamMemberIds) {
-          const newTm = {
-            id: 'tm-' + Date.now() + Math.floor(Math.random() * 1000),
-            taskId: newTask.id,
-            memberId: tMemberId,
-            member_id: tMemberId,
-            roleInTask: 'Colaborador',
-            createdAt: new Date().toISOString(),
-          };
-          await DB.save('task_members', newTm);
-        }
-
-        UndoEngine.pushAction({
-          type: 'TASK_CREATE',
-          taskId: newTask.id,
-        });
-
-        showToast('Nova atividade criada e vinculada!', 'success');
-      }
-
-      closeModal(modalTask);
-      refreshUI();
-    });
-  }
-
-  if (formProject) {
-    formProject.addEventListener('submit', async (e) => {
-      e.preventDefault();
-
-      const name = document.getElementById('project-name').value;
-      const description = document.getElementById('project-desc').value;
-
-      const newProject = {
-        id: 'proj-' + Date.now(),
-        name,
-        description,
-        status: 'EM ANDAMENTO',
-        createdAt: new Date().toISOString(),
-      };
-
-      await DB.save('projects', newProject);
-      showToast(`Projeto "${name}" criado com sucesso!`, 'success');
-      closeModal(modalProject);
-      refreshUI();
-    });
-  }
-
-  if (formImpediment) {
-    formImpediment.addEventListener('submit', async (e) => {
-      e.preventDefault();
-
-      const desc = document.getElementById('impediment-desc').value;
-      const preview = document.getElementById('impediment-preview');
-      const evidenceImg = preview.classList.contains('active') ? preview.src : null;
-
-      const newImpediment = {
-        id: 'imp-' + Date.now(),
-        taskId: reportingTaskId,
-        description: desc,
-        evidenceImage: evidenceImg,
-        createdAt: new Date().toISOString(),
-      };
-
-      await DB.save('impediments', newImpediment);
-      showToast('Contratempo registrado para a tarefa!', 'warning');
-      closeModal(modalImpediment);
-      refreshUI();
-    });
-  }
-
-  // ============================================================
-  // GRUPO DA ATIVIDADE
-  // ============================================================
-
-  const btnSaveTaskGroup = document.getElementById('task-group-save-btn');
-  if (btnSaveTaskGroup) {
-    btnSaveTaskGroup.addEventListener('click', async () => {
-      const taskId = btnSaveTaskGroup.dataset.taskId;
-      if (!taskId) return;
-
-      const checkboxes = document.querySelectorAll('.chk-group-member');
-      const existingTaskMembers = (await DB.getAll('task_members')) || [];
-      const currentGroupTasks = existingTaskMembers.filter(
-        (tm) => tm.taskId === taskId
-      );
-
-      for (const tm of currentGroupTasks) {
-        await DB.delete('task_members', tm.id);
-      }
-
-      for (const chk of checkboxes) {
-        if (chk.checked) {
-          const newTm = {
-            id: 'tm-' + Date.now() + Math.floor(Math.random() * 1000),
-            taskId,
-            memberId: chk.dataset.memberId,
-            roleInTask: 'Colaborador',
-            createdAt: new Date().toISOString(),
-          };
-          await DB.save('task_members', newTm);
-        }
-      }
-
-      showToast('Integrantes do grupo atualizados com sucesso!', 'success');
-      closeModal(modalTaskGroup);
-      refreshUI();
-    });
-  }
-
-  // ============================================================
-  // TOAST
-  // ============================================================
 
   function showToast(message, type = 'info') {
     const container = document.getElementById('toast-container');
@@ -1568,9 +787,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
-
-    const icon =
-      type === 'success' ? '✅' : type === 'warning' ? '⚠️' : 'ℹ️';
+    const icon = type === 'success' ? '✅' : type === 'warning' ? '⚠️' : 'ℹ️';
 
     toast.innerHTML = `<span>${icon}</span> <span>${message}</span>`;
     container.appendChild(toast);
@@ -1583,25 +800,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ============================================================
-  // ESCUTA EM TEMPO REAL (SUPABASE REALTIME)
-  // ============================================================
-
-  if (DB.supabase) {
-    DB.supabase
-      .channel('realtime_transfers')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'activity_transfers' },
-        (payload) => {
-          console.log('⚡ Realtime detectado em activity_transfers:', payload);
-          renderTopNotificationBar();
-        }
-      )
-      .subscribe();
-  }
-
-  // ============================================================
-  // DRAG AND DROP, CRONÔMETRO E SHORTCUTS
+  // DRAG AND DROP & CRONÔMETRO
   // ============================================================
 
   KanbanEngine.initDragAndDrop(async (task, fromStatus, toStatus) => {
@@ -1611,16 +810,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   TimerEngine.startGlobalTicker();
   UndoEngine.initKeyboardShortcut(refreshUI, showToast);
-
-  setInterval(() => {
-    if (!loginOverlay || !loginOverlay.classList.contains('active')) {
-      renderTopNotificationBar();
-    }
-  }, 20000);
-
-  // ============================================================
-  // INICIALIZAÇÃO
-  // ============================================================
 
   await refreshUI();
 });
