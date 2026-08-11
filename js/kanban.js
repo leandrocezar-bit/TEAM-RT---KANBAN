@@ -104,8 +104,21 @@ export const KanbanEngine = {
     if (!task) return;
 
     const allTasks = await DB.getAll('tasks');
+    const taskMembers = (await DB.getAll('task_members')) || [];
+
     const colTasks = allTasks
-      .filter(t => t.status === task.status && (this.activeMemberId === 'all' || String(t.member_id || t.memberId) === String(this.activeMemberId)))
+      .filter(t => {
+        if (t.status !== task.status) return false;
+        if (this.activeMemberId === 'all') return true;
+
+        const isPrincipal = String(t.member_id || t.memberId) === String(this.activeMemberId);
+        const isInGroup = taskMembers.some(tm =>
+          String(tm.taskId) === String(t.id) &&
+          String(tm.memberId || tm.member_id) === String(this.activeMemberId)
+        );
+
+        return isPrincipal || isInGroup;
+      })
       .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
 
     const index = colTasks.findIndex(t => String(t.id) === String(taskId));
@@ -155,9 +168,17 @@ export const KanbanEngine = {
       impMap.get(imp.taskId).push(imp);
     });
 
+    // 🔍 LÓGICA ATUALIZADA: Exibe a tarefa se a pessoa for Responsável Principal OU Integrante do Grupo (task_members)
     let filteredTasks = memberId === 'all'
       ? tasks
-      : tasks.filter(t => String(t.member_id || t.memberId) === String(memberId));
+      : tasks.filter(t => {
+        const isPrincipal = String(t.member_id || t.memberId) === String(memberId);
+        const isInGroup = taskMembers.some(tm =>
+          String(tm.taskId) === String(t.id) &&
+          String(tm.memberId || tm.member_id) === String(memberId)
+        );
+        return isPrincipal || isInGroup;
+      });
 
     // Filtro por período se selecionado
     if (this.currentPeriodFilter !== 'all') {
@@ -222,14 +243,14 @@ export const KanbanEngine = {
         }
 
         // Membros do Grupo
-        const groupLinks = taskMembers.filter(tm => tm.taskId === task.id);
-        const groupMembers = members.filter(m => groupLinks.some(gl => gl.memberId === m.id));
+        const groupLinks = taskMembers.filter(tm => String(tm.taskId) === String(task.id));
+        const groupMembers = members.filter(m => groupLinks.some(gl => String(gl.memberId || gl.member_id) === String(m.id)));
 
         return `
           <div class="kanban-card ${task.status === 'EM EXECUÇÃO' ? 'wip-active' : ''} ${isLocked ? 'task-locked' : ''}" 
-               draggable="${!isLocked}" 
-               data-id="${task.id}"
-               style="${isLocked ? 'opacity:0.85; border:1px dashed #6366f1; position:relative;' : ''}">
+                draggable="${!isLocked}" 
+                data-id="${task.id}"
+                style="${isLocked ? 'opacity:0.85; border:1px dashed #6366f1; position:relative;' : ''}">
             
             ${isLocked ? `
               <div class="lock-banner" style="background:rgba(99, 102, 241, 0.2); border-bottom:1px solid #6366f1; margin:-0.75rem -0.75rem 0.5rem -0.75rem; padding:0.4rem 0.6rem; border-radius:6px 6px 0 0; font-size:0.75rem; color:#a5b4fc; display:flex; justify-content:space-between; align-items:center;">
@@ -251,7 +272,7 @@ export const KanbanEngine = {
             <div class="card-badges" style="margin-bottom:0.5rem;">
               <span class="badge-priority priority-${(task.priority || 'média').toLowerCase()}">${task.priority || 'Média'}</span>
               ${taskImpediments.length > 0 ? `<span class="badge-impediment" title="${taskImpediments.length} contratempo(s) registrado(s)">⚠️ ${taskImpediments.length}</span>` : ''}
-              ${groupMembers.length > 0 ? `<span class="badge" style="background:rgba(99,102,241,0.2); color:#6366f1; border:1px solid rgba(99,102,241,0.4);" title="Atividade em Grupo (+${groupMembers.length})">👥 Grupo (${groupMembers.length + 1})</span>` : ''}
+              ${groupMembers.length > 0 ? `<span class="badge" style="background:rgba(99,102,241,0.2); color:#a5b4fc; border:1px solid rgba(99,102,241,0.4);" title="Atividade em Grupo (+${groupMembers.length})">👥 Grupo (${groupMembers.length + 1})</span>` : ''}
             </div>
 
             <p class="card-desc">${task.description || 'Sem descrição.'}</p>
@@ -277,9 +298,9 @@ export const KanbanEngine = {
 
             <div class="card-footer">
               <div class="member-info">
-                ${member.photo ? `<img src="${member.photo}" alt="${member.name}" class="card-avatar">` : '👤'}
+                ${member.photo ? `<img src="${member.photo}" alt="${member.name}" class="card-avatar" title="Responsável: ${member.name}">` : '👤'}
                 <span style="font-size:0.75rem; font-weight:600; color:var(--text-muted);">${member.name.split(' ')[0]}</span>
-                ${groupMembers.map(gm => `<img src="${gm.photo}" title="${gm.name}" class="card-avatar" style="margin-left:-8px; border:2px solid var(--bg-card);">`).join('')}
+                ${groupMembers.map(gm => `<img src="${gm.photo}" title="Integrante: ${gm.name}" class="card-avatar" style="margin-left:-8px; border:2px solid var(--bg-card);">`).join('')}
               </div>
               
               <div class="card-due-date">
