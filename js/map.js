@@ -6,7 +6,6 @@ import { DB } from './db.js';
 import { TimerEngine } from './timer.js';
 
 export const MapEngine = {
-  // Array inicial completamente limpo (sem tarefas pré-definidas)
   defaultDpProcesses: [],
 
   /**
@@ -101,7 +100,7 @@ export const MapEngine = {
   },
 
   /**
-   * Renderiza o Organograma por Categoria/Sub-Área
+   * Renderiza o Organograma por Categoria (Sem os cabeçalhos antigos)
    */
   renderDPOrganogram(processes, tasks, members) {
     const container = document.getElementById('map-organogram-grid');
@@ -136,14 +135,6 @@ export const MapEngine = {
               <span>${proc.icon || '📋'}</span> ${proc.category}
             </h3>
           </div>
-
-          ${defaultMember ? `
-            <div style="display:flex; align-items:center; gap:0.4rem; font-size:0.75rem; color:var(--text-muted); margin-bottom:0.85rem; padding-bottom:0.4rem; border-bottom:1px dashed var(--border-color);">
-              <span>Responsável Principal:</span>
-              <img src="${defaultMember.photo || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(defaultMember.name)}" alt="${defaultMember.name}" style="width:20px; height:20px; border-radius:50%; object-fit:cover;">
-              <strong style="color:var(--text-main);">${defaultMember.name}</strong>
-            </div>
-          ` : ''}
 
           <div style="display:flex; flex-direction:column; gap:0.75rem;">
             ${(proc.tasks || []).map(t => {
@@ -307,7 +298,7 @@ export const MapEngine = {
       });
     });
 
-    // 3. Adicionar Nova Atividade Padrão ao Mapa (Abre o Modal)
+    // 3. Adicionar Nova Atividade Padrão
     const btnAdd = document.getElementById('btn-add-map-process');
     if (btnAdd) {
       btnAdd.addEventListener('click', () => {
@@ -315,7 +306,7 @@ export const MapEngine = {
       });
     }
 
-    // 4. Editar Atividade Padrão (Abre o Modal)
+    // 4. Editar Atividade Padrão
     document.querySelectorAll('.btn-edit-process-item').forEach(btn => {
       btn.addEventListener('click', () => {
         const procId = btn.dataset.procId;
@@ -324,7 +315,7 @@ export const MapEngine = {
       });
     });
 
-    // 5. Excluir Atividade Padrão do Mapa
+    // 5. Excluir Atividade Padrão
     document.querySelectorAll('.btn-delete-process-item').forEach(btn => {
       btn.addEventListener('click', async () => {
         const procId = btn.dataset.procId;
@@ -335,7 +326,6 @@ export const MapEngine = {
           if (procIndex !== -1) {
             processes[procIndex].tasks = processes[procIndex].tasks.filter(t => String(t.id) !== String(taskId));
 
-            // Caso a categoria fique vazia, podemos mantê-la ou limpá-la
             const payload = {
               id: processes[procIndex].id,
               data: processes[procIndex]
@@ -368,17 +358,13 @@ export const MapEngine = {
       }
     }
 
-    // Remove modal antigo se já existir na tela
     const oldModal = document.getElementById('modal-custom-map-task');
     if (oldModal) oldModal.remove();
-
-    const todayStr = new Date().toISOString().slice(0, 10);
 
     const modalHtml = `
       <div id="modal-custom-map-task" class="modal-overlay active" style="position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.75); display:flex; align-items:center; justify-content:center; z-index:9999;">
         <div style="background: #111827; border: 1px solid #1f2937; border-radius: 12px; width: 100%; max-width: 580px; padding: 1.5rem; color: #f3f4f6; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);">
           
-          <!-- Cabeçalho -->
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
             <h3 style="font-size: 1.15rem; font-weight: 700; color: #ffffff; display: flex; align-items: center; gap: 0.5rem;">
               📌 ${taskId ? 'Editar Atividade' : 'Nova Atividade'}
@@ -387,7 +373,6 @@ export const MapEngine = {
           </div>
 
           <form id="form-custom-map-task">
-            <!-- Título -->
             <div style="margin-bottom: 1rem;">
               <label style="display: block; font-size: 0.8rem; font-weight: 600; color: #9ca3af; margin-bottom: 0.35rem;">
                 Título da Atividade *
@@ -395,7 +380,6 @@ export const MapEngine = {
               <input type="text" id="map-input-title" required value="${currentTask.title}" placeholder="Ex: Fechamento da Folha de Pagamento" style="width: 100%; background: #1f2937; border: 1px solid #374151; border-radius: 6px; padding: 0.6rem 0.8rem; color: #ffffff; font-size: 0.875rem; outline: none;">
             </div>
 
-            <!-- Categoria e Responsável -->
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem; margin-bottom: 1rem;">
               <div>
                 <label style="display: block; font-size: 0.8rem; font-weight: 600; color: #9ca3af; margin-bottom: 0.35rem;">
@@ -418,7 +402,6 @@ export const MapEngine = {
               </div>
             </div>
 
-            <!-- Prioridade e Prazo -->
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem; margin-bottom: 1rem;">
               <div>
                 <label style="display: block; font-size: 0.8rem; font-weight: 600; color: #9ca3af; margin-bottom: 0.35rem;">
@@ -439,7 +422,6 @@ export const MapEngine = {
               </div>
             </div>
 
-            <!-- Descrição -->
             <div style="margin-bottom: 1.5rem;">
               <label style="display: block; font-size: 0.8rem; font-weight: 600; color: #9ca3af; margin-bottom: 0.35rem;">
                 Descrição dos Detalhes
@@ -447,7 +429,6 @@ export const MapEngine = {
               <textarea id="map-input-desc" rows="3" placeholder="Instruções e requisitos da atividade..." style="width: 100%; background: #1f2937; border: 1px solid #374151; border-radius: 6px; padding: 0.6rem 0.8rem; color: #ffffff; font-size: 0.85rem; outline: none; resize: vertical;">${currentTask.desc || ''}</textarea>
             </div>
 
-            <!-- Botões de Ação -->
             <div style="display: flex; justify-content: flex-end; gap: 0.75rem;">
               <button type="button" id="btn-cancel-map-modal" style="background: #374151; color: #ffffff; border: none; border-radius: 8px; padding: 0.6rem 1.25rem; font-size: 0.875rem; font-weight: 600; cursor: pointer;">
                 Cancelar
@@ -464,7 +445,6 @@ export const MapEngine = {
 
     document.body.insertAdjacentHTML('beforeend', modalHtml);
 
-    // Eventos do Modal
     const modal = document.getElementById('modal-custom-map-task');
     const closeBtn = document.getElementById('btn-close-map-modal');
     const cancelBtn = document.getElementById('btn-cancel-map-modal');
@@ -485,7 +465,6 @@ export const MapEngine = {
       const dayLimit = document.getElementById('map-input-limit').value.trim();
       const desc = document.getElementById('map-input-desc').value.trim();
 
-      // Localiza ou cria o grupo/categoria de processo
       let targetProc = processes.find(p => p.category.toLowerCase() === category.toLowerCase());
 
       if (!targetProc) {
@@ -502,7 +481,6 @@ export const MapEngine = {
       }
 
       if (taskId) {
-        // Edição
         const taskIndex = targetProc.tasks.findIndex(t => String(t.id) === String(taskId));
         if (taskIndex !== -1) {
           targetProc.tasks[taskIndex] = {
@@ -514,7 +492,6 @@ export const MapEngine = {
           };
         }
       } else {
-        // Criação de nova tarefa
         targetProc.tasks.push({
           id: 'dp-t-' + Date.now(),
           title,
@@ -524,7 +501,6 @@ export const MapEngine = {
         });
       }
 
-      // Persiste no Supabase
       const payload = {
         id: targetProc.id,
         data: targetProc
