@@ -8,7 +8,8 @@ import { TimerEngine } from './timer.js';
 export const ManagerEngine = {
   selectedCalendarMemberId: 'all',
   currentCalendarDate: new Date(),
-  currentPeriodFilter: 'all', // 'all', 'daily', 'weekly', 'monthly'
+  startDateFilter: null,
+  endDateFilter: null,
 
   /**
    * Renderiza o Dashboard Completo do Gestor
@@ -18,78 +19,74 @@ export const ManagerEngine = {
     const tasks = (await DB.getAll('tasks')) || [];
     const impediments = (await DB.getAll('impediments')) || [];
 
-    // Renderiza o cabeçalho e os botões de filtro dinamicamente
-    this.renderFilterHeader(members, tasks, impediments);
-
+    this.renderDateFilterControls(members, tasks, impediments);
     this.renderMemberCards(members, tasks, impediments);
     this.renderImpedimentsAlertList(impediments, tasks, members, onViewEvidenceCallback);
     this.renderCalendarGrid(tasks, members, onOpenDayDetailsCallback);
   },
 
   /**
-   * Renderiza dinamicamente o cabeçalho do Dashboard com os botões de filtro de data
+   * Renderiza os controles de seleção por Calendário (De / Até) no topo
    */
-  renderFilterHeader(members, tasks, impediments) {
-    const section = document.getElementById('section-manager');
-    if (!section) return;
+  renderDateFilterControls(members, tasks, impediments) {
+    const container = document.getElementById('dashboard-date-filter-container');
+    if (!container) return;
 
-    let headerContainer = document.getElementById('manager-dashboard-header');
-    if (!headerContainer) {
-      headerContainer = document.createElement('div');
-      headerContainer.id = 'manager-dashboard-header';
-      headerContainer.style.cssText = 'display:flex; justify-space-between; align-items:center; flex-wrap:wrap; gap:0.75rem; margin-bottom:1.25rem;';
-      section.insertBefore(headerContainer, section.firstChild);
-    }
+    container.innerHTML = `
+      <div style="display:flex; align-items:center; gap:0.5rem; background:var(--bg-secondary, #1f2937); padding:0.4rem 0.75rem; border-radius:var(--radius-md, 8px); border:1px solid var(--border-color, #374151); flex-wrap:wrap;">
+        <span style="font-size:0.8rem; font-weight:700; color:var(--text-muted, #9ca3af);">🗓️ Filtrar Período:</span>
+        
+        <label style="font-size:0.75rem; color:var(--text-dim, #9ca3af); display:flex; align-items:center; gap:0.3rem;">
+          De:
+          <input type="date" id="dash-start-date" class="input-control" value="${this.startDateFilter || ''}" style="padding:0.2rem 0.4rem; font-size:0.75rem; background:var(--bg-input, #111827); color:#fff; border:1px solid var(--border-color, #374151); border-radius:4px;">
+        </label>
 
-    headerContainer.innerHTML = `
-      <h2 style="font-size:1.15rem; font-weight:800; display:flex; align-items:center; gap:0.5rem; margin:0;">
-        👥 Desempenho e Horas da Equipe
-      </h2>
+        <label style="font-size:0.75rem; color:var(--text-dim, #9ca3af); display:flex; align-items:center; gap:0.3rem;">
+          Até:
+          <input type="date" id="dash-end-date" class="input-control" value="${this.endDateFilter || ''}" style="padding:0.2rem 0.4rem; font-size:0.75rem; background:var(--bg-input, #111827); color:#fff; border:1px solid var(--border-color, #374151); border-radius:4px;">
+        </label>
 
-      <div style="display:flex; align-items:center; gap:0.5rem; background:var(--bg-secondary, #1f2937); padding:0.4rem 0.75rem; border-radius:var(--radius-md, 8px); border:1px solid var(--border-color, #374151);">
-        <span style="font-size:0.8rem; font-weight:700; color:var(--text-muted, #9ca3af);">🗓️ Período:</span>
-        <button class="btn btn-secondary btn-dash-filter ${this.currentPeriodFilter === 'all' ? 'active' : ''}" data-period="all" style="padding:0.25rem 0.6rem; font-size:0.75rem;">Todos</button>
-        <button class="btn btn-secondary btn-dash-filter ${this.currentPeriodFilter === 'daily' ? 'active' : ''}" data-period="daily" style="padding:0.25rem 0.6rem; font-size:0.75rem;">Diário</button>
-        <button class="btn btn-secondary btn-dash-filter ${this.currentPeriodFilter === 'weekly' ? 'active' : ''}" data-period="weekly" style="padding:0.25rem 0.6rem; font-size:0.75rem;">Semanal</button>
-        <button class="btn btn-secondary btn-dash-filter ${this.currentPeriodFilter === 'monthly' ? 'active' : ''}" data-period="monthly" style="padding:0.25rem 0.6rem; font-size:0.75rem;">Mensal</button>
+        <button id="btn-apply-dash-date" class="btn btn-primary" style="padding:0.25rem 0.6rem; font-size:0.75rem; font-weight:700;">Filtrar</button>
+        <button id="btn-clear-dash-date" class="btn btn-secondary" style="padding:0.25rem 0.6rem; font-size:0.75rem;">Limpar</button>
       </div>
     `;
 
-    headerContainer.querySelectorAll('.btn-dash-filter').forEach(btn => {
-      btn.addEventListener('click', () => {
-        this.currentPeriodFilter = btn.dataset.period;
-        this.renderFilterHeader(members, tasks, impediments);
+    const startInput = document.getElementById('dash-start-date');
+    const endInput = document.getElementById('dash-end-date');
+    const applyBtn = document.getElementById('btn-apply-dash-date');
+    const clearBtn = document.getElementById('btn-clear-dash-date');
+
+    if (applyBtn) {
+      applyBtn.addEventListener('click', () => {
+        this.startDateFilter = startInput.value || null;
+        this.endDateFilter = endInput.value || null;
         this.renderMemberCards(members, tasks, impediments);
       });
-    });
+    }
+
+    if (clearBtn) {
+      clearBtn.addEventListener('click', () => {
+        this.startDateFilter = null;
+        this.endDateFilter = null;
+        startInput.value = '';
+        endInput.value = '';
+        this.renderMemberCards(members, tasks, impediments);
+      });
+    }
   },
 
   /**
-   * Filtra as tarefas baseando-se no período selecionado
+   * Filtra as tarefas de acordo com o intervalo de datas selecionado no calendário
    */
-  filterTasksByPeriod(tasksList) {
-    if (this.currentPeriodFilter === 'all') return tasksList;
-
-    const now = new Date();
-    const todayStr = now.toISOString().slice(0, 10);
+  filterTasksByDateRange(tasksList) {
+    if (!this.startDateFilter && !this.endDateFilter) return tasksList;
 
     return tasksList.filter(t => {
       const taskDateStr = t.dueDate || (t.createdAt ? t.createdAt.slice(0, 10) : null);
       if (!taskDateStr) return false;
 
-      if (this.currentPeriodFilter === 'daily') {
-        return taskDateStr === todayStr;
-      }
-
-      if (this.currentPeriodFilter === 'weekly') {
-        const taskDate = new Date(taskDateStr);
-        const diffDays = (taskDate - now) / (1000 * 60 * 60 * 24);
-        return diffDays >= -1 && diffDays <= 7;
-      }
-
-      if (this.currentPeriodFilter === 'monthly') {
-        return taskDateStr.slice(0, 7) === todayStr.slice(0, 7);
-      }
+      if (this.startDateFilter && taskDateStr < this.startDateFilter) return false;
+      if (this.endDateFilter && taskDateStr > this.endDateFilter) return false;
 
       return true;
     });
@@ -115,8 +112,8 @@ export const ManagerEngine = {
       return;
     }
 
-    // Aplica o filtro selecionado (Todos, Diário, Semanal, Mensal)
-    const filteredTasks = this.filterTasksByPeriod(tasks);
+    // Aplica o filtro de intervalo de datas selecionado no calendário
+    const filteredTasks = this.filterTasksByDateRange(tasks);
 
     container.innerHTML = visibleMembers.map(member => {
       const memberTasks = filteredTasks.filter(t => String(t.member_id || t.memberId) === String(member.id));
