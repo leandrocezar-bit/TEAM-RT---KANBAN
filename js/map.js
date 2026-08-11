@@ -1,77 +1,13 @@
 /**
- * Organograma e Mapa de Processos Recorrentes do Departamento Pessoal (DP) Editável
+ * Organograma e Mapa de Processos Recorrentes Editável (100% Personalizado)
  */
 
 import { DB } from './db.js';
 import { TimerEngine } from './timer.js';
 
 export const MapEngine = {
-  selectedCalendarMemberId: 'all',
-
-  /**
-   * Processos padrão pré-definidos caso a tabela cycle_templates esteja vazia
-   */
-  defaultDpProcesses: [
-    {
-      id: 'proc-1',
-      category: 'Folha de Pagamento & Encargos',
-      icon: '💵',
-      defaultMemberRole: 'Analista de Folha de Pagamento',
-      tasks: [
-        { id: 'dp-t-1', title: 'Fechamento da Folha de Pagamento Mensal (S-1200 / S-1210)', dayLimit: 'Dia 05', priority: 'Alta', desc: 'Cálculo de proventos, descontos, DSR, INSS, IRRF e emissão de holerites.' },
-        { id: 'dp-t-2', title: 'Emissão e Envio da Guia DCTFWeb (INSS / DARF Unificado)', dayLimit: 'Dia 15', priority: 'Alta', desc: 'Fechamento do eSocial S-1299 e transmissão da DCTFWeb à Receita Federal.' },
-        { id: 'dp-t-3', title: 'Gerar e Enviar Guia do FGTS Digital', dayLimit: 'Dia 20', priority: 'Alta', desc: 'Emissão da guia do FGTS referente à folha de pagamento do mês.' }
-      ]
-    },
-    {
-      id: 'proc-2',
-      category: 'Gestão de Ponto & Benefícios',
-      icon: '⏱️',
-      defaultMemberRole: 'Assistente de Admissão e Benefícios',
-      tasks: [
-        { id: 'dp-t-4', title: 'Apuração e Fechamento do Espelho de Ponto Eletrônico', dayLimit: 'Dia 25', priority: 'Alta', desc: 'Ajuste de marcações, cálculo de HE, adicional noturno, banco de horas e faltas.' },
-        { id: 'dp-t-5', title: 'Pedido e Recarga de Vale Transporte (VT) e Vale Alimentação (VA/VR)', dayLimit: 'Dia 28', priority: 'Média', desc: 'Conferência de dias úteis e recarga nos cartões dos colaboradores.' }
-      ]
-    },
-    {
-      id: 'proc-3',
-      category: 'Admissão & Registro de Colaboradores',
-      icon: '💼',
-      defaultMemberRole: 'Assistente de Admissão e Benefícios',
-      tasks: [
-        { id: 'dp-t-6', title: 'Processamento de Admissões e Qualificação Cadastral (S-2200)', dayLimit: 'Recorrente', priority: 'Média', desc: 'Coleta de documentos, ASO admissional e transmissão prévia ao eSocial.' },
-        { id: 'dp-t-7', title: 'Cadastro no Ponto e Abertura de Conta Salário', dayLimit: 'Recorrente', priority: 'Média', desc: 'Inclusão no sistema de relógio de ponto e solicitação de conta bancária.' }
-      ]
-    },
-    {
-      id: 'proc-4',
-      category: 'Férias & Ausências',
-      icon: '🏖️',
-      defaultMemberRole: 'Analista de Folha de Pagamento',
-      tasks: [
-        { id: 'dp-t-8', title: 'Mapeamento de Escala de Férias e Emissão de Avisos (30 dias antes)', dayLimit: 'Dia 01', priority: 'Média', desc: 'Verificação do período aquisitivo/concessivo e colheita de assinatura.' },
-        { id: 'dp-t-9', title: 'Cálculo de Recibo de Férias e Adicional de 1/3 (S-2230)', dayLimit: 'Dia 25', priority: 'Média', desc: 'Pagamento das férias até 2 dias antes do início do gozo conforme CLT.' }
-      ]
-    },
-    {
-      id: 'proc-5',
-      category: 'Rescisão & Desligamento',
-      icon: '📄',
-      defaultMemberRole: 'Analista de Folha de Pagamento',
-      tasks: [
-        { id: 'dp-t-10', title: 'Cálculo de Rescisão Contratual (TRCT) e Chave do FGTS (S-2299)', dayLimit: 'Recorrente', priority: 'Alta', desc: 'Cálculo de aviso prévio, saldo de salário, guias e transmissão de desligamento.' }
-      ]
-    },
-    {
-      id: 'proc-6',
-      category: 'SST & Obrigações eSocial',
-      icon: '📋',
-      defaultMemberRole: 'Especialista eSocial & Encargos',
-      tasks: [
-        { id: 'dp-t-11', title: 'Gestão de Eventos de SST (S-2210 CAT, S-2220 ASO, S-2240 Periculosidade)', dayLimit: 'Dia 15', priority: 'Média', desc: 'Acompanhamento de exames periódicos e laudos ambientais de trabalho.' }
-      ]
-    }
-  ],
+  // Array inicial completamente limpo (sem tarefas pré-definidas)
+  defaultDpProcesses: [],
 
   /**
    * Obtém a lista atualizada de processos da tabela "cycle_templates" do Supabase
@@ -80,17 +16,16 @@ export const MapEngine = {
     try {
       const records = await DB.getAll('cycle_templates');
       if (records && records.length > 0) {
-        // Extrai a propriedade JSON "data" ou o próprio registro
         return records.map(r => r.data || r);
       }
     } catch (e) {
-      console.warn('⚡ Tabela cycle_templates vazia ou indisponível. Usando estrutura padrão.', e);
+      console.warn('⚡ Tabela cycle_templates vazia ou indisponível.', e);
     }
     return this.defaultDpProcesses;
   },
 
   /**
-   * Renderiza a tela do Mapa de Demandas do DP
+   * Renderiza a tela do Mapa de Demandas
    */
   async renderSectorMap() {
     const tasks = (await DB.getAll('tasks')) || [];
@@ -109,7 +44,7 @@ export const MapEngine = {
     this.renderDPOrganogram(processes, tasks, members);
     this.renderRoadmapTable(tasks, membersMap, impMap);
 
-    this.attachEvents(processes);
+    this.attachEvents(processes, members);
   },
 
   /**
@@ -132,7 +67,7 @@ export const MapEngine = {
     container.innerHTML = `
       <div class="metric-card" style="--card-accent: #6366f1;">
         <div class="metric-header">
-          <span class="metric-title">Fechamento do Mês (DP)</span>
+          <span class="metric-title">Fechamento do Mês</span>
           <div class="metric-icon">📈</div>
         </div>
         <div class="metric-value">${completionPercent}%</div>
@@ -143,7 +78,7 @@ export const MapEngine = {
 
       <div class="metric-card" style="--card-accent: #10b981;">
         <div class="metric-header">
-          <span class="metric-title">Demandas do DP no Quadro</span>
+          <span class="metric-title">Demandas no Quadro</span>
           <div class="metric-icon">💼</div>
         </div>
         <div class="metric-value">${total}</div>
@@ -154,7 +89,7 @@ export const MapEngine = {
 
       <div class="metric-card" style="--card-accent: #06b6d4;">
         <div class="metric-header">
-          <span class="metric-title">Horas Trabalhadas no DP</span>
+          <span class="metric-title">Horas Trabalhadas</span>
           <div class="metric-icon">⏱️</div>
         </div>
         <div class="metric-value">${TimerEngine.formatTime(totalSeconds)}</div>
@@ -166,7 +101,7 @@ export const MapEngine = {
   },
 
   /**
-   * Renderiza o Organograma Editável por Sub-Área do DP
+   * Renderiza o Organograma por Categoria/Sub-Área
    */
   renderDPOrganogram(processes, tasks, members) {
     const container = document.getElementById('map-organogram-grid');
@@ -174,16 +109,25 @@ export const MapEngine = {
 
     let html = `
       <div style="grid-column: 1 / -1; display:flex; justify-content:flex-end; margin-bottom: 0.5rem;">
-        <button id="btn-add-map-process" class="btn btn-primary" style="font-size: 0.8rem; padding: 0.4rem 0.8rem;">
-          ➕ Adicionar Nova Atividade Padrão
+        <button id="btn-add-map-process" class="btn btn-primary" style="font-size: 0.85rem; padding: 0.5rem 1rem;">
+          📌 + Criar Nova Atividade Padrão
         </button>
       </div>
     `;
 
+    if (processes.length === 0) {
+      html += `
+        <div style="grid-column: 1 / -1; text-align: center; padding: 3rem; background: var(--bg-card); border: 1px dashed var(--border-color); border-radius: var(--radius-lg);">
+          <p style="font-size: 1rem; color: var(--text-muted); margin-bottom: 1rem;">Nenhuma atividade padrão cadastrada no mapa.</p>
+          <p style="font-size: 0.8rem; color: var(--text-dim);">Clique no botão acima para criar suas próprias categorias e processos recorrentes.</p>
+        </div>
+      `;
+      container.innerHTML = html;
+      return;
+    }
+
     html += processes.map(proc => {
-      const defaultMember = members.find(m =>
-        (m.role || '').toLowerCase().includes((proc.defaultMemberRole || '').toLowerCase())
-      ) || members[0];
+      const defaultMember = members.find(m => String(m.id) === String(proc.defaultMemberId)) || members[0];
 
       return `
         <div class="card-panel" style="border-top: 3px solid var(--accent-primary);">
@@ -196,16 +140,16 @@ export const MapEngine = {
           ${defaultMember ? `
             <div style="display:flex; align-items:center; gap:0.4rem; font-size:0.75rem; color:var(--text-muted); margin-bottom:0.85rem; padding-bottom:0.4rem; border-bottom:1px dashed var(--border-color);">
               <span>Responsável Principal:</span>
-              <img src="${defaultMember.photo}" alt="${defaultMember.name}" style="width:20px; height:20px; border-radius:50%;">
+              <img src="${defaultMember.photo || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(defaultMember.name)}" alt="${defaultMember.name}" style="width:20px; height:20px; border-radius:50%; object-fit:cover;">
               <strong style="color:var(--text-main);">${defaultMember.name}</strong>
             </div>
           ` : ''}
 
           <div style="display:flex; flex-direction:column; gap:0.75rem;">
-            ${proc.tasks.map(t => {
+            ${(proc.tasks || []).map(t => {
         const activeTask = tasks.find(item => item.title === t.title);
 
-        let statusBadge = `<span class="badge" style="background:rgba(255,255,255,0.08); color:var(--text-dim);">Padrão DP</span>`;
+        let statusBadge = `<span class="badge" style="background:rgba(255,255,255,0.08); color:var(--text-dim);">Padrão</span>`;
         if (activeTask) {
           const badgeClass = activeTask.status === 'EM EXECUÇÃO' ? 'badge-pending' : activeTask.status === 'CONCLUÍDO' ? 'badge-approved' : 'badge-rate';
           statusBadge = `<span class="badge ${badgeClass}">${activeTask.status}</span>`;
@@ -217,19 +161,19 @@ export const MapEngine = {
                     <strong style="font-size:0.85rem; color:var(--text-main);">${t.title}</strong>
                     <div style="display:flex; align-items:center; gap:0.3rem;">
                       ${statusBadge}
-                      <button class="btn-edit-process-item" data-proc-id="${proc.id}" data-task-id="${t.id}" title="Editar Atividade Padrão" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:0.75rem; padding:0 0.2rem;">✏️</button>
-                      <button class="btn-delete-process-item" data-proc-id="${proc.id}" data-task-id="${t.id}" title="Excluir Atividade Padrão" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:0.75rem; padding:0 0.2rem;">🗑️</button>
+                      <button class="btn-edit-process-item" data-proc-id="${proc.id}" data-task-id="${t.id}" title="Editar Atividade" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:0.75rem; padding:0 0.2rem;">✏️</button>
+                      <button class="btn-delete-process-item" data-proc-id="${proc.id}" data-task-id="${t.id}" title="Excluir Atividade" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:0.75rem; padding:0 0.2rem;">🗑️</button>
                     </div>
                   </div>
                   
-                  <p style="font-size:0.75rem; color:var(--text-muted); margin-bottom:0.6rem;">${t.desc}</p>
+                  <p style="font-size:0.75rem; color:var(--text-muted); margin-bottom:0.6rem;">${t.desc || 'Sem detalhes cadastrados.'}</p>
 
                   <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid var(--border-color); padding-top:0.4rem; font-size:0.75rem;">
-                    <span style="color:var(--text-dim); font-weight:600;">🗓️ Limite: ${t.dayLimit}</span>
+                    <span style="color:var(--text-dim); font-weight:600;">🗓️ Limite: ${t.dayLimit || 'A definir'}</span>
                     <button class="btn btn-secondary btn-launch-dp-task" 
                             data-title="${t.title}" 
-                            data-desc="${t.desc}" 
-                            data-priority="${t.priority}" 
+                            data-desc="${t.desc || ''}" 
+                            data-priority="${t.priority || 'Média'}" 
                             data-member="${defaultMember ? defaultMember.id : ''}"
                             style="font-size:0.7rem; padding:0.25rem 0.5rem;">
                       ⚡ ${activeTask ? 'Já no Kanban' : '+ Lançar no Kanban'}
@@ -247,7 +191,7 @@ export const MapEngine = {
   },
 
   /**
-   * Renderiza a Tabela Roadmap do DP
+   * Renderiza a Tabela Roadmap
    */
   renderRoadmapTable(tasks, membersMap, impMap) {
     const container = document.getElementById('map-roadmap-table-body');
@@ -256,7 +200,7 @@ export const MapEngine = {
     if (tasks.length === 0) {
       container.innerHTML = `
         <tr>
-          <td colspan="7" style="text-align:center; padding:2rem; color:var(--text-dim);">Nenhuma demanda ativa no momento. Clique no botão acima para iniciar o ciclo do mês.</td>
+          <td colspan="7" style="text-align:center; padding:2rem; color:var(--text-dim);">Nenhuma demanda ativa no momento. Clique no botão de lançar para enviar atividades para o Kanban.</td>
         </tr>
       `;
       return;
@@ -293,7 +237,7 @@ export const MapEngine = {
           </td>
           <td>
             <div style="display:flex; align-items:center; gap:0.4rem;">
-              <img src="${member.photo}" alt="${member.name}" style="width:24px; height:24px; border-radius:50%;">
+              <img src="${member.photo || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(member.name)}" alt="${member.name}" style="width:24px; height:24px; border-radius:50%; object-fit:cover;">
               <span>${member.name}</span>
             </div>
           </td>
@@ -313,14 +257,14 @@ export const MapEngine = {
   },
 
   /**
-   * Eventos dos botões do Organograma DP
+   * Associa os eventos aos elementos interativos
    */
-  attachEvents(processes) {
+  attachEvents(processes, members) {
     // 1. Iniciar ciclo mensal
     const btnCycle = document.getElementById('btn-start-dp-cycle');
     if (btnCycle) {
       btnCycle.addEventListener('click', async () => {
-        if (confirm('Deseja instanciar todas as atividades mensais recorrentes do DP no Quadro Kanban da equipe?')) {
+        if (confirm('Deseja instanciar todas as atividades mensais recorrentes no Quadro Kanban da equipe?')) {
           await this.startDPMonthlyCycle();
         }
       });
@@ -338,7 +282,7 @@ export const MapEngine = {
         const exists = tasks.some(t => t.title === title);
 
         if (exists) {
-          alert('Esta atividade já foi inserida no Quadro Kanban do setor!');
+          alert('Esta atividade já foi inserida no Quadro Kanban!');
           return;
         }
 
@@ -346,8 +290,8 @@ export const MapEngine = {
           id: 't-dp-' + Date.now(),
           title,
           description: desc,
-          member_id: memberId || 'm-1',
-          memberId: memberId || 'm-1',
+          member_id: memberId || (members[0] ? members[0].id : 'm-1'),
+          memberId: memberId || (members[0] ? members[0].id : 'm-1'),
           priority: priority || 'Média',
           dueDate: new Date().toISOString().slice(0, 10),
           status: 'A FAZER',
@@ -363,20 +307,20 @@ export const MapEngine = {
       });
     });
 
-    // 3. Adicionar Nova Atividade Padrão ao Mapa (Grava em cycle_templates)
+    // 3. Adicionar Nova Atividade Padrão ao Mapa (Abre o Modal)
     const btnAdd = document.getElementById('btn-add-map-process');
     if (btnAdd) {
       btnAdd.addEventListener('click', () => {
-        this.openEditProcessModal(null, null, processes);
+        this.openCustomModal(null, null, processes, members);
       });
     }
 
-    // 4. Editar Atividade Padrão
+    // 4. Editar Atividade Padrão (Abre o Modal)
     document.querySelectorAll('.btn-edit-process-item').forEach(btn => {
       btn.addEventListener('click', () => {
         const procId = btn.dataset.procId;
         const taskId = btn.dataset.taskId;
-        this.openEditProcessModal(procId, taskId, processes);
+        this.openCustomModal(procId, taskId, processes, members);
       });
     });
 
@@ -391,7 +335,7 @@ export const MapEngine = {
           if (procIndex !== -1) {
             processes[procIndex].tasks = processes[procIndex].tasks.filter(t => String(t.id) !== String(taskId));
 
-            // Grava na tabela cycle_templates
+            // Caso a categoria fique vazia, podemos mantê-la ou limpá-la
             const payload = {
               id: processes[procIndex].id,
               data: processes[procIndex]
@@ -407,67 +351,193 @@ export const MapEngine = {
   },
 
   /**
-   * Abre Modal para Edição / Adição de Processos na tabela cycle_templates
+   * Exibe o Modal de Criação / Edição estilo "Nova Atividade"
    */
-  async openEditProcessModal(procId, taskId, processes) {
-    let currentTask = { title: '', desc: '', dayLimit: 'Dia 05', priority: 'Média' };
-    let currentCategory = processes[0].category;
+  openCustomModal(procId, taskId, processes, members) {
+    let currentTask = { title: '', desc: '', dayLimit: '', priority: 'Média' };
+    let currentCategory = 'Geral';
+    let currentMemberId = members[0] ? members[0].id : '';
 
     if (procId && taskId) {
       const proc = processes.find(p => String(p.id) === String(procId));
       if (proc) {
         currentCategory = proc.category;
-        const t = proc.tasks.find(item => String(item.id) === String(taskId));
+        currentMemberId = proc.defaultMemberId || currentMemberId;
+        const t = (proc.tasks || []).find(item => String(item.id) === String(taskId));
         if (t) currentTask = t;
       }
     }
 
-    const newTitle = prompt('Título da Atividade Padrão:', currentTask.title);
-    if (!newTitle) return;
+    // Remove modal antigo se já existir na tela
+    const oldModal = document.getElementById('modal-custom-map-task');
+    if (oldModal) oldModal.remove();
 
-    const newDesc = prompt('Descrição detalhada:', currentTask.desc) || '';
-    const newDayLimit = prompt('Prazo limite padrão (ex: Dia 05, Dia 15, Recorrente):', currentTask.dayLimit) || 'Dia 05';
-    const newPriority = prompt('Prioridade (Alta, Média, Baixa):', currentTask.priority) || 'Média';
+    const todayStr = new Date().toISOString().slice(0, 10);
 
-    let targetProc = processes.find(p => p.category === currentCategory);
-    if (!targetProc) {
-      targetProc = processes[0];
-    }
+    const modalHtml = `
+      <div id="modal-custom-map-task" class="modal-overlay active" style="position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.75); display:flex; align-items:center; justify-content:center; z-index:9999;">
+        <div style="background: #111827; border: 1px solid #1f2937; border-radius: 12px; width: 100%; max-width: 580px; padding: 1.5rem; color: #f3f4f6; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);">
+          
+          <!-- Cabeçalho -->
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
+            <h3 style="font-size: 1.15rem; font-weight: 700; color: #ffffff; display: flex; align-items: center; gap: 0.5rem;">
+              📌 ${taskId ? 'Editar Atividade' : 'Nova Atividade'}
+            </h3>
+            <button id="btn-close-map-modal" style="background: none; border: none; color: #9ca3af; font-size: 1.25rem; cursor: pointer;">✕</button>
+          </div>
 
-    if (taskId) {
-      const taskIndex = targetProc.tasks.findIndex(t => String(t.id) === String(taskId));
-      if (taskIndex !== -1) {
-        targetProc.tasks[taskIndex] = {
-          ...targetProc.tasks[taskIndex],
-          title: newTitle,
-          desc: newDesc,
-          dayLimit: newDayLimit,
-          priority: newPriority
+          <form id="form-custom-map-task">
+            <!-- Título -->
+            <div style="margin-bottom: 1rem;">
+              <label style="display: block; font-size: 0.8rem; font-weight: 600; color: #9ca3af; margin-bottom: 0.35rem;">
+                Título da Atividade *
+              </label>
+              <input type="text" id="map-input-title" required value="${currentTask.title}" placeholder="Ex: Fechamento da Folha de Pagamento" style="width: 100%; background: #1f2937; border: 1px solid #374151; border-radius: 6px; padding: 0.6rem 0.8rem; color: #ffffff; font-size: 0.875rem; outline: none;">
+            </div>
+
+            <!-- Categoria e Responsável -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem; margin-bottom: 1rem;">
+              <div>
+                <label style="display: block; font-size: 0.8rem; font-weight: 600; color: #9ca3af; margin-bottom: 0.35rem;">
+                  Categoria / Macro-Área *
+                </label>
+                <input type="text" id="map-input-category" required value="${currentCategory}" placeholder="Ex: Folha de Pagamento" style="width: 100%; background: #1f2937; border: 1px solid #374151; border-radius: 6px; padding: 0.6rem 0.8rem; color: #ffffff; font-size: 0.85rem; outline: none;">
+              </div>
+
+              <div>
+                <label style="display: block; font-size: 0.8rem; font-weight: 600; color: #9ca3af; margin-bottom: 0.35rem;">
+                  Responsável Principal *
+                </label>
+                <select id="map-select-member" required style="width: 100%; background: #1f2937; border: 1px solid #374151; border-radius: 6px; padding: 0.6rem 0.8rem; color: #ffffff; font-size: 0.85rem; outline: none;">
+                  ${members.map(m => `
+                    <option value="${m.id}" ${String(m.id) === String(currentMemberId) ? 'selected' : ''}>
+                      ${m.name} (${m.role || 'Membro'})
+                    </option>
+                  `).join('')}
+                </select>
+              </div>
+            </div>
+
+            <!-- Prioridade e Prazo -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem; margin-bottom: 1rem;">
+              <div>
+                <label style="display: block; font-size: 0.8rem; font-weight: 600; color: #9ca3af; margin-bottom: 0.35rem;">
+                  Prioridade *
+                </label>
+                <select id="map-select-priority" required style="width: 100%; background: #1f2937; border: 1px solid #374151; border-radius: 6px; padding: 0.6rem 0.8rem; color: #ffffff; font-size: 0.85rem; outline: none;">
+                  <option value="Baixa" ${currentTask.priority === 'Baixa' ? 'selected' : ''}>Baixa</option>
+                  <option value="Média" ${currentTask.priority === 'Média' || !currentTask.priority ? 'selected' : ''}>Média</option>
+                  <option value="Alta" ${currentTask.priority === 'Alta' ? 'selected' : ''}>Alta</option>
+                </select>
+              </div>
+
+              <div>
+                <label style="display: block; font-size: 0.8rem; font-weight: 600; color: #9ca3af; margin-bottom: 0.35rem;">
+                  Prazo (Data Limite / Texto) *
+                </label>
+                <input type="text" id="map-input-limit" required value="${currentTask.dayLimit || 'Dia 05'}" placeholder="Ex: Dia 05, Dia 15 ou 11/08/2026" style="width: 100%; background: #1f2937; border: 1px solid #374151; border-radius: 6px; padding: 0.6rem 0.8rem; color: #ffffff; font-size: 0.85rem; outline: none;">
+              </div>
+            </div>
+
+            <!-- Descrição -->
+            <div style="margin-bottom: 1.5rem;">
+              <label style="display: block; font-size: 0.8rem; font-weight: 600; color: #9ca3af; margin-bottom: 0.35rem;">
+                Descrição dos Detalhes
+              </label>
+              <textarea id="map-input-desc" rows="3" placeholder="Instruções e requisitos da atividade..." style="width: 100%; background: #1f2937; border: 1px solid #374151; border-radius: 6px; padding: 0.6rem 0.8rem; color: #ffffff; font-size: 0.85rem; outline: none; resize: vertical;">${currentTask.desc || ''}</textarea>
+            </div>
+
+            <!-- Botões de Ação -->
+            <div style="display: flex; justify-content: flex-end; gap: 0.75rem;">
+              <button type="button" id="btn-cancel-map-modal" style="background: #374151; color: #ffffff; border: none; border-radius: 8px; padding: 0.6rem 1.25rem; font-size: 0.875rem; font-weight: 600; cursor: pointer;">
+                Cancelar
+              </button>
+              <button type="submit" style="background: linear-gradient(135deg, #8b5cf6, #6366f1); color: #ffffff; border: none; border-radius: 8px; padding: 0.6rem 1.25rem; font-size: 0.875rem; font-weight: 700; cursor: pointer;">
+                ${taskId ? 'Salvar Alterações' : 'Criar Atividade'}
+              </button>
+            </div>
+          </form>
+
+        </div>
+      </div>
+    `;
+
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+    // Eventos do Modal
+    const modal = document.getElementById('modal-custom-map-task');
+    const closeBtn = document.getElementById('btn-close-map-modal');
+    const cancelBtn = document.getElementById('btn-cancel-map-modal');
+    const form = document.getElementById('form-custom-map-task');
+
+    const closeModal = () => modal.remove();
+
+    closeBtn.addEventListener('click', closeModal);
+    cancelBtn.addEventListener('click', closeModal);
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const title = document.getElementById('map-input-title').value.trim();
+      const category = document.getElementById('map-input-category').value.trim();
+      const memberId = document.getElementById('map-select-member').value;
+      const priority = document.getElementById('map-select-priority').value;
+      const dayLimit = document.getElementById('map-input-limit').value.trim();
+      const desc = document.getElementById('map-input-desc').value.trim();
+
+      // Localiza ou cria o grupo/categoria de processo
+      let targetProc = processes.find(p => p.category.toLowerCase() === category.toLowerCase());
+
+      if (!targetProc) {
+        targetProc = {
+          id: 'proc-' + Date.now(),
+          category: category,
+          icon: '📋',
+          defaultMemberId: memberId,
+          tasks: []
         };
+        processes.push(targetProc);
+      } else {
+        targetProc.defaultMemberId = memberId;
       }
-    } else {
-      targetProc.tasks.push({
-        id: 'dp-t-' + Date.now(),
-        title: newTitle,
-        desc: newDesc,
-        dayLimit: newDayLimit,
-        priority: newPriority
-      });
-    }
 
-    // Salva na tabela "cycle_templates" empacotando dentro do jsonb "data"
-    const payload = {
-      id: targetProc.id,
-      data: targetProc
-    };
+      if (taskId) {
+        // Edição
+        const taskIndex = targetProc.tasks.findIndex(t => String(t.id) === String(taskId));
+        if (taskIndex !== -1) {
+          targetProc.tasks[taskIndex] = {
+            ...targetProc.tasks[taskIndex],
+            title,
+            desc,
+            dayLimit,
+            priority
+          };
+        }
+      } else {
+        // Criação de nova tarefa
+        targetProc.tasks.push({
+          id: 'dp-t-' + Date.now(),
+          title,
+          desc,
+          dayLimit,
+          priority
+        });
+      }
 
-    await DB.save('cycle_templates', payload);
-    alert('Mapa de Processos atualizado no Supabase!');
-    this.renderSectorMap();
+      // Persiste no Supabase
+      const payload = {
+        id: targetProc.id,
+        data: targetProc
+      };
+
+      await DB.save('cycle_templates', payload);
+      closeModal();
+      this.renderSectorMap();
+    });
   },
 
   /**
-   * Gera automaticamente o ciclo de tarefas mensais na tabela "tasks"
+   * Gera automaticamente todo o ciclo de tarefas mensais na tabela "tasks"
    */
   async startDPMonthlyCycle() {
     const members = (await DB.getAll('members')) || [];
@@ -478,12 +548,10 @@ export const MapEngine = {
     let countAdded = 0;
 
     for (const proc of processes) {
-      const defaultMember = members.find(m =>
-        (m.role || '').toLowerCase().includes((proc.defaultMemberRole || '').toLowerCase())
-      ) || members[0];
+      const defaultMember = members.find(m => String(m.id) === String(proc.defaultMemberId)) || members[0];
       const memberId = defaultMember ? defaultMember.id : 'm-1';
 
-      for (const t of proc.tasks) {
+      for (const t of (proc.tasks || [])) {
         const alreadyExists = existingTasks.some(item => item.title === t.title);
         if (!alreadyExists) {
           const newTask = {
@@ -506,7 +574,7 @@ export const MapEngine = {
       }
     }
 
-    alert(`${countAdded} atividades mensais do DP foram geradas e atribuídas no Quadro Kanban!`);
+    alert(`${countAdded} atividades foram geradas e atribuídas no Quadro Kanban!`);
     this.renderSectorMap();
   }
 };
