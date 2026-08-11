@@ -14,10 +14,10 @@ export const ProjectsEngine = {
     const container = document.getElementById('section-projects');
     if (!container) return;
 
-    const projects = await DB.getAll('projects');
-    const members = await DB.getAll('members');
-    const tasks = await DB.getAll('tasks');
-    const taskMembers = await DB.getAll('task_members');
+    const projects = (await DB.getAll('projects')) || [];
+    const members = (await DB.getAll('members')) || [];
+    const tasks = (await DB.getAll('tasks')) || [];
+    const taskMembers = (await DB.getAll('task_members')) || [];
 
     let html = `
       <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem; margin-bottom:1.5rem;">
@@ -60,7 +60,7 @@ export const ProjectsEngine = {
       const activeProject = projects.find(p => p.id === this.activeProjectId) || projects[0];
       if (activeProject) {
         this.activeProjectId = activeProject.id;
-        const projectTasks = tasks.filter(t => t.projectId === activeProject.id);
+        const projectTasks = tasks.filter(t => t.projectId === activeProject.id || t.project_id === activeProject.id);
         const doneTasks = projectTasks.filter(t => t.status === 'CONCLUÍDO');
         const progress = projectTasks.length > 0 ? Math.round((doneTasks.length / projectTasks.length) * 100) : 0;
 
@@ -80,6 +80,9 @@ export const ProjectsEngine = {
                 </button>
                 <button class="btn btn-primary" onclick="window.ProjectsEngine.openAddTaskModal('${activeProject.id}')" style="font-size:0.75rem;">
                   + Atividade no Projeto
+                </button>
+                <button class="btn" onclick="window.ProjectsEngine.deleteProject('${activeProject.id}')" style="font-size:0.75rem; background:rgba(239, 68, 68, 0.15); color:#ef4444; border:1px solid rgba(239, 68, 68, 0.3);">
+                  🗑️ Excluir Projeto
                 </button>
               </div>
             </div>
@@ -118,7 +121,7 @@ export const ProjectsEngine = {
                       </td>
                     </tr>
                   ` : projectTasks.map(t => {
-          const mainMember = members.find(m => m.id === t.memberId) || { name: 'Não atribuído', photo: '' };
+          const mainMember = members.find(m => m.id === t.memberId || m.id === t.member_id) || { name: 'Não atribuído', photo: '' };
           const groupLinks = taskMembers.filter(tm => tm.taskId === t.id);
           const groupMembers = members.filter(m => groupLinks.some(gl => gl.memberId === m.id));
 
@@ -131,8 +134,8 @@ export const ProjectsEngine = {
                         <td>${mainMember.name}</td>
                         <td>
                           <div style="display:flex; align-items:center;">
-                            ${groupMembers.map(gm => `<img src="${gm.photo}" title="${gm.name}" style="width:20px; height:20px; border-radius:50%;">`).join('')}
-                            <button class="btn btn-secondary" onclick="window.ProjectsEngine.openManageGroupModal('${t.id}')" style="padding:0.1rem 0.3rem; font-size:0.65rem; margin-left:4px;">+👥</button>
+                            ${groupMembers.map(gm => `<img src="${gm.photo || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(gm.name)}" title="${gm.name}" style="width:20px; height:20px; border-radius:50%; border:1px solid #333; margin-left:-4px;">`).join('')}
+                            <button class="btn btn-secondary" onclick="window.ProjectsEngine.openManageGroupModal('${t.id}')" style="padding:0.1rem 0.3rem; font-size:0.65rem; margin-left:6px;">+👥</button>
                           </div>
                         </td>
                         <td>${t.priority || 'Média'}</td>
@@ -162,6 +165,40 @@ export const ProjectsEngine = {
   selectProject(projectId) {
     this.activeProjectId = projectId;
     this.renderProjectsSection(this._showToast, this._onRefresh);
+  },
+
+  // Exclui um projeto e atualiza a tela
+  async deleteProject(projectId) {
+    const idToDelete = projectId || this.activeProjectId;
+    if (!idToDelete) return;
+
+    const project = await DB.get('projects', idToDelete);
+    const projectName = project ? project.name : 'este projeto';
+
+    if (confirm(`Tem certeza de que deseja excluir o projeto "${projectName}"?\n\nEsta ação não pode ser desfeita.`)) {
+      try {
+        await DB.delete('projects', idToDelete);
+
+        // Desvincula o projectId de todas as tarefas associadas
+        const tasks = (await DB.getAll('tasks')) || [];
+        const relatedTasks = tasks.filter(t => t.projectId === idToDelete || t.project_id === idToDelete);
+        for (const t of relatedTasks) {
+          delete t.projectId;
+          delete t.project_id;
+          await DB.save('tasks', t);
+        }
+
+        this.activeProjectId = null;
+
+        if (this._showToast) this._showToast('Projeto excluído com sucesso!', 'success');
+        if (this._onRefresh) this._onRefresh();
+
+        await this.renderProjectsSection(this._showToast, this._onRefresh);
+      } catch (e) {
+        console.error('Erro ao excluir projeto:', e);
+        alert('Ocorreu um erro ao excluir o projeto.');
+      }
+    }
   },
 
   // Abre modal para criar novo projeto
@@ -231,8 +268,8 @@ export const ProjectsEngine = {
     const modal = document.getElementById('modal-task-group');
     if (!modal) return;
 
-    const members = await DB.getAll('members');
-    const taskMembers = await DB.getAll('task_members');
+    const members = (await DB.getAll('members')) || [];
+    const taskMembers = (await DB.getAll('task_members')) || [];
     const currentGroup = taskMembers.filter(tm => tm.taskId === taskId).map(tm => tm.memberId);
 
     const listContainer = modal.querySelector('#task-group-members-list, .members-list');
