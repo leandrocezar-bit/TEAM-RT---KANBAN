@@ -98,11 +98,15 @@ export const MapEngine = {
   },
 
   /**
-   * Renderiza a grade de Caixas por Colaborador com suas Responsabilidades
+   * Renderiza a grade de Caixas por Colaborador (Com trava de permissão)
    */
   renderMembersPortfolioGrid(portfolio, tasks, members) {
     const container = document.getElementById('map-organogram-grid');
     if (!container) return;
+
+    // 1. Identifica permissão e ID do usuário logado
+    const isManager = localStorage.getItem('logged_access_level') === 'gestor';
+    const loggedMemberId = localStorage.getItem('logged_member_id');
 
     if (members.length === 0) {
       container.innerHTML = `
@@ -114,7 +118,10 @@ export const MapEngine = {
     }
 
     container.innerHTML = members.map(member => {
-      // Encontra ou cria a caixa de responsabilidades do colaborador no portfólio
+      // 2. Verifica se o usuário atual pode editar esta caixa específica
+      const canEditCard = isManager || String(loggedMemberId) === String(member.id);
+
+      // Encontra ou inicializa o portfólio deste colaborador
       const memberData = portfolio.find(p => String(p.memberId) === String(member.id)) || {
         id: 'port-' + member.id,
         memberId: member.id,
@@ -124,23 +131,27 @@ export const MapEngine = {
       const memberResponsibilities = memberData.tasks || [];
 
       return `
-        <div class="card-panel" style="border-top: 3px solid #6366f1; background: var(--bg-card); border-radius: var(--radius-lg); padding: 1.25rem;">
+        <div class="card-panel" style="border-top: 3px solid ${canEditCard ? '#6366f1' : 'var(--border-color)'}; background: var(--bg-card); border-radius: var(--radius-lg); padding: 1.25rem;">
           
           <!-- Cabeçalho da Caixa do Colaborador -->
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border-color);">
             <div style="display: flex; align-items: center; gap: 0.75rem;">
               <img src="${member.photo || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(member.name)}" 
                    alt="${member.name}" 
-                   style="width: 42px; height: 48px; border-radius: 50%; object-fit: cover; border: 2px solid var(--accent-primary);">
+                   style="width: 42px; height: 42px; border-radius: 50%; object-fit: cover; border: 2px solid var(--accent-primary);">
               <div>
                 <h3 style="font-size: 0.95rem; font-weight: 700; color: var(--text-main); margin: 0;">${member.name}</h3>
                 <span style="font-size: 0.75rem; color: var(--text-muted); display: block;">${member.role || 'Colaborador'}</span>
               </div>
             </div>
 
-            <button class="btn btn-primary btn-add-member-task" data-member-id="${member.id}" style="font-size: 0.75rem; padding: 0.35rem 0.65rem;">
-              ➕ Add Responsabilidade
-            </button>
+            ${/* Botão só aparece se for o dono da caixa ou se for Gestor */
+        canEditCard ? `
+                <button class="btn btn-primary btn-add-member-task" data-member-id="${member.id}" style="font-size: 0.75rem; padding: 0.35rem 0.65rem;">
+                  ➕ Add Responsabilidade
+                </button>
+              ` : ''
+        }
           </div>
 
           <!-- Lista de Responsabilidades do Colaborador -->
@@ -150,22 +161,26 @@ export const MapEngine = {
                 Nenhuma responsabilidade vinculada a este colaborador ainda.
               </div>
             ` : memberResponsibilities.map(t => {
-        const activeTask = tasks.find(item => item.title === t.title && String(item.member_id || item.memberId) === String(member.id));
+          const activeTask = tasks.find(item => item.title === t.title && String(item.member_id || item.memberId) === String(member.id));
 
-        let statusBadge = `<span class="badge" style="background:rgba(255,255,255,0.08); color:var(--text-dim);">Fixo do Setor</span>`;
-        if (activeTask) {
-          const badgeClass = activeTask.status === 'EM EXECUÇÃO' ? 'badge-pending' : activeTask.status === 'CONCLUÍDO' ? 'badge-approved' : 'badge-rate';
-          statusBadge = `<span class="badge ${badgeClass}">${activeTask.status}</span>`;
-        }
+          let statusBadge = `<span class="badge" style="background:rgba(255,255,255,0.08); color:var(--text-dim);">Fixo do Setor</span>`;
+          if (activeTask) {
+            const badgeClass = activeTask.status === 'EM EXECUÇÃO' ? 'badge-pending' : activeTask.status === 'CONCLUÍDO' ? 'badge-approved' : 'badge-rate';
+            statusBadge = `<span class="badge ${badgeClass}">${activeTask.status}</span>`;
+          }
 
-        return `
+          return `
                 <div style="background: var(--bg-input); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 0.85rem;">
                   <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.35rem; gap: 0.5rem;">
                     <strong style="font-size: 0.85rem; color: var(--text-main);">${t.title}</strong>
                     <div style="display: flex; align-items: center; gap: 0.3rem;">
                       ${statusBadge}
-                      <button class="btn-edit-member-task" data-member-id="${member.id}" data-task-id="${t.id}" title="Editar Responsabilidade" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:0.75rem; padding:0 0.2rem;">✏️</button>
-                      <button class="btn-delete-member-task" data-member-id="${member.id}" data-task-id="${t.id}" title="Excluir Responsabilidade" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:0.75rem; padding:0 0.2rem;">🗑️</button>
+                      ${/* Botões de Edição/Exclusão aparecem apenas para quem tem permissão nesta caixa */
+            canEditCard ? `
+                          <button class="btn-edit-member-task" data-member-id="${member.id}" data-task-id="${t.id}" title="Editar Responsabilidade" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:0.75rem; padding:0 0.2rem;">✏️</button>
+                          <button class="btn-delete-member-task" data-member-id="${member.id}" data-task-id="${t.id}" title="Excluir Responsabilidade" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:0.75rem; padding:0 0.2rem;">🗑️</button>
+                        ` : ''
+            }
                     </div>
                   </div>
 
@@ -184,7 +199,7 @@ export const MapEngine = {
                   </div>
                 </div>
               `;
-      }).join('')}
+        }).join('')}
           </div>
 
         </div>
@@ -259,9 +274,21 @@ export const MapEngine = {
   },
 
   /**
-   * Eventos Interativos
+   * Eventos Interativos com travas de segurança
    */
   attachEvents(portfolio, members) {
+    const isManager = localStorage.getItem('logged_access_level') === 'gestor';
+    const loggedMemberId = localStorage.getItem('logged_member_id');
+
+    // Helper para verificar permissão antes de salvar
+    const checkPermission = (targetMemberId) => {
+      if (!isManager && String(loggedMemberId) !== String(targetMemberId)) {
+        alert('Você só tem permissão para alterar as responsabilidades do seu próprio cartão!');
+        return false;
+      }
+      return true;
+    };
+
     // 1. Lançar no Kanban
     document.querySelectorAll('.btn-launch-dp-task').forEach(btn => {
       btn.addEventListener('click', async () => {
@@ -303,15 +330,17 @@ export const MapEngine = {
     document.querySelectorAll('.btn-add-member-task').forEach(btn => {
       btn.addEventListener('click', () => {
         const memberId = btn.dataset.memberId;
+        if (!checkPermission(memberId)) return;
         this.openCustomModal(memberId, null, portfolio, members);
       });
     });
 
-    // 3. Editar Responsabilidade do Colaborador
+    // 3. Editar Responsabilidade
     document.querySelectorAll('.btn-edit-member-task').forEach(btn => {
       btn.addEventListener('click', () => {
         const memberId = btn.dataset.memberId;
         const taskId = btn.dataset.taskId;
+        if (!checkPermission(memberId)) return;
         this.openCustomModal(memberId, taskId, portfolio, members);
       });
     });
@@ -321,6 +350,8 @@ export const MapEngine = {
       btn.addEventListener('click', async () => {
         const memberId = btn.dataset.memberId;
         const taskId = btn.dataset.taskId;
+
+        if (!checkPermission(memberId)) return;
 
         if (confirm('Deseja remover esta responsabilidade da lista deste colaborador?')) {
           const memberData = portfolio.find(p => String(p.memberId) === String(memberId));
@@ -354,6 +385,8 @@ export const MapEngine = {
       if (t) currentTask = t;
     }
 
+    const isManager = localStorage.getItem('logged_access_level') === 'gestor';
+
     const oldModal = document.getElementById('modal-custom-map-task');
     if (oldModal) oldModal.remove();
 
@@ -361,7 +394,7 @@ export const MapEngine = {
       <div id="modal-custom-map-task" class="modal-overlay active" style="position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.75); display:flex; align-items:center; justify-content:center; z-index:9999;">
         <div style="background: #111827; border: 1px solid #1f2937; border-radius: 12px; width: 100%; max-width: 580px; padding: 1.5rem; color: #f3f4f6; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);">
           
-          <div style="display: flex; justify- space-between; align-items: center; margin-bottom: 1.25rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
             <h3 style="font-size: 1.15rem; font-weight: 700; color: #ffffff; display: flex; align-items: center; gap: 0.5rem; margin:0;">
               📌 ${taskId ? 'Editar Responsabilidade' : 'Nova Responsabilidade Direta'}
             </h3>
@@ -377,12 +410,12 @@ export const MapEngine = {
               <input type="text" id="map-input-title" required value="${currentTask.title}" placeholder="Ex: Fechamento da Folha de Pagamento" style="width: 100%; background: #1f2937; border: 1px solid #374151; border-radius: 6px; padding: 0.6rem 0.8rem; color: #ffffff; font-size: 0.875rem; outline: none;">
             </div>
 
-            <!-- Responsável Fixo -->
+            <!-- Responsável -->
             <div style="margin-bottom: 1rem;">
               <label style="display: block; font-size: 0.8rem; font-weight: 600; color: #9ca3af; margin-bottom: 0.35rem;">
                 Responsável Direto no Setor *
               </label>
-              <select id="map-select-member" required style="width: 100%; background: #1f2937; border: 1px solid #374151; border-radius: 6px; padding: 0.6rem 0.8rem; color: #ffffff; font-size: 0.85rem; outline: none;">
+              <select id="map-select-member" required ${!isManager ? 'disabled style="opacity:0.7; width: 100%; background: #1f2937; border: 1px solid #374151; border-radius: 6px; padding: 0.6rem 0.8rem; color: #ffffff; font-size: 0.85rem; outline: none;"' : 'style="width: 100%; background: #1f2937; border: 1px solid #374151; border-radius: 6px; padding: 0.6rem 0.8rem; color: #ffffff; font-size: 0.85rem; outline: none;"'}>
                 ${members.map(m => `
                   <option value="${m.id}" ${String(m.id) === String(currentMember.id) ? 'selected' : ''}>
                     ${m.name} (${m.role || 'Membro'})
@@ -456,7 +489,6 @@ export const MapEngine = {
       const dayLimit = document.getElementById('map-input-limit').value.trim();
       const desc = document.getElementById('map-input-desc').value.trim();
 
-      // Busca ou cria o registro do colaborador no portfólio
       let targetMemberData = portfolio.find(p => String(p.memberId) === String(selectedMemberId));
 
       if (!targetMemberData) {
