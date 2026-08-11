@@ -9,23 +9,36 @@ export const ChatEngine = {
      * Renderiza a Seção do Chat da Equipe
      */
     async renderChatSection() {
+        const section = document.getElementById('section-chat');
+        if (section) {
+            section.style.display = 'block';
+            section.classList.add('active');
+        }
+
         const container = document.getElementById('chat-messages-container');
         if (!container) return;
 
-        const messages = (await DB.getAll('messages')) || [];
-        const members = (await DB.getAll('members')) || [];
-        const membersMap = new Map(members.map(m => [String(m.id), m]));
+        let messages = [];
+        let members = [];
 
+        try {
+            messages = (await DB.getAll('messages')) || [];
+            members = (await DB.getAll('members')) || [];
+        } catch (e) {
+            console.warn('⚡ Erro ou tabela messages vazia:', e);
+        }
+
+        const membersMap = new Map(members.map(m => [String(m.id), m]));
         const loggedMemberId = localStorage.getItem('logged_member_id');
 
-        if (messages.length === 0) {
+        if (!messages || messages.length === 0) {
             container.innerHTML = `
-        <div style="text-align: center; color: var(--text-dim, #6b7280); font-size: 0.85rem; margin: auto;">
+        <div style="text-align: center; color: var(--text-dim, #6b7280); font-size: 0.85rem; margin: auto; padding: 2rem;">
           👋 Nenhuma mensagem ainda. Seja o primeiro a enviar um oi para a equipe!
         </div>
       `;
         } else {
-            // Ordena por data
+            // Ordena as mensagens por data
             messages.sort((a, b) => new Date(a.created_at || a.createdAt) - new Date(b.created_at || b.createdAt));
 
             container.innerHTML = messages.map(msg => {
@@ -33,7 +46,7 @@ export const ChatEngine = {
                 const isMe = String(senderId) === String(loggedMemberId);
                 const sender = membersMap.get(String(senderId)) || { name: 'Desconhecido', photo: '' };
 
-                const timeStr = msg.created_at || msg.createdAt
+                const timeStr = (msg.created_at || msg.createdAt)
                     ? new Date(msg.created_at || msg.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
                     : '';
 
@@ -53,14 +66,12 @@ export const ChatEngine = {
             }).join('');
         }
 
-        // Rola para a última mensagem automaticamente
         container.scrollTop = container.scrollHeight;
-
         this.setupFormListener();
     },
 
     /**
-     * Configura o envio de mensagens
+     * Configura o envio de mensagens no formulário
      */
     setupFormListener() {
         const form = document.getElementById('form-chat-send');
@@ -71,7 +82,7 @@ export const ChatEngine = {
             e.preventDefault();
 
             const input = document.getElementById('chat-input-message');
-            const content = input.value.trim();
+            const content = input ? input.value.trim() : '';
             const loggedMemberId = localStorage.getItem('logged_member_id');
 
             if (!content) return;
@@ -85,8 +96,8 @@ export const ChatEngine = {
 
             try {
                 await DB.save('messages', newMessage);
-                input.value = '';
-                this.renderChatSection();
+                if (input) input.value = '';
+                await this.renderChatSection();
             } catch (err) {
                 console.error('Erro ao enviar mensagem:', err);
                 alert('Não foi possível enviar a mensagem.');
