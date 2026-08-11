@@ -6,11 +6,11 @@ import { DB } from './db.js';
 import { TimerEngine } from './timer.js';
 
 export const MapEngine = {
-  // Define a competência padrão como o mês/ano atual (YYYY-MM)
   selectedCompetence: new Date().toISOString().slice(0, 7),
+  activeMemberFilter: 'all', // 'all' ou ID do membro selecionado
 
   /**
-   * Obtém a lista atualizada de dados do portfólio da tabela "cycle_templates"
+   * Obtém a lista de dados do portfólio
    */
   async getSectorPortfolio() {
     try {
@@ -27,7 +27,9 @@ export const MapEngine = {
   /**
    * Renderiza a tela do Portfólio do Setor
    */
-  async renderSectorMap() {
+  async renderSectorMap(memberId = 'all') {
+    if (memberId) this.activeMemberFilter = memberId;
+
     const tasks = (await DB.getAll('tasks')) || [];
     const members = (await DB.getAll('members')) || [];
     const impediments = (await DB.getAll('impediments')) || [];
@@ -54,11 +56,15 @@ export const MapEngine = {
     const container = document.getElementById('map-metrics-summary');
     if (!container) return;
 
-    // 1. Filtra as tarefas pertencentes à competência selecionada (YYYY-MM)
+    // Filtra por competência e também por membro (se um membro específico estiver selecionado)
     const competenceTasks = tasks.filter(t => {
       const dateStr = t.dueDate || (t.createdAt ? t.createdAt.slice(0, 10) : null);
-      if (!dateStr) return false;
-      return dateStr.slice(0, 7) === this.selectedCompetence;
+      if (!dateStr || dateStr.slice(0, 7) !== this.selectedCompetence) return false;
+
+      if (this.activeMemberFilter !== 'all') {
+        return String(t.member_id || t.memberId) === String(this.activeMemberFilter);
+      }
+      return true;
     });
 
     const total = competenceTasks.length;
@@ -72,7 +78,6 @@ export const MapEngine = {
       totalSeconds += TimerEngine.getCurrentElapsedSeconds(t);
     });
 
-    // Formata o título da competência (ex: "agosto de 2026")
     const [year, month] = this.selectedCompetence.split('-');
     const competenceName = new Date(parseInt(year), parseInt(month) - 1, 1)
       .toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
@@ -97,7 +102,7 @@ export const MapEngine = {
       <!-- Cards de Métricas da Competência -->
       <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.25rem; width: 100%;">
         
-        <!-- Card 1: Progresso da Competência -->
+        <!-- Card 1: Progresso -->
         <div style="background: var(--bg-card, #111827); border: 1px solid var(--border-color, #1f2937); border-left: 4px solid #8b5cf6; border-radius: 12px; padding: 1.25rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
             <span style="font-size: 0.85rem; font-weight: 700; color: #9ca3af;">📈 Progresso da Competência</span>
@@ -112,7 +117,7 @@ export const MapEngine = {
           <span style="font-size: 0.75rem; color: #6b7280; margin-top: 0.5rem; display: block;">${done} de ${total} entregas no mês</span>
         </div>
 
-        <!-- Card 2: Demandas no Mês -->
+        <!-- Card 2: Demandas -->
         <div style="background: var(--bg-card, #111827); border: 1px solid var(--border-color, #1f2937); border-left: 4px solid #10b981; border-radius: 12px; padding: 1.25rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
             <span style="font-size: 0.85rem; font-weight: 700; color: #9ca3af;">💼 Demandas da Competência</span>
@@ -128,7 +133,7 @@ export const MapEngine = {
           </div>
         </div>
 
-        <!-- Card 3: Horas no Mês -->
+        <!-- Card 3: Horas -->
         <div style="background: var(--bg-card, #111827); border: 1px solid var(--border-color, #1f2937); border-left: 4px solid #06b6d4; border-radius: 12px; padding: 1.25rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
             <span style="font-size: 0.85rem; font-weight: 700; color: #9ca3af;">⏱️ Horas na Competência</span>
@@ -145,20 +150,19 @@ export const MapEngine = {
       </div>
     `;
 
-    // Evento de alteração do mês/ano
     const compInput = document.getElementById('select-map-competence');
     if (compInput) {
       compInput.addEventListener('change', (e) => {
         if (e.target.value) {
           this.selectedCompetence = e.target.value;
-          this.renderSectorMap();
+          this.renderSectorMap(this.activeMemberFilter);
         }
       });
     }
   },
 
   /**
-   * Renderiza a grade de Cartões Informativos por Colaborador
+   * Renderiza a grade de Cartões Informativos por Colaborador (Filtrável pela barra superior)
    */
   renderMembersPortfolioGrid(portfolio, members) {
     const container = document.getElementById('map-organogram-grid');
@@ -167,16 +171,22 @@ export const MapEngine = {
     const isManager = localStorage.getItem('logged_access_level') === 'gestor';
     const loggedMemberId = localStorage.getItem('logged_member_id');
 
-    if (members.length === 0) {
+    // Se o filtro estiver definido para um membro específico, exibe apenas o cartão dele
+    let visibleMembers = members;
+    if (this.activeMemberFilter !== 'all') {
+      visibleMembers = members.filter(m => String(m.id) === String(this.activeMemberFilter));
+    }
+
+    if (visibleMembers.length === 0) {
       container.innerHTML = `
         <div style="grid-column: 1 / -1; text-align: center; padding: 3rem; background: var(--bg-card); border: 1px dashed var(--border-color); border-radius: var(--radius-lg);">
-          <p style="font-size: 1rem; color: var(--text-muted);">Nenhum colaborador cadastrado na equipe.</p>
+          <p style="font-size: 1rem; color: var(--text-muted);">Nenhum colaborador encontrado para esta seleção.</p>
         </div>
       `;
       return;
     }
 
-    container.innerHTML = members.map(member => {
+    container.innerHTML = visibleMembers.map(member => {
       const canEditCard = isManager || String(loggedMemberId) === String(member.id);
 
       const memberData = portfolio.find(p => String(p.memberId) === String(member.id)) || {
@@ -190,7 +200,6 @@ export const MapEngine = {
       return `
         <div class="card-panel" style="background: var(--bg-card, #111827); border: 1px solid var(--border-color, #1f2937); border-radius: var(--radius-lg, 12px); padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
           
-          <!-- Cabeçalho do Perfil -->
           <div style="display: flex; align-items: center; gap: 1rem; background: rgba(255,255,255,0.03); padding: 0.85rem 1rem; border-radius: 8px; border: 1px solid var(--border-color, #1f2937);">
             <img src="${member.photo || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(member.name)}" 
                  alt="${member.name}" 
@@ -201,7 +210,6 @@ export const MapEngine = {
             </div>
           </div>
 
-          <!-- Caixa de Atribuições / Responsabilidades do Membro -->
           <div style="display: flex; flex-direction: column; gap: 0.5rem; flex: 1;">
             <label style="font-size: 0.9rem; font-weight: 700; color: var(--text-main, #f3f4f6); display: flex; align-items: center; gap: 0.4rem;">
               📌 Responsabilidades:
@@ -228,23 +236,27 @@ export const MapEngine = {
   },
 
   /**
-   * Renderiza a Tabela Roadmap Geral de Acompanhamento no Fundo da Tela
+   * Renderiza a Tabela Roadmap Geral de Acompanhamento
    */
   renderRoadmapTable(tasks, membersMap, impMap) {
     const container = document.getElementById('map-roadmap-table-body');
     if (!container) return;
 
-    // Exibe na tabela apenas as tarefas pertencentes à competência selecionada
+    // Filtra tarefas pela competência e pelo membro selecionado
     const filteredTasks = tasks.filter(t => {
       const dateStr = t.dueDate || (t.createdAt ? t.createdAt.slice(0, 10) : null);
-      if (!dateStr) return false;
-      return dateStr.slice(0, 7) === this.selectedCompetence;
+      if (!dateStr || dateStr.slice(0, 7) !== this.selectedCompetence) return false;
+
+      if (this.activeMemberFilter !== 'all') {
+        return String(t.member_id || t.memberId) === String(this.activeMemberFilter);
+      }
+      return true;
     });
 
     if (filteredTasks.length === 0) {
       container.innerHTML = `
         <tr>
-          <td colspan="8" style="text-align:center; padding:2rem; color:var(--text-dim);">Nenhuma demanda cadastrada para esta competência.</td>
+          <td colspan="8" style="text-align:center; padding:2rem; color:var(--text-dim);">Nenhuma demanda cadastrada para esta seleção.</td>
         </tr>
       `;
       return;
@@ -325,7 +337,7 @@ export const MapEngine = {
   },
 
   /**
-   * Evento para salvar o texto das responsabilidades
+   * Eventos de salvamento de responsabilidades
    */
   attachEvents(portfolio) {
     document.querySelectorAll('.btn-save-responsibilities').forEach(btn => {
@@ -335,7 +347,6 @@ export const MapEngine = {
         if (!textarea) return;
 
         const newText = textarea.value.trim();
-
         let memberData = portfolio.find(p => String(p.memberId) === String(memberId));
 
         if (!memberData) {
