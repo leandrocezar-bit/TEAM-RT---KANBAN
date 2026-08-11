@@ -19,7 +19,7 @@ export const ManagerEngine = {
     const tasks = (await DB.getAll('tasks')) || [];
     const impediments = (await DB.getAll('impediments')) || [];
 
-    // Garante que o painel de filtro seja montado no topo da seção
+    // Monta o contêiner de filtro sem duplicar o título
     this.injectDateFilterContainer();
     this.renderDateFilterControls(members, tasks, impediments);
 
@@ -29,14 +29,30 @@ export const ManagerEngine = {
   },
 
   /**
-   * Injeta o contêiner do cabeçalho com filtro no topo da seção do Dashboard caso ele não exista no HTML
+   * Injeta os seletores de data no cabeçalho existente sem duplicar o <h2>
    */
   injectDateFilterContainer() {
     const section = document.getElementById('section-manager');
     if (!section) return;
 
+    // Procura o <h2> existente da seção
+    const existingH2 = section.querySelector('h2');
     let header = document.getElementById('manager-dashboard-header');
-    if (!header) {
+
+    if (!header && existingH2) {
+      // Envolve o <h2> existente em uma div flex para colocar o filtro ao lado
+      header = document.createElement('div');
+      header.id = 'manager-dashboard-header';
+      header.style.cssText = 'display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.75rem; margin-bottom:1.25rem; width:100%;';
+
+      existingH2.parentNode.insertBefore(header, existingH2);
+      header.appendChild(existingH2);
+
+      const filterBox = document.createElement('div');
+      filterBox.id = 'dashboard-date-filter-container';
+      header.appendChild(filterBox);
+    } else if (!header && !existingH2) {
+      // Caso não exista <h2> na página, cria o header completo
       header = document.createElement('div');
       header.id = 'manager-dashboard-header';
       header.style.cssText = 'display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.75rem; margin-bottom:1.25rem; width:100%;';
@@ -50,10 +66,9 @@ export const ManagerEngine = {
       filterBox.id = 'dashboard-date-filter-container';
       header.appendChild(filterBox);
 
-      // Insere no topo da section
       section.insertBefore(header, section.firstChild);
     } else {
-      // Se o cabeçalho existe, garante que o box de filtro esteja dentro dele
+      // Se o header já existe, garante apenas a presença do container do filtro
       let filterBox = document.getElementById('dashboard-date-filter-container');
       if (!filterBox) {
         filterBox = document.createElement('div');
@@ -64,7 +79,7 @@ export const ManagerEngine = {
   },
 
   /**
-   * Renderiza os controles de seleção por Calendário (De / Até) no topo
+   * Renderiza os controles de seleção por Calendário (De / Até)
    */
   renderDateFilterControls(members, tasks, impediments) {
     const container = document.getElementById('dashboard-date-filter-container');
@@ -114,7 +129,7 @@ export const ManagerEngine = {
   },
 
   /**
-   * Filtra as tarefas de acordo com o intervalo de datas selecionado no calendário
+   * Filtra as tarefas de acordo com o intervalo de datas selecionado
    */
   filterTasksByDateRange(tasksList) {
     if (!this.startDateFilter && !this.endDateFilter) return tasksList;
@@ -150,7 +165,6 @@ export const ManagerEngine = {
       return;
     }
 
-    // Aplica o filtro de intervalo de datas selecionado no calendário
     const filteredTasks = this.filterTasksByDateRange(tasks);
 
     container.innerHTML = visibleMembers.map(member => {
