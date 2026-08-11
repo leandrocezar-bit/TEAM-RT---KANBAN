@@ -1,135 +1,113 @@
 /**
- * Visão do Gestor / Dashboard - Apresentação Fixa de Responsabilidades e Contratempos
+ * Visão do Gestor - Dashboard, Estatísticas, Relatório de Contratempos e Calendário Editável
  */
 
 import { DB } from './db.js';
+import { TimerEngine } from './timer.js';
 
 export const ManagerEngine = {
   selectedCalendarMemberId: 'all',
   currentCalendarDate: new Date(),
 
   /**
-   * Renderiza o Dashboard Completo
+   * Renderiza o Dashboard Completo do Gestor
    */
   async renderDashboard(onViewEvidenceCallback, onDeleteMemberCallback, onOpenDayDetailsCallback) {
     const members = (await DB.getAll('members')) || [];
     const tasks = (await DB.getAll('tasks')) || [];
     const impediments = (await DB.getAll('impediments')) || [];
 
-    // Busca a matriz fixa de responsabilidades cadastrada no Portfólio
-    let portfolio = [];
-    try {
-      const records = await DB.getAll('cycle_templates');
-      if (records && records.length > 0) {
-        portfolio = records.map(r => r.data || r);
-      }
-    } catch (e) {
-      console.warn('⚡ Não foi possível carregar o portfólio no Dashboard.', e);
-    }
-
-    this.renderMemberCards(members, portfolio);
+    this.renderMemberCards(members, tasks, impediments);
     this.renderImpedimentsAlertList(impediments, tasks, members, onViewEvidenceCallback);
     this.renderCalendarGrid(tasks, members, onOpenDayDetailsCallback);
   },
 
   /**
-   * Renderiza os cards de apresentação de responsabilidades fixas por membro
+   * Renderiza os cards de desempenho individual por membro da equipe
    */
-  renderMemberCards(members, portfolio) {
+  renderMemberCards(members, tasks, impediments) {
     const container = document.getElementById('manager-members-grid');
     if (!container) return;
 
+    // 1. Identifica o nível de acesso e o ID do usuário logado
     const isManager = localStorage.getItem('logged_access_level') === 'gestor';
     const loggedMemberId = localStorage.getItem('logged_member_id');
 
+    // 2. SE FOR COLABORADOR: Exibe apenas o card do seu próprio perfil
     let visibleMembers = members;
     if (!isManager && loggedMemberId) {
       visibleMembers = members.filter(m => String(m.id) === String(loggedMemberId));
     }
 
     if (visibleMembers.length === 0) {
-      container.innerHTML = `<div class="empty-state"><p>Nenhum colaborador cadastrado.</p></div>`;
+      container.innerHTML = `<div class="empty-state"><p>Nenhum membro cadastrado.</p></div>`;
       return;
     }
 
     container.innerHTML = visibleMembers.map(member => {
-      // Busca as responsabilidades fixas do colaborador no Portfólio
-      const memberData = portfolio.find(p => String(p.memberId) === String(member.id)) || { tasks: [] };
-      const responsibilities = memberData.tasks || [];
+      const memberTasks = tasks.filter(t => String(t.member_id || t.memberId) === String(member.id));
+
+      const todoCount = memberTasks.filter(t => t.status === 'A FAZER').length;
+      const wipCount = memberTasks.filter(t => t.status === 'EM EXECUÇÃO').length;
+      const doneCount = memberTasks.filter(t => t.status === 'CONCLUÍDO').length;
+
+      let totalSeconds = 0;
+      memberTasks.forEach(t => {
+        totalSeconds += TimerEngine.getCurrentElapsedSeconds(t);
+      });
+
+      const memberTaskIds = new Set(memberTasks.map(t => String(t.id)));
+      const memberImpediments = impediments.filter(imp => memberTaskIds.has(String(imp.taskId)));
 
       return `
-        <div class="manager-card member-summary-card" data-id="${member.id}" style="cursor: pointer; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 1.25rem; transition: transform 0.2s, border-color 0.2s;">
-          
-          <!-- Cabeçalho do Perfil -->
-          <div style="display:flex; align-items:center; justify-space-between; width:100%; margin-bottom: 1rem;">
+        <div class="manager-card">
+          <div class="manager-card-header" style="display:flex; align-items:center; justify-content:space-between; width:100%;">
             <div style="display:flex; align-items:center; gap:0.75rem;">
-              <img src="${member.photo || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(member.name)}" alt="${member.name}" class="manager-avatar" style="width: 44px; height: 44px; border-radius: 50%; object-fit: cover;">
+              <img src="${member.photo}" alt="${member.name}" class="manager-avatar">
               <div>
-                <h3 style="font-size:1rem; font-weight:700; color: var(--text-main); margin:0;">${member.name}</h3>
-                <p style="font-size:0.775rem; color:var(--text-muted); margin:0;">${member.role || 'Membro da Equipe'}</p>
-                <p style="font-size:0.7rem; color:var(--text-dim); margin:0;">${member.email || member.contact || ''}</p>
+                <h3 style="font-size:1rem; font-weight:700;">${member.name}</h3>
+                <p style="font-size:0.775rem; color:var(--text-muted);">${member.role || 'Membro da Equipe'}</p>
+                <p style="font-size:0.7rem; color:var(--text-dim);">${member.email || member.contact || ''}</p>
               </div>
             </div>
 
-            <button class="btn-edit-member-profile" data-id="${member.id}" title="Editar Perfil" style="background:rgba(99,102,241,0.12); color:#818cf8; border:1px solid rgba(99,102,241,0.3); border-radius:var(--radius-sm); padding:0.3rem 0.6rem; font-size:0.75rem; font-weight:700; cursor:pointer;">
-              ✏️ Perfil
-            </button>
-          </div>
-
-          <hr style="border: 0; border-top: 1px dashed var(--border-color); margin-bottom: 0.85rem;">
-
-          <!-- Apresentação em Texto das Responsabilidades Diretas no Setor -->
-          <div style="font-size: 0.825rem;">
-            <div style="font-weight: 700; color: var(--text-muted); margin-bottom: 0.5rem; display: flex; align-items: center; justify-content: space-between;">
-              <span>📌 Responsabilidades Diretas no Setor:</span>
-              <span style="font-size: 0.725rem; background: rgba(99,102,241,0.2); color: #a5b4fc; padding: 0.1rem 0.4rem; border-radius: 4px;">
-                ${responsibilities.length} atribuição(ões)
-              </span>
+            <div style="display:flex; gap:0.4rem;">
+              <button class="btn-edit-member-profile" data-id="${member.id}" title="Editar Perfil" style="background:rgba(99,102,241,0.12); color:#818cf8; border:1px solid rgba(99,102,241,0.3); border-radius:var(--radius-sm); padding:0.3rem 0.5rem; font-size:0.75rem; font-weight:700; cursor:pointer;">
+                ✏️ Perfil
+              </button>
             </div>
-
-            ${responsibilities.length === 0 ? `
-              <p style="color: var(--text-dim); font-size: 0.775rem; font-style: italic; margin: 0;">
-                Nenhuma responsabilidade vinculada a este perfil no portfólio.
-              </p>
-            ` : `
-              <ul style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.4rem;">
-                ${responsibilities.slice(0, 4).map(r => `
-                  <li style="display: flex; align-items: center; justify-content: space-between; background: var(--bg-input); padding: 0.45rem 0.65rem; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
-                    <span style="color: var(--text-main); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 250px;">
-                      • ${r.title}
-                    </span>
-                    <span style="font-size: 0.65rem; color: var(--text-dim); background: rgba(255,255,255,0.05); padding: 0.1rem 0.3rem; border-radius: 3px;">
-                      ${r.dayLimit || 'Recorrente'}
-                    </span>
-                  </li>
-                `).join('')}
-
-                ${responsibilities.length > 4 ? `
-                  <p style="font-size: 0.725rem; color: var(--accent-primary); font-weight: 700; margin-top: 0.2rem; text-align: right;">
-                    + ver mais ${responsibilities.length - 4} responsabilidade(s)...
-                  </p>
-                ` : ''}
-              </ul>
-            `}
           </div>
 
+          <div style="margin-bottom:0.75rem;">
+            <div class="manager-stats-row">
+              <span>📋 A Fazer</span>
+              <strong>${todoCount}</strong>
+            </div>
+            <div class="manager-stats-row">
+              <span>⚡ Em Execução</span>
+              <strong style="color:var(--col-wip);">${wipCount}</strong>
+            </div>
+            <div class="manager-stats-row">
+              <span>✅ Concluído</span>
+              <strong style="color:var(--col-done);">${doneCount}</strong>
+            </div>
+            <div class="manager-stats-row" style="border-bottom:none;">
+              <span>⏱️ Tempo Total Efetivo</span>
+              <strong style="color:var(--accent-primary);">${TimerEngine.formatTime(totalSeconds)}</strong>
+            </div>
+          </div>
+
+          ${memberImpediments.length > 0 ? `
+            <div style="background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.3); border-radius:var(--radius-sm); padding:0.4rem 0.75rem; font-size:0.75rem; color:#ef4444; font-weight:700; display:flex; align-items:center; gap:0.4rem;">
+              ⚠️ ${memberImpediments.length} contratempo(s) relatado(s)
+            </div>
+          ` : ''}
         </div>
       `;
     }).join('');
 
-    // Clique no Card para ver a Apresentação Completa das Responsabilidades
-    container.querySelectorAll('.member-summary-card').forEach(card => {
-      card.addEventListener('click', (e) => {
-        if (e.target.closest('.btn-edit-member-profile')) return;
-        const memberId = card.dataset.id;
-        this.openMemberResponsibilitiesModal(memberId, members, portfolio);
-      });
-    });
-
-    // Clique no Botão Perfil
     container.querySelectorAll('.btn-edit-member-profile').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
+      btn.addEventListener('click', async () => {
         const member = members.find(m => String(m.id) === String(btn.dataset.id));
         if (member) {
           const modal = document.getElementById('modal-edit-profile');
@@ -147,85 +125,7 @@ export const ManagerEngine = {
   },
 
   /**
-   * Modal de Apresentação das Atribuições do Colaborador no Setor
-   */
-  openMemberResponsibilitiesModal(memberId, members, portfolio) {
-    const member = members.find(m => String(m.id) === String(memberId));
-    if (!member) return;
-
-    const memberData = portfolio.find(p => String(p.memberId) === String(member.id)) || { tasks: [] };
-    const responsibilities = memberData.tasks || [];
-
-    const oldModal = document.getElementById('modal-member-text-summary');
-    if (oldModal) oldModal.remove();
-
-    const modalHtml = `
-      <div id="modal-member-text-summary" class="modal-overlay active" style="position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.8); display:flex; align-items:center; justify-content:center; z-index:9999;">
-        <div style="background: #111827; border: 1px solid #1f2937; border-radius: 12px; width: 100%; max-width: 620px; padding: 1.5rem; color: #f3f4f6; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);">
-          
-          <!-- Cabeçalho com dados do Membro -->
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; border-bottom: 1px solid #1f2937; padding-bottom: 0.75rem;">
-            <div style="display: flex; align-items: center; gap: 0.75rem;">
-              <img src="${member.photo || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(member.name)}" alt="${member.name}" style="width: 48px; height: 48px; border-radius: 50%; object-fit: cover; border: 2px solid #6366f1;">
-              <div>
-                <h3 style="font-size: 1.1rem; font-weight: 700; color: #ffffff; margin: 0;">${member.name}</h3>
-                <span style="font-size: 0.8rem; color: #9ca3af;">${member.role || 'Colaborador'}</span>
-              </div>
-            </div>
-            <button id="btn-close-summary-modal" style="background: none; border: none; color: #9ca3af; font-size: 1.25rem; cursor: pointer;">✕</button>
-          </div>
-
-          <!-- Texto de Apresentação das Responsabilidades -->
-          <div style="max-height: 380px; overflow-y: auto; padding-right: 0.5rem;">
-            <h4 style="font-size: 0.9rem; font-weight: 700; color: #a5b4fc; margin-bottom: 0.85rem;">
-              📌 Matriz de Responsabilidades do Setor (${responsibilities.length})
-            </h4>
-
-            ${responsibilities.length === 0 ? `
-              <p style="text-align: center; color: #9ca3af; padding: 2rem 0; font-size: 0.85rem;">
-                Nenhuma responsabilidade fixada para este colaborador no portfólio do setor.
-              </p>
-            ` : responsibilities.map(r => `
-              <div style="background: #1f2937; border: 1px solid #374151; border-radius: 8px; padding: 0.85rem; margin-bottom: 0.75rem;">
-                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.35rem;">
-                  <strong style="font-size: 0.9rem; color: #ffffff;">${r.title}</strong>
-                  <span style="font-size: 0.7rem; font-weight: 700; padding: 0.15rem 0.5rem; border-radius: 4px; background: rgba(99, 102, 241, 0.2); color: #818cf8;">
-                    ${r.dayLimit || 'Recorrente'}
-                  </span>
-                </div>
-                
-                <p style="font-size: 0.8rem; color: #9ca3af; margin: 0; line-height: 1.4;">
-                  ${r.desc || 'Sem requisitos ou detalhes cadastrados.'}
-                </p>
-              </div>
-            `).join('')}
-          </div>
-
-          <!-- Botão Fechar -->
-          <div style="display: flex; justify-content: flex-end; margin-top: 1.25rem; border-top: 1px solid #1f2937; padding-top: 0.75rem;">
-            <button id="btn-cancel-summary-modal" style="background: #374151; color: #ffffff; border: none; border-radius: 8px; padding: 0.5rem 1.25rem; font-size: 0.85rem; font-weight: 600; cursor: pointer;">
-              Fechar
-            </button>
-          </div>
-
-        </div>
-      </div>
-    `;
-
-    document.body.insertAdjacentHTML('beforeend', modalHtml);
-
-    const modal = document.getElementById('modal-member-text-summary');
-    const closeBtn = document.getElementById('btn-close-summary-modal');
-    const cancelBtn = document.getElementById('btn-cancel-summary-modal');
-
-    const closeModal = () => modal.remove();
-
-    closeBtn.addEventListener('click', closeModal);
-    cancelBtn.addEventListener('click', closeModal);
-  },
-
-  /**
-   * Renderiza a lista de contratempos
+   * Renderiza a lista detalhada de contratempos
    */
   renderImpedimentsAlertList(impediments, tasks, members, onViewEvidence) {
     const container = document.getElementById('impediments-list-container');
@@ -292,7 +192,7 @@ export const ManagerEngine = {
   },
 
   /**
-   * Renderiza a Visão de Calendário
+   * Renderiza a Visão de Calendário Editável com Avisos de 2 dias e Filtros
    */
   renderCalendarGrid(tasks, members, onOpenDayDetails) {
     const container = document.getElementById('calendar-grid-container');
