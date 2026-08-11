@@ -61,7 +61,7 @@ export const ManagerEngine = {
 
       return `
         <div class="manager-card">
-          <div class="manager-card-header" style="display:flex; align-items:center; justify-content:space-between; width:100%;">
+          <div class="manager-card-header" style="display:flex; align-items:center; justify-space-between; width:100%;">
             <div style="display:flex; align-items:center; gap:0.75rem;">
               <img src="${member.photo}" alt="${member.name}" class="manager-avatar">
               <div>
@@ -72,8 +72,8 @@ export const ManagerEngine = {
             </div>
 
             <div style="display:flex; gap:0.4rem;">
-              <button class="btn-edit-member-profile" data-id="${member.id}" title="Editar Perfil" style="background:rgba(99,102,241,0.12); color:#818cf8; border:1px solid rgba(99,102,241,0.3); border-radius:var(--radius-sm); padding:0.3rem 0.5rem; font-size:0.75rem; font-weight:700; cursor:pointer;">
-                ✏️ Perfil
+              <button class="btn-edit-member-profile" data-id="${member.id}" title="Editar Perfil" style="display:inline-flex; align-items:center; gap:0.35rem; background:rgba(99,102,241,0.12); color:#818cf8; border:1px solid rgba(99,102,241,0.3); border-radius:var(--radius-sm); padding:0.4rem 0.65rem; font-size:0.75rem; font-weight:700; cursor:pointer; line-height:1; white-space:nowrap; flex-shrink:0;">
+                <span>✏️</span> <span>Perfil</span>
               </button>
             </div>
           </div>
