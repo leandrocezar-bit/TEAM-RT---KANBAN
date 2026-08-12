@@ -1,5 +1,5 @@
 /**
- * Renderização e Lógica do Quadro Kanban (Drag & Drop, Cards, Timers e Reordenação)
+ * Renderização e Lógica do Quadro Kanban (Drag & Drop, Cards, Timers, Reordenação e Filtros)
  */
 
 import { DB } from './db.js';
@@ -9,6 +9,16 @@ import { UndoEngine } from './undo.js';
 export const KanbanEngine = {
   activeMemberId: 'all',
   currentPeriodFilter: 'all', // 'all', 'daily', 'weekly', 'monthly'
+  lastCallbacks: {}, // Armazena os callbacks para re-renderizar quando o filtro mudar
+
+  /**
+   * 🗓️ Define o filtro de período e re-renderiza o quadro automaticamente
+   */
+  setPeriodFilter(period, callbacks = null) {
+    this.currentPeriodFilter = period;
+    const cbs = (callbacks && Object.keys(callbacks).length > 0) ? callbacks : this.lastCallbacks;
+    this.renderBoard(this.activeMemberId, cbs);
+  },
 
   /**
    * Inicializa os escutadores de Drag and Drop nas colunas
@@ -159,6 +169,10 @@ export const KanbanEngine = {
    */
   async renderBoard(memberId = 'all', callbacks = {}) {
     this.activeMemberId = memberId;
+    if (callbacks && Object.keys(callbacks).length > 0) {
+      this.lastCallbacks = callbacks;
+    }
+
     const tasks = (await DB.getAll('tasks')) || [];
     const members = (await DB.getAll('members')) || [];
     const impediments = (await DB.getAll('impediments')) || [];
@@ -183,7 +197,7 @@ export const KanbanEngine = {
       impMap.get(imp.taskId).push(imp);
     });
 
-    // 🔍 LÓGICA: Exibe a tarefa se a pessoa for Responsável Principal OU Integrante do Grupo (task_members)
+    // 🔍 1. FILTRO POR MEMBRO
     let filteredTasks = memberId === 'all'
       ? tasks
       : tasks.filter(t => {
@@ -195,22 +209,48 @@ export const KanbanEngine = {
         return isPrincipal || isInGroup;
       });
 
-    // Filtro por período se selecionado
+    // 🗓️ 2. FILTRO POR PERÍODO CORRIGIDO
     if (this.currentPeriodFilter !== 'all') {
       const now = new Date();
-      const todayStr = now.toISOString().slice(0, 10);
+      // Data de hoje zerando as horas para comparação exata de dia do calendário
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
       filteredTasks = filteredTasks.filter(t => {
         if (!t.dueDate) return false;
-        if (this.currentPeriodFilter === 'daily') return t.dueDate === todayStr;
+
+        // Trata a string para isolar YYYY, MM, DD sem interferência de fuso horário
+        const parts = String(t.dueDate).split('T')[0].split('-');
+        if (parts.length < 3) return false;
+
+        const taskDate = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+
+        // DIÁRIO: Exatamente o mesmo dia do calendário
+        if (this.currentPeriodFilter === 'daily') {
+          return taskDate.getTime() === today.getTime();
+        }
+
+        // SEMANAL: Segunda-feira a Domingo da semana atual
         if (this.currentPeriodFilter === 'weekly') {
-          const due = new Date(t.dueDate);
-          const diffDays = (due - now) / (1000 * 60 * 60 * 24);
-          return diffDays >= -1 && diffDays <= 7;
+          const dayOfWeek = today.getDay(); // 0: Domingo, 1: Segunda...
+          const diffToMonday = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+
+          const monday = new Date(today.getFullYear(), today.getMonth(), diffToMonday);
+          monday.setHours(0, 0, 0, 0);
+
+          const sunday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6);
+          sunday.setHours(23, 59, 59, 999);
+
+          return taskDate >= monday && taskDate <= sunday;
         }
+
+        // MENSAL: Mesmo Mês E Mesmo Ano
         if (this.currentPeriodFilter === 'monthly') {
-          return t.dueDate.slice(0, 7) === todayStr.slice(0, 7);
+          return (
+            taskDate.getMonth() === today.getMonth() &&
+            taskDate.getFullYear() === today.getFullYear()
+          );
         }
+
         return true;
       });
     }
@@ -319,7 +359,7 @@ export const KanbanEngine = {
               </div>
               
               <div class="card-due-date">
-                📅 ${task.dueDate ? task.dueDate.split('-').reverse().slice(0, 2).join('/') : '-'}
+                📅 ${task.dueDate ? task.dueDate.split('T')[0].split('-').reverse().slice(0, 2).join('/') : '-'}
               </div>
             </div>
           </div>
