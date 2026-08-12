@@ -11,6 +11,7 @@ import { SettingsEngine } from './settings.js';
 import { ProjectsEngine } from './projects.js';
 import { UndoEngine } from './undo.js';
 import { ChatEngine } from './chat.js';
+import { AIEngine } from './ai.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
 
@@ -179,6 +180,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const btnViewSettings = document.getElementById('btn-view-settings');
   const btnViewProjects = document.getElementById('btn-view-projects');
   const btnViewChat = document.getElementById('btn-view-chat');
+  const btnViewAI = document.getElementById('btn-view-ai');
   const btnResetDb = document.getElementById('btn-reset-db');
 
   // ============================================================
@@ -215,6 +217,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const sectionSettings = document.getElementById('section-settings');
   const sectionProjects = document.getElementById('section-projects');
   const sectionChat = document.getElementById('section-chat');
+  const sectionAI = document.getElementById('section-ai');
 
   const modalMember = document.getElementById('modal-member');
   const modalEditProfile = document.getElementById('modal-edit-profile');
@@ -308,19 +311,19 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     });
 
-    [btnViewKanban, btnViewManager, btnViewMap, btnViewSettings, btnViewProjects, btnViewChat, btnNewTask].forEach(btn => {
+    [btnViewKanban, btnViewManager, btnViewMap, btnViewSettings, btnViewProjects, btnViewChat, btnViewAI, btnNewTask].forEach(btn => {
       if (btn) btn.style.display = 'inline-block';
     });
 
     // Reset Visual de Navegação
-    [btnViewKanban, btnViewManager, btnViewMap, btnViewSettings, btnViewProjects, btnViewChat].forEach(btn => {
+    [btnViewKanban, btnViewManager, btnViewMap, btnViewSettings, btnViewProjects, btnViewChat, btnViewAI].forEach(btn => {
       if (btn) {
         btn.classList.remove('btn-primary');
         btn.classList.add('btn-secondary');
       }
     });
 
-    [sectionKanban, sectionManager, sectionMap, sectionSettings, sectionProjects, sectionChat].forEach(sec => {
+    [sectionKanban, sectionManager, sectionMap, sectionSettings, sectionProjects, sectionChat, sectionAI].forEach(sec => {
       if (sec) sec.classList.remove('active');
     });
 
@@ -382,6 +385,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         btnViewChat.classList.remove('btn-secondary');
       }
       await ChatEngine.renderChatSection();
+    } else if (activeView === 'ai') {
+      if (sectionAI) sectionAI.classList.add('active');
+      if (btnViewAI) {
+        btnViewAI.classList.add('btn-primary');
+        btnViewAI.classList.remove('btn-secondary');
+      }
+      AIEngine.setupListeners();
     }
   }
 
@@ -392,6 +402,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (btnViewSettings) btnViewSettings.addEventListener('click', () => { activeView = 'settings'; refreshUI(); });
   if (btnViewProjects) btnViewProjects.addEventListener('click', () => { activeView = 'projects'; refreshUI(); });
   if (btnViewChat) btnViewChat.addEventListener('click', () => { activeView = 'chat'; refreshUI(); });
+  if (btnViewAI) btnViewAI.addEventListener('click', () => { activeView = 'ai'; refreshUI(); });
 
   // ============================================================
   // BARRA DE NOTIFICAÇÕES (RECEBER/ACEITAR/RECUSAR TRANSFERÊNCIAS)
