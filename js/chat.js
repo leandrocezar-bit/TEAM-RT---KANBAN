@@ -1,11 +1,12 @@
 /**
- * Módulo de Chat Interno da Equipe em Tempo Real com Emojis, Anexos e Supabase Realtime
+ * Módulo de Chat Interno da Equipe com Auto-Sync e Supabase Realtime
  */
 
 import { DB } from './db.js';
 
 let pendingFileBase64 = null;
 let pendingFileName = null;
+let chatPollingInterval = null;
 
 export const ChatEngine = {
     /**
@@ -18,6 +19,15 @@ export const ChatEngine = {
             section.classList.add('active');
         }
 
+        await this.syncMessages();
+        this.setupListeners();
+        this.startAutoSync();
+    },
+
+    /**
+     * Sincroniza e insere mensagens novas na DOM sem piscar a tela
+     */
+    async syncMessages() {
         const container = document.getElementById('chat-messages-container');
         if (!container) return;
 
@@ -28,26 +38,47 @@ export const ChatEngine = {
             messages = (await DB.getAll('messages')) || [];
             members = (await DB.getAll('members')) || [];
         } catch (e) {
-            console.warn('⚡ Erro ou tabela messages vazia:', e);
+            console.warn('⚡ Erro ao buscar mensagens do chat:', e);
+            return;
         }
 
         const membersMap = new Map(members.map(m => [String(m.id), m]));
         const loggedMemberId = localStorage.getItem('logged_member_id');
 
         if (!messages || messages.length === 0) {
-            container.innerHTML = `
-        <div id="no-messages-notice" style="text-align: center; color: var(--text-dim, #6b7280); font-size: 0.85rem; margin: auto; padding: 2rem;">
-          👋 Nenhuma mensagem ainda. Seja o primeiro a enviar um oi para a equipe!
-        </div>
-      `;
-        } else {
-            messages.sort((a, b) => new Date(a.created_at || a.createdAt) - new Date(b.created_at || b.createdAt));
-            container.innerHTML = messages.map(msg => this.buildMessageHtml(msg, membersMap, loggedMemberId)).join('');
+            if (!container.querySelector('#no-messages-notice') && container.children.length === 0) {
+                container.innerHTML = `
+                  <div id="no-messages-notice" style="text-align: center; color: var(--text-dim, #6b7280); font-size: 0.85rem; margin: auto; padding: 2rem;">
+                    👋 Nenhuma mensagem ainda. Seja o primeiro a enviar um oi para a equipe!
+                  </div>
+                `;
+            }
+            return;
         }
 
-        container.scrollTop = container.scrollHeight;
-        this.setupListeners();
-        this.setupRealtimeChat();
+        // Ordena por data
+        messages.sort((a, b) => new Date(a.created_at || a.createdAt) - new Date(b.created_at || b.createdAt));
+
+        // Remove aviso de "Sem mensagens" se houver novas
+        const notice = document.getElementById('no-messages-notice');
+
+        let hasNewMessages = false;
+
+        // Insere apenas as mensagens que AINDA NÃO ESTÃO no container da tela
+        messages.forEach(msg => {
+            const existingMsg = container.querySelector(`[data-id="${msg.id}"]`);
+            if (!existingMsg) {
+                if (notice) notice.remove();
+                const msgHtml = this.buildMessageHtml(msg, membersMap, loggedMemberId);
+                container.insertAdjacentHTML('beforeend', msgHtml);
+                hasNewMessages = true;
+            }
+        });
+
+        // Se chegaram mensagens novas, rola automaticamente para o final
+        if (hasNewMessages) {
+            container.scrollTop = container.scrollHeight;
+        }
     },
 
     /**
@@ -71,10 +102,10 @@ export const ChatEngine = {
                 fileHtml = `<div style="margin-top: 0.5rem;"><img src="${fileData}" alt="${fileName}" style="max-width: 100%; max-height: 200px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2);"></div>`;
             } else {
                 fileHtml = `
-              <div style="margin-top: 0.5rem; background: rgba(0,0,0,0.2); padding: 0.4rem 0.6rem; border-radius: 6px; display: inline-flex; align-items: center; gap: 0.4rem;">
-                📎 <a href="${fileData}" download="${fileName}" style="color: #60a5fa; text-decoration: underline; font-size: 0.8rem; word-break: break-all;">${fileName}</a>
-              </div>
-            `;
+                  <div style="margin-top: 0.5rem; background: rgba(0,0,0,0.2); padding: 0.4rem 0.6rem; border-radius: 6px; display: inline-flex; align-items: center; gap: 0.4rem;">
+                    📎 <a href="${fileData}" download="${fileName}" style="color: #60a5fa; text-decoration: underline; font-size: 0.8rem; word-break: break-all;">${fileName}</a>
+                  </div>
+                `;
             }
         }
 
@@ -95,56 +126,41 @@ export const ChatEngine = {
     },
 
     /**
-     * Escuta em tempo real (Supabase Realtime) e insere qualquer nova mensagem recebida
+     * Inicia a checagem automática (Auto-Sync) em segundo plano a cada 3 segundos
+     */
+    startAutoSync() {
+        if (chatPollingInterval) clearInterval(chatPollingInterval);
+
+        // A cada 3 segundos busca mensagens novas no Supabase sem piscar a tela
+        chatPollingInterval = setInterval(() => {
+            const section = document.getElementById('section-chat');
+            if (section && section.classList.contains('active')) {
+                this.syncMessages();
+            }
+        }, 3000);
+
+        // Também inscreve no Realtime caso a conexão do banco esteja ativa
+        this.setupRealtimeChat();
+    },
+
+    /**
+     * Escuta em tempo real do Supabase para entregas instantâneas
      */
     setupRealtimeChat() {
         if (!DB.supabase) return;
 
-        // Limpa canal anterior para garantir escuta atualizada
         if (window.chatRealtimeChannel) {
-            DB.supabase.removeChannel(window.chatRealtimeChannel);
+            try { DB.supabase.removeChannel(window.chatRealtimeChannel); } catch (e) { }
         }
 
         window.chatRealtimeChannel = DB.supabase
             .channel('chat-global-realtime')
             .on(
                 'postgres_changes',
-                {
-                    event: 'INSERT',
-                    schema: 'public',
-                    table: 'messages'
-                },
-                async (payload) => {
-                    console.log('⚡ Nova mensagem detectada pelo Realtime:', payload.new);
-
-                    const newMsg = payload.new;
-                    const container = document.getElementById('chat-messages-container');
-                    if (!container) return;
-
-                    // Evita duplicar na tela se já foi inserida pelo submit
-                    if (container.querySelector(`[data-id="${newMsg.id}"]`)) {
-                        return;
-                    }
-
-                    const loggedMemberId = localStorage.getItem('logged_member_id');
-                    const members = (await DB.getAll('members')) || [];
-                    const membersMap = new Map(members.map(m => [String(m.id), m]));
-
-                    // Remove o aviso de "Nenhuma mensagem" se existir
-                    const notice = document.getElementById('no-messages-notice');
-                    if (notice) notice.remove();
-
-                    // Gera e insere a nova mensagem no final
-                    const msgHtml = this.buildMessageHtml(newMsg, membersMap, loggedMemberId);
-                    container.insertAdjacentHTML('beforeend', msgHtml);
-
-                    // Rola a tela até o fim
-                    container.scrollTop = container.scrollHeight;
-                }
+                { event: 'INSERT', schema: 'public', table: 'messages' },
+                () => { this.syncMessages(); }
             )
-            .subscribe((status) => {
-                console.log('📡 Status do Realtime no Chat do Usuário:', status);
-            });
+            .subscribe();
     },
 
     /**
@@ -163,7 +179,6 @@ export const ChatEngine = {
         const btnEmojiToggle = document.getElementById('btn-chat-toggle-emoji');
         const emojiPicker = document.getElementById('chat-emoji-picker');
 
-        // Toggle do Picker de Emojis
         if (btnEmojiToggle && emojiPicker) {
             btnEmojiToggle.addEventListener('click', () => {
                 const isHidden = emojiPicker.style.display === 'none';
@@ -181,7 +196,6 @@ export const ChatEngine = {
             });
         }
 
-        // Leitura de Anexo / Arquivo
         if (inputFile) {
             inputFile.addEventListener('change', (e) => {
                 const file = e.target.files[0];
@@ -207,7 +221,6 @@ export const ChatEngine = {
             });
         }
 
-        // Remoção do Anexo
         if (btnRemoveFile) {
             btnRemoveFile.addEventListener('click', () => {
                 pendingFileBase64 = null;
@@ -217,7 +230,6 @@ export const ChatEngine = {
             });
         }
 
-        // Submissão da Mensagem
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
 
@@ -239,25 +251,9 @@ export const ChatEngine = {
             };
 
             try {
-                // 1. Salva no Supabase
                 await DB.save('messages', newMessage);
+                await this.syncMessages();
 
-                // 2. Insere na tela local do remetente
-                const container = document.getElementById('chat-messages-container');
-                if (container) {
-                    const members = (await DB.getAll('members')) || [];
-                    const membersMap = new Map(members.map(m => [String(m.id), m]));
-
-                    const notice = document.getElementById('no-messages-notice');
-                    if (notice) notice.remove();
-
-                    const msgHtml = ChatEngine.buildMessageHtml(newMessage, membersMap, loggedMemberId);
-                    container.insertAdjacentHTML('beforeend', msgHtml);
-
-                    container.scrollTop = container.scrollHeight;
-                }
-
-                // 3. Limpa campos do formulário
                 if (inputMsg) inputMsg.value = '';
                 if (inputFile) inputFile.value = '';
                 pendingFileBase64 = null;
