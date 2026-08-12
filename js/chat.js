@@ -1,11 +1,12 @@
 /**
- * Módulo de Chat Interno da Equipe em Tempo Real com Emojis e Anexos
+ * Módulo de Chat Interno da Equipe em Tempo Real com Emojis, Anexos e Supabase Realtime
  */
 
 import { DB } from './db.js';
 
 let pendingFileBase64 = null;
 let pendingFileName = null;
+let activeChatChannel = null;
 
 export const ChatEngine = {
     /**
@@ -43,33 +44,44 @@ export const ChatEngine = {
         } else {
             messages.sort((a, b) => new Date(a.created_at || a.createdAt) - new Date(b.created_at || b.createdAt));
 
-            container.innerHTML = messages.map(msg => {
-                const senderId = msg.sender_id || msg.senderId;
-                const isMe = String(senderId) === String(loggedMemberId);
-                const sender = membersMap.get(String(senderId)) || { name: 'Desconhecido', photo: '' };
+            container.innerHTML = messages.map(msg => this.buildMessageHtml(msg, membersMap, loggedMemberId)).join('');
+        }
 
-                const timeStr = (msg.created_at || msg.createdAt)
-                    ? new Date(msg.created_at || msg.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-                    : '';
+        container.scrollTop = container.scrollHeight;
+        this.setupListeners();
+        this.setupRealtimeChat();
+    },
 
-                // Tratamento de Mídia/Anexo
-                let fileHtml = '';
-                if (msg.file_data || msg.fileData) {
-                    const fileData = msg.file_data || msg.fileData;
-                    const fileName = msg.file_name || msg.fileName || 'Arquivo Anexo';
+    /**
+     * Monta o HTML individual de cada mensagem
+     */
+    buildMessageHtml(msg, membersMap, loggedMemberId) {
+        const senderId = msg.sender_id || msg.senderId;
+        const isMe = String(senderId) === String(loggedMemberId);
+        const sender = membersMap.get(String(senderId)) || { name: 'Desconhecido', photo: '' };
 
-                    if (fileData.startsWith('data:image/')) {
-                        fileHtml = `<div style="margin-top: 0.5rem;"><img src="${fileData}" alt="${fileName}" style="max-width: 100%; max-height: 200px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2);"></div>`;
-                    } else {
-                        fileHtml = `
+        const timeStr = (msg.created_at || msg.createdAt)
+            ? new Date(msg.created_at || msg.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+            : '';
+
+        // Tratamento de Mídia/Anexo
+        let fileHtml = '';
+        if (msg.file_data || msg.fileData) {
+            const fileData = msg.file_data || msg.fileData;
+            const fileName = msg.file_name || msg.fileName || 'Arquivo Anexo';
+
+            if (fileData.startsWith('data:image/')) {
+                fileHtml = `<div style="margin-top: 0.5rem;"><img src="${fileData}" alt="${fileName}" style="max-width: 100%; max-height: 200px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2);"></div>`;
+            } else {
+                fileHtml = `
               <div style="margin-top: 0.5rem; background: rgba(0,0,0,0.2); padding: 0.4rem 0.6rem; border-radius: 6px; display: inline-flex; align-items: center; gap: 0.4rem;">
                 📎 <a href="${fileData}" download="${fileName}" style="color: #60a5fa; text-decoration: underline; font-size: 0.8rem; word-break: break-all;">${fileName}</a>
               </div>
             `;
-                    }
-                }
+            }
+        }
 
-                return `
+        return `
           <div style="display: flex; gap: 0.6rem; align-items: flex-end; ${isMe ? 'flex-direction: row-reverse;' : ''}">
             <img src="${sender.photo || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(sender.name)}" 
                  alt="${sender.name}" 
@@ -83,11 +95,38 @@ export const ChatEngine = {
             </div>
           </div>
         `;
-            }).join('');
+    },
+
+    /**
+     * Configura a escuta em tempo real (Supabase Realtime) para novas mensagens
+     */
+    setupRealtimeChat() {
+        if (!DB.supabase) return;
+
+        // Se já existir um canal ativo, cancela para não duplicar escutas
+        if (activeChatChannel) {
+            DB.supabase.removeChannel(activeChatChannel);
         }
 
-        container.scrollTop = container.scrollHeight;
-        this.setupListeners();
+        activeChatChannel = DB.supabase
+            .channel('chat-realtime-channel')
+            .on(
+                'postgres_changes',
+                {
+                    event: 'INSERT',
+                    schema: 'public',
+                    table: 'messages'
+                },
+                async (payload) => {
+                    console.log('💬 Nova mensagem recebida via Realtime:', payload.new);
+
+                    // Recarrega a seção de chat instantaneamente ao receber novas mensagens
+                    await this.renderChatSection();
+                }
+            )
+            .subscribe((status) => {
+                console.log('📡 Status do Realtime no Chat:', status);
+            });
     },
 
     /**
@@ -129,7 +168,6 @@ export const ChatEngine = {
             inputFile.addEventListener('change', (e) => {
                 const file = e.target.files[0];
                 if (file) {
-                    // Limite de tamanho recomendado (ex: 5MB)
                     if (file.size > 5 * 1024 * 1024) {
                         alert('Por favor, selecione arquivos de até 5MB.');
                         inputFile.value = '';
@@ -190,6 +228,7 @@ export const ChatEngine = {
                 if (previewBar) previewBar.style.display = 'none';
                 if (emojiPicker) emojiPicker.style.display = 'none';
 
+                // A própria resposta do Realtime ou a chamada abaixo vai atualizar a tela na hora
                 await this.renderChatSection();
             } catch (err) {
                 console.error('Erro ao enviar mensagem:', err);
