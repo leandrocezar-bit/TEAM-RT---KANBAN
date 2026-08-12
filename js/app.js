@@ -53,6 +53,45 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
+  // ============================================================
+  // ESCUTA DE NOTIFICAÇÕES EM TEMPO REAL (SUPABASE REALTIME)
+  // ============================================================
+
+  function setupRealtimeNotifications() {
+    const loggedMemberId = getLoggedMemberId();
+    if (!loggedMemberId || !DB.supabase) return;
+
+    // Cancela assinaturas anteriores para evitar escutas duplicadas
+    if (window.activeNotificationChannel) {
+      DB.supabase.removeChannel(window.activeNotificationChannel);
+    }
+
+    // Escuta novas inserções na tabela activity_transfers filtrando pelo usuário de destino
+    window.activeNotificationChannel = DB.supabase
+      .channel('realtime-activity-transfers')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'activity_transfers',
+          filter: `to_member_id=eq.${loggedMemberId}`
+        },
+        async (payload) => {
+          console.log('🔔 Nova solicitação de transferência recebida:', payload.new);
+
+          // Dispara o toast informando a transferência
+          showToast('⚡ Você recebeu uma nova solicitação de transferência!', 'warning');
+
+          // Atualiza o Kanban para exibir a nova pendência imediatamente
+          await refreshUI();
+        }
+      )
+      .subscribe((status) => {
+        console.log('📡 Status da assinatura Realtime:', status);
+      });
+  }
+
   if (formLogin) {
     formLogin.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -95,6 +134,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       activeView = 'kanban';
 
       checkAuthentication();
+      setupRealtimeNotifications(); // <-- Inicializa a escuta Realtime após o login
       showToast(`Bem-vindo de volta, ${matchedMember.name}!`, 'success');
       await refreshUI();
     });
@@ -103,6 +143,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   const btnLogout = document.getElementById('btn-logout');
   if (btnLogout) {
     btnLogout.addEventListener('click', () => {
+      if (window.activeNotificationChannel && DB.supabase) {
+        DB.supabase.removeChannel(window.activeNotificationChannel);
+      }
+
       localStorage.removeItem('app_authenticated');
       localStorage.removeItem('logged_member_id');
       localStorage.removeItem('logged_access_level');
@@ -116,11 +160,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ============================================================
-  // INICIALIZA BANCO E VERIFICA ACESSO
+  // INICIALIZA BANCO, REALTIME E VERIFICA ACESSO
   // ============================================================
 
   await DB.init();
   checkAuthentication();
+  setupRealtimeNotifications(); // <-- Inicializa a escuta no carregamento da aplicação
 
   // ============================================================
   // ELEMENTOS DE INTERFACE E SEÇÕES
