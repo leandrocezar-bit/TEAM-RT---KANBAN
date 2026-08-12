@@ -77,7 +77,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         async (payload) => {
           console.log('📦 Transferência capturada no Realtime:', payload.new);
 
-          // Lê exatamente a coluna to_member_id do seu banco Supabase
+          // Lê exatamente a coluna to_member_id do banco Supabase
           const targetMemberId = payload.new?.to_member_id;
 
           if (targetMemberId && String(targetMemberId).trim() === String(loggedMemberId).trim()) {
@@ -1010,8 +1010,84 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
+  // ============================================================
+  // MODAL AGENDA DO DIA (BUSCA TAREFAS DA DATA SELECIONADA)
+  // ============================================================
+
   async function openCalendarDayModal(dateStr) {
+    const titleEl = document.getElementById('calendar-day-modal-title');
+    const bodyEl = document.getElementById('calendar-day-modal-body');
+
+    if (!bodyEl) return;
+
+    const formattedDate = dateStr ? dateStr.split('-').reverse().join('/') : '';
+    if (titleEl) {
+      titleEl.textContent = `📅 Agenda do Dia ${formattedDate}`;
+    }
+
+    bodyEl.innerHTML = `<div style="text-align:center; padding:1.5rem; color:var(--text-dim);">Carregando atividades do dia...</div>`;
     openModal(modalCalendarDay);
+
+    try {
+      const tasks = (await DB.getAll('tasks')) || [];
+      const members = (await DB.getAll('members')) || [];
+
+      const dayTasks = tasks.filter((t) => {
+        const tDate = t.dueDate || t.due_date;
+        return tDate && String(tDate).slice(0, 10) === String(dateStr).slice(0, 10);
+      });
+
+      if (dayTasks.length === 0) {
+        bodyEl.innerHTML = `
+          <div style="text-align:center; padding:2rem 1rem; color:var(--text-dim);">
+            <span>☕</span>
+            <p style="margin-top:0.5rem; font-size:0.9rem;">Nenhuma atividade com prazo marcado para este dia.</p>
+          </div>
+        `;
+        return;
+      }
+
+      bodyEl.innerHTML = `
+        <div style="display:flex; flex-direction:column; gap:0.75rem; max-height:350px; overflow-y:auto; padding-right:0.25rem;">
+          ${dayTasks
+          .map((task) => {
+            const memberId = task.member_id || task.memberId;
+            const member = members.find((m) => String(m.id) === String(memberId));
+            const memberName = member ? member.name : 'Não atribuído';
+
+            const priorityColor =
+              task.priority === 'Alta'
+                ? '#ef4444'
+                : task.priority === 'Média'
+                  ? '#f59e0b'
+                  : '#10b981';
+
+            return `
+                <div style="background:var(--bg-input, #1f2937); border:1px solid var(--border-color, #374151); padding:0.85rem; border-radius:8px; display:flex; justify-content:space-between; align-items:center;">
+                  <div>
+                    <h4 style="margin:0 0 0.35rem 0; font-size:0.95rem; color:#fff;">${task.title}</h4>
+                    <span style="font-size:0.775rem; color:var(--text-muted, #9ca3af);">
+                      👤 Responsável: <strong>${memberName}</strong>
+                    </span>
+                  </div>
+                  <div style="text-align:right; display:flex; flex-direction:column; align-items:flex-end; gap:0.3rem;">
+                    <span style="font-size:0.7rem; font-weight:700; padding:0.2rem 0.5rem; border-radius:4px; background:${priorityColor}20; color:${priorityColor}; border:1px solid ${priorityColor}40;">
+                      ${task.priority || 'Média'}
+                    </span>
+                    <span style="font-size:0.75rem; color:var(--text-dim, #6b7280);">
+                      ${task.status || 'A FAZER'}
+                    </span>
+                  </div>
+                </div>
+              `;
+          })
+          .join('')}
+        </div>
+      `;
+    } catch (err) {
+      console.error('❌ Erro ao carregar agenda do dia:', err);
+      bodyEl.innerHTML = `<div style="text-align:center; padding:1.5rem; color:#ef4444;">Falha ao carregar as atividades.</div>`;
+    }
   }
 
   async function handleDeleteMember(memberId, memberName) {
