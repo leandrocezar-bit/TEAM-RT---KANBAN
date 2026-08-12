@@ -37,13 +37,12 @@ export const ChatEngine = {
 
         if (!messages || messages.length === 0) {
             container.innerHTML = `
-        <div style="text-align: center; color: var(--text-dim, #6b7280); font-size: 0.85rem; margin: auto; padding: 2rem;">
+        <div id="no-messages-notice" style="text-align: center; color: var(--text-dim, #6b7280); font-size: 0.85rem; margin: auto; padding: 2rem;">
           👋 Nenhuma mensagem ainda. Seja o primeiro a enviar um oi para a equipe!
         </div>
       `;
         } else {
             messages.sort((a, b) => new Date(a.created_at || a.createdAt) - new Date(b.created_at || b.createdAt));
-
             container.innerHTML = messages.map(msg => this.buildMessageHtml(msg, membersMap, loggedMemberId)).join('');
         }
 
@@ -64,7 +63,6 @@ export const ChatEngine = {
             ? new Date(msg.created_at || msg.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
             : '';
 
-        // Tratamento de Mídia/Anexo
         let fileHtml = '';
         if (msg.file_data || msg.fileData) {
             const fileData = msg.file_data || msg.fileData;
@@ -82,7 +80,7 @@ export const ChatEngine = {
         }
 
         return `
-          <div style="display: flex; gap: 0.6rem; align-items: flex-end; ${isMe ? 'flex-direction: row-reverse;' : ''}">
+          <div class="chat-msg-item" data-id="${msg.id}" style="display: flex; gap: 0.6rem; align-items: flex-end; ${isMe ? 'flex-direction: row-reverse;' : ''}">
             <img src="${sender.photo || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(sender.name)}" 
                  alt="${sender.name}" 
                  style="width: 28px; height: 28px; border-radius: 50%; object-fit: cover; flex-shrink: 0;">
@@ -98,18 +96,16 @@ export const ChatEngine = {
     },
 
     /**
-     * Configura a escuta em tempo real (Supabase Realtime) para novas mensagens
+     * Escuta em tempo real (Supabase Realtime) e insere a mensagem na DOM instantaneamente
      */
     setupRealtimeChat() {
         if (!DB.supabase) return;
 
-        // Se já existir um canal ativo, cancela para não duplicar escutas
-        if (activeChatChannel) {
-            DB.supabase.removeChannel(activeChatChannel);
-        }
+        // Mantém uma única assinatura para não perder eventos nem criar duplicações
+        if (activeChatChannel) return;
 
         activeChatChannel = DB.supabase
-            .channel('chat-realtime-channel')
+            .channel('chat-global-realtime')
             .on(
                 'postgres_changes',
                 {
@@ -118,10 +114,27 @@ export const ChatEngine = {
                     table: 'messages'
                 },
                 async (payload) => {
-                    console.log('💬 Nova mensagem recebida via Realtime:', payload.new);
+                    const newMsg = payload.new;
+                    const container = document.getElementById('chat-messages-container');
+                    if (!container) return;
 
-                    // Recarrega a seção de chat instantaneamente ao receber novas mensagens
-                    await this.renderChatSection();
+                    // Verifica se a mensagem já não foi renderizada na tela
+                    if (container.querySelector(`[data-id="${newMsg.id}"]`)) return;
+
+                    const loggedMemberId = localStorage.getItem('logged_member_id');
+                    const members = (await DB.getAll('members')) || [];
+                    const membersMap = new Map(members.map(m => [String(m.id), m]));
+
+                    // Remove mensagem de aviso de "Nenhuma mensagem" se existir
+                    const notice = document.getElementById('no-messages-notice');
+                    if (notice) notice.remove();
+
+                    // Adiciona a nova mensagem no final do container
+                    const msgHtml = this.buildMessageHtml(newMsg, membersMap, loggedMemberId);
+                    container.insertAdjacentHTML('beforeend', msgHtml);
+
+                    // Rola suavemente até o fim
+                    container.scrollTop = container.scrollHeight;
                 }
             )
             .subscribe((status) => {
@@ -130,7 +143,7 @@ export const ChatEngine = {
     },
 
     /**
-     * Configura os ouvintes do formulário, upload de arquivo e picker de emojis
+     * Eventos de envio e anexos
      */
     setupListeners() {
         const form = document.getElementById('form-chat-send');
@@ -145,7 +158,6 @@ export const ChatEngine = {
         const btnEmojiToggle = document.getElementById('btn-chat-toggle-emoji');
         const emojiPicker = document.getElementById('chat-emoji-picker');
 
-        // Toggle do Picker de Emojis
         if (btnEmojiToggle && emojiPicker) {
             btnEmojiToggle.addEventListener('click', () => {
                 const isHidden = emojiPicker.style.display === 'none';
@@ -163,7 +175,6 @@ export const ChatEngine = {
             });
         }
 
-        // Leitura e carregamento de Arquivo
         if (inputFile) {
             inputFile.addEventListener('change', (e) => {
                 const file = e.target.files[0];
@@ -189,7 +200,6 @@ export const ChatEngine = {
             });
         }
 
-        // Remoção do Anexo
         if (btnRemoveFile) {
             btnRemoveFile.addEventListener('click', () => {
                 pendingFileBase64 = null;
@@ -199,7 +209,6 @@ export const ChatEngine = {
             });
         }
 
-        // Submissão da Mensagem
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
 
@@ -220,7 +229,7 @@ export const ChatEngine = {
             try {
                 await DB.save('messages', newMessage);
 
-                // Limpa campos
+                // Limpa os campos de envio
                 if (inputMsg) inputMsg.value = '';
                 if (inputFile) inputFile.value = '';
                 pendingFileBase64 = null;
@@ -228,8 +237,6 @@ export const ChatEngine = {
                 if (previewBar) previewBar.style.display = 'none';
                 if (emojiPicker) emojiPicker.style.display = 'none';
 
-                // A própria resposta do Realtime ou a chamada abaixo vai atualizar a tela na hora
-                await this.renderChatSection();
             } catch (err) {
                 console.error('Erro ao enviar mensagem:', err);
                 alert('Não foi possível enviar a mensagem ou anexo.');
