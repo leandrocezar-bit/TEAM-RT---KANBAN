@@ -61,12 +61,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     const loggedMemberId = getLoggedMemberId();
     if (!loggedMemberId || !DB.supabase) return;
 
-    // Cancela assinaturas anteriores para evitar escutas duplicadas
+    // Cancela assinaturas anteriores para não duplicar escutas
     if (window.activeNotificationChannel) {
       DB.supabase.removeChannel(window.activeNotificationChannel);
     }
 
-    // Escuta novas solicitações de transferência na tabela activity_transfers
+    // Escuta a tabela activity_transfers exatamente com os campos da tabela do Supabase
     window.activeNotificationChannel = DB.supabase
       .channel('realtime-activity-transfers')
       .on(
@@ -77,14 +77,15 @@ document.addEventListener('DOMContentLoaded', async () => {
           table: 'activity_transfers'
         },
         async (payload) => {
-          // Captura o destinatário tratando ambos os padrões (snake_case / camelCase)
-          const targetId = payload.new?.to_member_id || payload.new?.toMemberId;
+          console.log('📦 Transferência capturada no Realtime:', payload.new);
 
-          // Se a notificação for direcionada ao usuário atualmente logado nesta aba/máquina
-          if (String(targetId) === String(loggedMemberId)) {
-            console.log('⚡ Solicitação de transferência recebida:', payload.new);
+          // Pega exatamente a coluna to_member_id informada no Supabase
+          const targetMemberId = payload.new?.to_member_id;
 
-            // 1. Exibe a notificação Toast flutuante nativa do App
+          // Se a transferência for direcionada ao usuário logado nesta sessão
+          if (targetMemberId && String(targetMemberId).trim() === String(loggedMemberId).trim()) {
+
+            // 1. Exibe o aviso Toast no canto da tela
             showToast('⚡ Você recebeu uma nova solicitação de transferência!', 'warning');
 
             // 2. Atualiza os cards e as pendências na interface instantaneamente
@@ -93,7 +94,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
       )
       .subscribe((status) => {
-        console.log('📡 Status do Realtime no App:', status);
+        console.log('📡 Status da Conexão Realtime:', status);
       });
   }
 
@@ -139,7 +140,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       activeView = 'kanban';
 
       checkAuthentication();
-      setupRealtimeNotifications(); // <-- Ativa o Realtime logo após fazer login
+      setupRealtimeNotifications(); // <-- Ativa a escuta do Realtime após o login
       showToast(`Bem-vindo de volta, ${matchedMember.name}!`, 'success');
       await refreshUI();
     });
@@ -170,7 +171,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   await DB.init();
   checkAuthentication();
-  setupRealtimeNotifications(); // <-- Ativa a escuta do Realtime no carregamento do app
+  setupRealtimeNotifications(); // <-- Ativa a escuta do Realtime na inicialização
 
   // ============================================================
   // ELEMENTOS DE INTERFACE E SEÇÕES
