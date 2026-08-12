@@ -96,12 +96,12 @@ export const ChatEngine = {
     },
 
     /**
-     * Escuta em tempo real (Supabase Realtime) e insere a mensagem na DOM instantaneamente
+     * Escuta em tempo real (Supabase Realtime) para mensagens de outros usuários
      */
     setupRealtimeChat() {
         if (!DB.supabase) return;
 
-        // Mantém uma única assinatura para não perder eventos nem criar duplicações
+        // Garante que exista apenas uma assinatura ativa por sessão
         if (activeChatChannel) return;
 
         activeChatChannel = DB.supabase
@@ -115,26 +115,30 @@ export const ChatEngine = {
                 },
                 async (payload) => {
                     const newMsg = payload.new;
-                    const container = document.getElementById('chat-messages-container');
-                    if (!container) return;
-
-                    // Verifica se a mensagem já não foi renderizada na tela
-                    if (container.querySelector(`[data-id="${newMsg.id}"]`)) return;
-
                     const loggedMemberId = localStorage.getItem('logged_member_id');
-                    const members = (await DB.getAll('members')) || [];
-                    const membersMap = new Map(members.map(m => [String(m.id), m]));
 
-                    // Remove mensagem de aviso de "Nenhuma mensagem" se existir
-                    const notice = document.getElementById('no-messages-notice');
-                    if (notice) notice.remove();
+                    // Só processa se a mensagem veio de outro usuário (para evitar renderizar 2x a própria mensagem)
+                    if (String(newMsg.sender_id || newMsg.senderId) !== String(loggedMemberId)) {
+                        const container = document.getElementById('chat-messages-container');
+                        if (!container) return;
 
-                    // Adiciona a nova mensagem no final do container
-                    const msgHtml = this.buildMessageHtml(newMsg, membersMap, loggedMemberId);
-                    container.insertAdjacentHTML('beforeend', msgHtml);
+                        // Evita duplicar se por algum motivo a mensagem já estiver na DOM
+                        if (container.querySelector(`[data-id="${newMsg.id}"]`)) return;
 
-                    // Rola suavemente até o fim
-                    container.scrollTop = container.scrollHeight;
+                        const members = (await DB.getAll('members')) || [];
+                        const membersMap = new Map(members.map(m => [String(m.id), m]));
+
+                        // Remove a mensagem de "Nenhuma mensagem" se existir
+                        const notice = document.getElementById('no-messages-notice');
+                        if (notice) notice.remove();
+
+                        // Insere a nova mensagem no final da conversa
+                        const msgHtml = this.buildMessageHtml(newMsg, membersMap, loggedMemberId);
+                        container.insertAdjacentHTML('beforeend', msgHtml);
+
+                        // Rola a área para o fim automaticamente
+                        container.scrollTop = container.scrollHeight;
+                    }
                 }
             )
             .subscribe((status) => {
@@ -143,7 +147,7 @@ export const ChatEngine = {
     },
 
     /**
-     * Eventos de envio e anexos
+     * Configuração dos eventos do formulário, emojis e anexos
      */
     setupListeners() {
         const form = document.getElementById('form-chat-send');
@@ -158,6 +162,7 @@ export const ChatEngine = {
         const btnEmojiToggle = document.getElementById('btn-chat-toggle-emoji');
         const emojiPicker = document.getElementById('chat-emoji-picker');
 
+        // Toggle do Picker de Emojis
         if (btnEmojiToggle && emojiPicker) {
             btnEmojiToggle.addEventListener('click', () => {
                 const isHidden = emojiPicker.style.display === 'none';
@@ -175,6 +180,7 @@ export const ChatEngine = {
             });
         }
 
+        // Leitura de Anexo / Arquivo
         if (inputFile) {
             inputFile.addEventListener('change', (e) => {
                 const file = e.target.files[0];
@@ -200,6 +206,7 @@ export const ChatEngine = {
             });
         }
 
+        // Remoção do Anexo
         if (btnRemoveFile) {
             btnRemoveFile.addEventListener('click', () => {
                 pendingFileBase64 = null;
@@ -209,6 +216,7 @@ export const ChatEngine = {
             });
         }
 
+        // Submissão da Mensagem
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
 
@@ -220,16 +228,35 @@ export const ChatEngine = {
             const newMessage = {
                 id: 'msg-' + Date.now(),
                 sender_id: loggedMemberId,
+                senderId: loggedMemberId,
                 content: content,
                 file_data: pendingFileBase64,
+                fileData: pendingFileBase64,
                 file_name: pendingFileName,
+                fileName: pendingFileName,
                 created_at: new Date().toISOString()
             };
 
             try {
+                // 1. Salva a mensagem no Supabase
                 await DB.save('messages', newMessage);
 
-                // Limpa os campos de envio
+                // 2. Insere IMEDIATAMENTE na tela do remetente
+                const container = document.getElementById('chat-messages-container');
+                if (container) {
+                    const members = (await DB.getAll('members')) || [];
+                    const membersMap = new Map(members.map(m => [String(m.id), m]));
+
+                    const notice = document.getElementById('no-messages-notice');
+                    if (notice) notice.remove();
+
+                    const msgHtml = ChatEngine.buildMessageHtml(newMessage, membersMap, loggedMemberId);
+                    container.insertAdjacentHTML('beforeend', msgHtml);
+
+                    container.scrollTop = container.scrollHeight;
+                }
+
+                // 3. Limpa os campos do formulário
                 if (inputMsg) inputMsg.value = '';
                 if (inputFile) inputFile.value = '';
                 pendingFileBase64 = null;
