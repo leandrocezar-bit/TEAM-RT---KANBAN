@@ -6,7 +6,6 @@ import { DB } from './db.js';
 
 let pendingFileBase64 = null;
 let pendingFileName = null;
-let activeChatChannel = null;
 
 export const ChatEngine = {
     /**
@@ -56,7 +55,7 @@ export const ChatEngine = {
      */
     buildMessageHtml(msg, membersMap, loggedMemberId) {
         const senderId = msg.sender_id || msg.senderId;
-        const isMe = String(senderId) === String(loggedMemberId);
+        const isMe = String(senderId).trim() === String(loggedMemberId).trim();
         const sender = membersMap.get(String(senderId)) || { name: 'Desconhecido', photo: '' };
 
         const timeStr = (msg.created_at || msg.createdAt)
@@ -96,15 +95,17 @@ export const ChatEngine = {
     },
 
     /**
-     * Escuta em tempo real (Supabase Realtime) para mensagens de outros usuários
+     * Escuta em tempo real (Supabase Realtime) e insere qualquer nova mensagem recebida
      */
     setupRealtimeChat() {
         if (!DB.supabase) return;
 
-        // Garante que exista apenas uma assinatura ativa por sessão
-        if (activeChatChannel) return;
+        // Limpa canal anterior para garantir escuta atualizada
+        if (window.chatRealtimeChannel) {
+            DB.supabase.removeChannel(window.chatRealtimeChannel);
+        }
 
-        activeChatChannel = DB.supabase
+        window.chatRealtimeChannel = DB.supabase
             .channel('chat-global-realtime')
             .on(
                 'postgres_changes',
@@ -114,35 +115,35 @@ export const ChatEngine = {
                     table: 'messages'
                 },
                 async (payload) => {
+                    console.log('⚡ Nova mensagem detectada pelo Realtime:', payload.new);
+
                     const newMsg = payload.new;
-                    const loggedMemberId = localStorage.getItem('logged_member_id');
+                    const container = document.getElementById('chat-messages-container');
+                    if (!container) return;
 
-                    // Só processa se a mensagem veio de outro usuário (para evitar renderizar 2x a própria mensagem)
-                    if (String(newMsg.sender_id || newMsg.senderId) !== String(loggedMemberId)) {
-                        const container = document.getElementById('chat-messages-container');
-                        if (!container) return;
-
-                        // Evita duplicar se por algum motivo a mensagem já estiver na DOM
-                        if (container.querySelector(`[data-id="${newMsg.id}"]`)) return;
-
-                        const members = (await DB.getAll('members')) || [];
-                        const membersMap = new Map(members.map(m => [String(m.id), m]));
-
-                        // Remove a mensagem de "Nenhuma mensagem" se existir
-                        const notice = document.getElementById('no-messages-notice');
-                        if (notice) notice.remove();
-
-                        // Insere a nova mensagem no final da conversa
-                        const msgHtml = this.buildMessageHtml(newMsg, membersMap, loggedMemberId);
-                        container.insertAdjacentHTML('beforeend', msgHtml);
-
-                        // Rola a área para o fim automaticamente
-                        container.scrollTop = container.scrollHeight;
+                    // Evita duplicar na tela se já foi inserida pelo submit
+                    if (container.querySelector(`[data-id="${newMsg.id}"]`)) {
+                        return;
                     }
+
+                    const loggedMemberId = localStorage.getItem('logged_member_id');
+                    const members = (await DB.getAll('members')) || [];
+                    const membersMap = new Map(members.map(m => [String(m.id), m]));
+
+                    // Remove o aviso de "Nenhuma mensagem" se existir
+                    const notice = document.getElementById('no-messages-notice');
+                    if (notice) notice.remove();
+
+                    // Gera e insere a nova mensagem no final
+                    const msgHtml = this.buildMessageHtml(newMsg, membersMap, loggedMemberId);
+                    container.insertAdjacentHTML('beforeend', msgHtml);
+
+                    // Rola a tela até o fim
+                    container.scrollTop = container.scrollHeight;
                 }
             )
             .subscribe((status) => {
-                console.log('📡 Status do Realtime no Chat:', status);
+                console.log('📡 Status do Realtime no Chat do Usuário:', status);
             });
     },
 
@@ -238,10 +239,10 @@ export const ChatEngine = {
             };
 
             try {
-                // 1. Salva a mensagem no Supabase
+                // 1. Salva no Supabase
                 await DB.save('messages', newMessage);
 
-                // 2. Insere IMEDIATAMENTE na tela do remetente
+                // 2. Insere na tela local do remetente
                 const container = document.getElementById('chat-messages-container');
                 if (container) {
                     const members = (await DB.getAll('members')) || [];
@@ -256,7 +257,7 @@ export const ChatEngine = {
                     container.scrollTop = container.scrollHeight;
                 }
 
-                // 3. Limpa os campos do formulário
+                // 3. Limpa campos do formulário
                 if (inputMsg) inputMsg.value = '';
                 if (inputFile) inputFile.value = '';
                 pendingFileBase64 = null;
