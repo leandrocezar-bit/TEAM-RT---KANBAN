@@ -1,5 +1,5 @@
 /**
- * Renderização e Lógica do Quadro Kanban (Drag & Drop, Cards, Timers, Reordenação, Filtros, Edição e Exclusão)
+ * Renderização e Lógica do Quadro Kanban (Drag & Drop, Cards, Timers, Reordenação e Filtros)
  */
 
 import { DB } from './db.js';
@@ -209,25 +209,29 @@ export const KanbanEngine = {
         return isPrincipal || isInGroup;
       });
 
-    // 🗓️ 2. FILTRO POR PERÍODO
+    // 🗓️ 2. FILTRO POR PERÍODO CORRIGIDO
     if (this.currentPeriodFilter !== 'all') {
       const now = new Date();
+      // Data de hoje zerando as horas para comparação exata de dia do calendário
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
       filteredTasks = filteredTasks.filter(t => {
         if (!t.dueDate) return false;
 
+        // Trata a string para isolar YYYY, MM, DD sem interferência de fuso horário
         const parts = String(t.dueDate).split('T')[0].split('-');
         if (parts.length < 3) return false;
 
         const taskDate = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
 
+        // DIÁRIO: Exatamente o mesmo dia do calendário
         if (this.currentPeriodFilter === 'daily') {
           return taskDate.getTime() === today.getTime();
         }
 
+        // SEMANAL: Segunda-feira a Domingo da semana atual
         if (this.currentPeriodFilter === 'weekly') {
-          const dayOfWeek = today.getDay();
+          const dayOfWeek = today.getDay(); // 0: Domingo, 1: Segunda...
           const diffToMonday = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
 
           const monday = new Date(today.getFullYear(), today.getMonth(), diffToMonday);
@@ -239,6 +243,7 @@ export const KanbanEngine = {
           return taskDate >= monday && taskDate <= sunday;
         }
 
+        // MENSAL: Mesmo Mês E Mesmo Ano
         if (this.currentPeriodFilter === 'monthly') {
           return (
             taskDate.getMonth() === today.getMonth() &&
@@ -281,6 +286,7 @@ export const KanbanEngine = {
         const timeFormatted = TimerEngine.formatTime(elapsedSecs);
         const isRunning = task.isTimerRunning;
 
+        // Verifica se há transferência pendente travando este card
         const pendingTransfer = pendingTransfersMap.get(String(task.id));
         const isLocked = Boolean(pendingTransfer);
 
@@ -291,6 +297,7 @@ export const KanbanEngine = {
           if (destMember) destMemberName = destMember.name;
         }
 
+        // Membros do Grupo
         const groupLinks = taskMembers.filter(tm => String(tm.taskId) === String(task.id));
         const groupMembers = members.filter(m => groupLinks.some(gl => String(gl.memberId || gl.member_id) === String(m.id)));
 
@@ -298,7 +305,7 @@ export const KanbanEngine = {
           <div class="kanban-card ${task.status === 'EM EXECUÇÃO' ? 'wip-active' : ''} ${isLocked ? 'task-locked' : ''}" 
                 draggable="${!isLocked}" 
                 data-id="${task.id}"
-                style="${isLocked ? 'opacity:0.85; border:1px dashed #6366f1; position:relative; cursor:pointer;' : 'cursor:pointer;'}">
+                style="${isLocked ? 'opacity:0.85; border:1px dashed #6366f1; position:relative;' : ''}">
             
             ${isLocked ? `
               <div class="lock-banner" style="background:rgba(99, 102, 241, 0.2); border-bottom:1px solid #6366f1; margin:-0.75rem -0.75rem 0.5rem -0.75rem; padding:0.4rem 0.6rem; border-radius:6px 6px 0 0; font-size:0.75rem; color:#a5b4fc; display:flex; justify-content:space-between; align-items:center;">
@@ -325,6 +332,7 @@ export const KanbanEngine = {
 
             <p class="card-desc">${task.description || 'Sem descrição.'}</p>
 
+            <!-- Box do Cronômetro -->
             <div class="timer-box">
               <div class="timer-display ${isRunning ? 'running' : ''}" id="timer-display-${task.id}">
                 ⏱️ ${timeFormatted}
@@ -373,7 +381,7 @@ export const KanbanEngine = {
           card.classList.remove('dragging');
         });
 
-        // Clique no cartão para abrir os Detalhes / Editar / Excluir
+        // Clique no cartão
         card.addEventListener('click', (e) => {
           if (e.target.closest('.btn-toggle-timer') || e.target.closest('.btn-report-impediment') || e.target.closest('.btn-reorder')) {
             return;
@@ -384,17 +392,13 @@ export const KanbanEngine = {
             return;
           }
 
-          const taskId = card.dataset.id;
-
-          if (callbacks && typeof callbacks.onOpenTaskDetails === 'function') {
-            callbacks.onOpenTaskDetails(taskId);
-          } else {
-            this.openTaskDetailsFallback(taskId, callbacks);
+          if (callbacks.onOpenTaskDetails) {
+            callbacks.onOpenTaskDetails(card.dataset.id);
           }
         });
       });
 
-      // Botões de Reordenação
+      // Botões de Reordenação (Para cima / Para baixo)
       colEl.querySelectorAll('.btn-reorder-up').forEach(btn => {
         btn.addEventListener('click', async (e) => {
           e.stopPropagation();
@@ -433,78 +437,5 @@ export const KanbanEngine = {
         });
       });
     });
-  },
-
-  /**
-   * Renderiza o Modal de Detalhes da Atividade com botões de Editar e Excluir
-   */
-  async openTaskDetailsFallback(taskId, callbacks) {
-    const task = await DB.get('tasks', taskId);
-    if (!task) return;
-
-    const modal = document.getElementById('modal-task-details');
-    const container = document.getElementById('task-details-body');
-    if (!modal || !container) return;
-
-    container.innerHTML = `
-      <div style="display:flex; flex-direction:column; gap:0.85rem;">
-        <h4 style="font-size:1.15rem; color:#fff; margin:0; font-weight:700;">${task.title}</h4>
-        <p style="font-size:0.9rem; color:var(--text-muted, #9ca3af); margin:0; line-height:1.5;">${task.description || 'Sem descrição cadastrada.'}</p>
-        
-        <div style="display:flex; gap:1rem; flex-wrap:wrap; font-size:0.825rem; color:#e5e7eb; background:rgba(255,255,255,0.05); padding:0.75rem; border-radius:6px;">
-          <span><strong>Status:</strong> ${task.status}</span>
-          <span><strong>Prioridade:</strong> ${task.priority || 'Média'}</span>
-          <span><strong>Prazo:</strong> ${task.dueDate ? task.dueDate.split('T')[0].split('-').reverse().join('/') : '-'}</span>
-        </div>
-
-        <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1.25rem; border-top:1px solid var(--border-color, #374151); padding-top:1rem;">
-          <button id="btn-edit-task-action" class="btn btn-secondary" style="font-size:0.825rem; padding:0.5rem 1rem;">✏️ Editar Atividade</button>
-          <button id="btn-delete-task-action" class="btn btn-danger" style="background:#ef4444; color:#fff; font-size:0.825rem; padding:0.5rem 1rem;">🗑️ Excluir Atividade</button>
-        </div>
-      </div>
-    `;
-
-    // Ação do Botão Editar
-    const btnEdit = container.querySelector('#btn-edit-task-action');
-    if (btnEdit) {
-      btnEdit.addEventListener('click', () => {
-        modal.classList.remove('active');
-        if (callbacks && typeof callbacks.onEditTask === 'function') {
-          callbacks.onEditTask(task);
-        } else {
-          const editModal = document.getElementById('modal-task');
-          if (editModal) {
-            document.getElementById('task-id').value = task.id;
-            document.getElementById('task-title').value = task.title;
-            document.getElementById('task-desc').value = task.description || '';
-            document.getElementById('task-priority').value = task.priority || 'Média';
-            if (task.dueDate) document.getElementById('task-date').value = task.dueDate.split('T')[0];
-
-            const btnSubmit = editModal.querySelector('button[type="submit"]');
-            if (btnSubmit) btnSubmit.textContent = 'Salvar Alterações';
-
-            editModal.classList.add('active');
-          }
-        }
-      });
-    }
-
-    // Ação do Botão Excluir
-    const btnDelete = container.querySelector('#btn-delete-task-action');
-    if (btnDelete) {
-      btnDelete.addEventListener('click', async () => {
-        if (confirm(`Tem certeza que deseja excluir a atividade "${task.title}"?`)) {
-          await DB.delete('tasks', task.id);
-          modal.classList.remove('active');
-          if (callbacks && typeof callbacks.onRefresh === 'function') {
-            callbacks.onRefresh();
-          } else {
-            this.renderBoard(this.activeMemberId, callbacks);
-          }
-        }
-      });
-    }
-
-    modal.classList.add('active');
   }
 };
