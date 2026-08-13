@@ -4,20 +4,22 @@
 
 import { DB } from './db.js';
 
-// Chave da API do Gemini fornecida pelo usuário
-const DEFAULT_GEMINI_KEY = 'AQ.Ab8RN6Kk6nCMOC_46_CwKpyj5ZBTdKKYwhzvQQxmTp6fN1YESQ';
-
 export const AIEngine = {
-  apiKey: localStorage.getItem('gemini_api_key') || DEFAULT_GEMINI_KEY,
-
   getApiKey() {
-    return localStorage.getItem('gemini_api_key') || this.apiKey;
+    let key = localStorage.getItem('gemini_api_key');
+    if (!key) {
+      key = prompt('🔑 Insira sua Chave de API do Gemini para ativar a IA (salva apenas no seu navegador):');
+      if (key && key.trim()) {
+        key = key.trim();
+        localStorage.setItem('gemini_api_key', key);
+      }
+    }
+    return key || '';
   },
 
   setApiKey(newKey) {
     if (newKey && newKey.trim()) {
-      this.apiKey = newKey.trim();
-      localStorage.setItem('gemini_api_key', this.apiKey);
+      localStorage.setItem('gemini_api_key', newKey.trim());
     }
   },
 
@@ -145,6 +147,18 @@ ${done.length ? done.join('\n') : 'Nenhuma'}`;
     const input = document.getElementById('ai-prompt-input');
     const container = document.getElementById('ai-response-container');
     const btnSend = document.getElementById('btn-send-ai');
+    const btnConfigKey = document.getElementById('btn-config-ai-key');
+
+    if (btnConfigKey) {
+      btnConfigKey.addEventListener('click', () => {
+        const currentKey = localStorage.getItem('gemini_api_key') || '';
+        const newKey = prompt('🔑 Insira sua Chave de API do Gemini:', currentKey);
+        if (newKey !== null) {
+          this.setApiKey(newKey);
+          alert('Chave de API do Gemini atualizada com sucesso!');
+        }
+      });
+    }
 
     // Configura botões de sugestão rápida
     document.querySelectorAll('.ai-chip-btn').forEach(chip => {
