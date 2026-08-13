@@ -8,7 +8,7 @@ import { KanbanEngine } from './kanban.js';
 import { ManagerEngine } from './manager.js';
 import { MapEngine } from './map.js';
 import { SettingsEngine } from './settings.js';
-import { ProjectsEngine } from './projects.js';
+import { ProjectsEngine } from './projects.js?v=2';
 import { UndoEngine } from './undo.js';
 import { ChatEngine } from './chat.js';
 import { AIEngine } from './ai.js';
@@ -1256,6 +1256,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   TimerEngine.startGlobalTicker();
   UndoEngine.initKeyboardShortcut(refreshUI, showToast);
+
+  window.openTaskDetailsModal = openTaskDetailsModal;
 
   await refreshUI();
 });

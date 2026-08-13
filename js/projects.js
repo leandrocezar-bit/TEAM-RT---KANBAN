@@ -78,9 +78,6 @@ export const ProjectsEngine = {
                 <button class="btn btn-secondary" onclick="window.ProjectsEngine.openEditModal('${activeProject.id}')" style="font-size:0.75rem;">
                   ✏️ Editar Projeto
                 </button>
-                <button class="btn btn-primary" onclick="window.ProjectsEngine.openAddTaskModal('${activeProject.id}')" style="font-size:0.75rem;">
-                  + Atividade no Projeto
-                </button>
                 <button class="btn" onclick="window.ProjectsEngine.deleteProject('${activeProject.id}')" style="font-size:0.75rem; background:rgba(239, 68, 68, 0.15); color:#ef4444; border:1px solid rgba(239, 68, 68, 0.3);">
                   🗑️ Excluir Projeto
                 </button>
@@ -126,21 +123,21 @@ export const ProjectsEngine = {
           const groupMembers = members.filter(m => groupLinks.some(gl => gl.memberId === m.id));
 
           return `
-                      <tr>
+                      <tr onclick="window.ProjectsEngine.openTaskDetails('${t.id}')" style="cursor:pointer;" title="Clique para ver os detalhes da atividade">
                         <td>
                           <strong>${t.title}</strong>
                           <div style="font-size:0.75rem; color:var(--text-dim, #777);">${t.description || ''}</div>
                         </td>
                         <td>${mainMember.name}</td>
                         <td>
-                          <div style="display:flex; align-items:center;">
+                          <div style="display:flex; align-items:center;" onclick="event.stopPropagation();">
                             ${groupMembers.map(gm => `<img src="${gm.photo || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(gm.name)}" title="${gm.name}" style="width:20px; height:20px; border-radius:50%; border:1px solid #333; margin-left:-4px;">`).join('')}
-                            <button class="btn btn-secondary" onclick="window.ProjectsEngine.openManageGroupModal('${t.id}')" style="padding:0.1rem 0.3rem; font-size:0.65rem; margin-left:6px;">+👥</button>
+                            <button class="btn btn-secondary" onclick="event.stopPropagation(); window.ProjectsEngine.openManageGroupModal('${t.id}')" style="padding:0.1rem 0.3rem; font-size:0.65rem; margin-left:6px;">+👥</button>
                           </div>
                         </td>
                         <td>${t.priority || 'Média'}</td>
                         <td><strong>${t.status}</strong></td>
-                        <td>${t.dueDate ? t.dueDate.split('-').reverse().join('/') : '-'}</td>
+                        <td>${t.dueDate ? t.dueDate.split('T')[0].split('-').reverse().join('/') : '-'}</td>
                       </tr>
                     `;
         }).join('')}
@@ -243,6 +240,13 @@ export const ProjectsEngine = {
 
     modal.classList.add('active');
     modal.style.display = 'flex';
+  },
+
+  // Abre os detalhes da tarefa selecionada na tabela do projeto
+  openTaskDetails(taskId) {
+    if (window.openTaskDetailsModal) {
+      window.openTaskDetailsModal(taskId);
+    }
   },
 
   // Abre modal para adicionar atividade no projeto

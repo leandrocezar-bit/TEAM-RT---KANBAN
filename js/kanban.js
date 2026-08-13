@@ -200,9 +200,10 @@ export const KanbanEngine = {
     const task = await DB.get('tasks', taskId);
     if (!task) return;
 
-    const allTasks = await DB.getAll('tasks');
+    const allTasks = (await DB.getAll('tasks')) || [];
     const taskMembers = (await DB.getAll('task_members')) || [];
 
+    // Filtra tarefas da mesma coluna
     const colTasks = allTasks
       .filter(t => {
         if (t.status !== task.status) return false;
@@ -216,7 +217,13 @@ export const KanbanEngine = {
 
         return isPrincipal || isInGroup;
       })
-      .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+      .sort((a, b) => (Number(a.sortOrder ?? a.sort_order ?? 0)) - (Number(b.sortOrder ?? b.sort_order ?? 0)));
+
+    // Normaliza os índices de 0 a N-1 para garantir números únicos e ordenáveis
+    colTasks.forEach((t, i) => {
+      t.sortOrder = i;
+      t.sort_order = i;
+    });
 
     const index = colTasks.findIndex(t => String(t.id) === String(taskId));
     if (index === -1) return;
@@ -224,16 +231,20 @@ export const KanbanEngine = {
     const targetIndex = direction === 'up' ? index - 1 : index + 1;
     if (targetIndex < 0 || targetIndex >= colTasks.length) return;
 
-    // Troca sortOrder
+    // Troca sortOrder dos cartões vizinhos
+    const currentTask = colTasks[index];
     const targetTask = colTasks[targetIndex];
-    const tempOrder = task.sortOrder || index;
-    task.sortOrder = targetTask.sortOrder || targetIndex;
-    targetTask.sortOrder = tempOrder;
 
-    await DB.save('tasks', task);
+    const tempOrder = currentTask.sortOrder;
+    currentTask.sortOrder = targetTask.sortOrder;
+    currentTask.sort_order = targetTask.sortOrder;
+    targetTask.sortOrder = tempOrder;
+    targetTask.sort_order = tempOrder;
+
+    await DB.save('tasks', currentTask);
     await DB.save('tasks', targetTask);
 
-    if (callback) callback();
+    if (callback) await callback();
   },
 
   /**
@@ -331,7 +342,7 @@ export const KanbanEngine = {
 
       const colTasks = filteredTasks
         .filter(t => t.status === status)
-        .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+        .sort((a, b) => (Number(a.sortOrder ?? a.sort_order ?? 0)) - (Number(b.sortOrder ?? b.sort_order ?? 0)));
 
       if (countEl) countEl.textContent = colTasks.length;
 
