@@ -607,7 +607,50 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (selectTaskMember) {
     selectTaskMember.addEventListener('change', (e) => {
       renderTeamMembersCheckboxes(e.target.value, []);
+      checkTaskMemberAbsenceWarning();
     });
+  }
+
+  async function checkTaskMemberAbsenceWarning() {
+    const memberId = document.getElementById('task-member')?.value;
+    const dateStr = document.getElementById('task-date')?.value;
+    const warningBanner = document.getElementById('absence-warning-banner');
+
+    if (!memberId || !dateStr || !warningBanner) return;
+
+    const absences = window.cachedAbsences || (await DB.getAll('member_absences')) || [];
+    const members = (await DB.getAll('members')) || [];
+    const member = members.find((m) => String(m.id) === String(memberId));
+
+    const activeAbsence = absences.find(
+      (a) => String(a.memberId) === String(memberId) && a.startDate <= dateStr && a.endDate >= dateStr
+    );
+
+    if (activeAbsence) {
+      const typeLabels = {
+        home_office: '🏡 Home Office',
+        ferias: '🏝️ Férias',
+        atestado: '📄 Atestado Médico',
+        folga: '🏖️ Folga / DSR',
+        presencial: '🏢 Presencial',
+      };
+      const typeLabel = typeLabels[activeAbsence.type] || 'Ausência Ativa';
+      const startFmt = activeAbsence.startDate ? activeAbsence.startDate.split('-').reverse().join('/') : '';
+      const endFmt = activeAbsence.endDate ? activeAbsence.endDate.split('-').reverse().join('/') : '';
+
+      warningBanner.style.display = 'block';
+      warningBanner.innerHTML = `⚠️ <strong>Aviso:</strong> ${
+        member ? member.name : 'Este colaborador'
+      } estará de <strong>${typeLabel}</strong> neste período (${startFmt} a ${endFmt})!`;
+    } else {
+      warningBanner.style.display = 'none';
+      warningBanner.innerHTML = '';
+    }
+  }
+
+  const taskDateEl = document.getElementById('task-date');
+  if (taskDateEl) {
+    taskDateEl.addEventListener('change', checkTaskMemberAbsenceWarning);
   }
 
   async function populateTaskMemberSelect() {
@@ -731,9 +774,85 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       document.getElementById('task-date').value = new Date().toISOString().slice(0, 10);
 
+      const selectReplicate = document.getElementById('task-replicate');
+      if (selectReplicate) selectReplicate.value = 'nao';
+      const repPanel = document.getElementById('replicate-options-panel');
+      if (repPanel) repPanel.style.display = 'none';
+      const dynList = document.getElementById('dynamic-dates-list');
+      if (dynList) {
+        dynList.innerHTML = `
+          <div class="dynamic-date-row" style="display: flex; align-items: center; gap: 0.5rem;">
+            <input type="date" class="input-control input-dynamic-date" style="max-width: 200px; font-size: 0.825rem;">
+            <span style="font-size: 0.75rem; color: var(--text-dim);">Data 1</span>
+          </div>
+        `;
+        bindDynamicDateInputs();
+      }
+
       openModal(modalTask);
     });
   }
+
+  // ============================================================
+  // REPLICAÇÃO DE ATIVIDADES - CONTROLE DE UI DINÂMICA
+  // ============================================================
+  const selectTaskReplicate = document.getElementById('task-replicate');
+  const replicateOptionsPanel = document.getElementById('replicate-options-panel');
+  const replicateTypeRadios = document.querySelectorAll('input[name="replicate-type"]');
+  const replicateMensalContainer = document.getElementById('replicate-type-mensal-container');
+  const replicateDatasContainer = document.getElementById('replicate-type-datas-container');
+  const dynamicDatesList = document.getElementById('dynamic-dates-list');
+
+  if (selectTaskReplicate && replicateOptionsPanel) {
+    selectTaskReplicate.addEventListener('change', () => {
+      if (selectTaskReplicate.value === 'sim') {
+        replicateOptionsPanel.style.display = 'block';
+      } else {
+        replicateOptionsPanel.style.display = 'none';
+      }
+    });
+  }
+
+  if (replicateTypeRadios) {
+    replicateTypeRadios.forEach(radio => {
+      radio.addEventListener('change', () => {
+        if (radio.value === 'mensal') {
+          if (replicateMensalContainer) replicateMensalContainer.style.display = 'block';
+          if (replicateDatasContainer) replicateDatasContainer.style.display = 'none';
+        } else {
+          if (replicateMensalContainer) replicateMensalContainer.style.display = 'none';
+          if (replicateDatasContainer) replicateDatasContainer.style.display = 'block';
+        }
+      });
+    });
+  }
+
+  function bindDynamicDateInputs() {
+    if (!dynamicDatesList) return;
+    const inputs = dynamicDatesList.querySelectorAll('.input-dynamic-date');
+    inputs.forEach((input, index) => {
+      if (input.dataset.bound) return;
+      input.dataset.bound = 'true';
+
+      input.addEventListener('change', () => {
+        const currentInputs = dynamicDatesList.querySelectorAll('.input-dynamic-date');
+        if (input.value && index === currentInputs.length - 1) {
+          const nextCount = currentInputs.length + 1;
+          const newRow = document.createElement('div');
+          newRow.className = 'dynamic-date-row';
+          newRow.style.cssText = 'display: flex; align-items: center; gap: 0.5rem;';
+          newRow.innerHTML = `
+            <input type="date" class="input-control input-dynamic-date" style="max-width: 200px; font-size: 0.825rem;">
+            <span style="font-size: 0.75rem; color: var(--text-dim);">Data ${nextCount}</span>
+          `;
+          dynamicDatesList.appendChild(newRow);
+          bindDynamicDateInputs();
+        }
+      });
+    });
+  }
+
+  bindDynamicDateInputs();
 
   // ============================================================
   // UPLOADS E SUBMITS DE FORMULÁRIOS
@@ -905,12 +1024,87 @@ document.addEventListener('DOMContentLoaded', async () => {
           await DB.save('task_members', newTm);
         }
 
+        // LÓGICA DE REPLICAÇÃO
+        const isReplicate = selectTaskReplicate && selectTaskReplicate.value === 'sim';
+        let replicatedCount = 0;
+
+        if (isReplicate) {
+          const selectedType = document.querySelector('input[name="replicate-type"]:checked')?.value || 'mensal';
+
+          if (selectedType === 'mensal') {
+            const monthsCount = parseInt(document.getElementById('replicate-months-count')?.value || '3', 10);
+            const baseDate = new Date(dueDate + 'T12:00:00');
+
+            for (let m = 1; m <= monthsCount; m++) {
+              const nextDate = new Date(baseDate);
+              nextDate.setMonth(nextDate.getMonth() + m);
+              const nextDateStr = nextDate.toISOString().split('T')[0];
+
+              const replicaTask = {
+                ...newTask,
+                id: 't-' + Date.now() + '-m' + m + '-' + Math.floor(Math.random() * 1000),
+                dueDate: nextDateStr,
+                createdAt: new Date().toISOString()
+              };
+
+              await DB.save('tasks', replicaTask);
+              replicatedCount++;
+
+              for (const tMemberId of teamMemberIds) {
+                const newTm = {
+                  id: 'tm-' + Date.now() + '-m' + m + '-' + Math.floor(Math.random() * 1000),
+                  taskId: replicaTask.id,
+                  memberId: tMemberId,
+                  member_id: tMemberId,
+                  roleInTask: 'Colaborador',
+                  createdAt: new Date().toISOString(),
+                };
+                await DB.save('task_members', newTm);
+              }
+            }
+          } else if (selectedType === 'datas') {
+            const customDates = Array.from(document.querySelectorAll('.input-dynamic-date'))
+              .map(i => i.value)
+              .filter(v => v && v !== dueDate);
+
+            let dIndex = 1;
+            for (const cDate of customDates) {
+              const replicaTask = {
+                ...newTask,
+                id: 't-' + Date.now() + '-d' + dIndex + '-' + Math.floor(Math.random() * 1000),
+                dueDate: cDate,
+                createdAt: new Date().toISOString()
+              };
+
+              await DB.save('tasks', replicaTask);
+              replicatedCount++;
+              dIndex++;
+
+              for (const tMemberId of teamMemberIds) {
+                const newTm = {
+                  id: 'tm-' + Date.now() + '-d' + dIndex + '-' + Math.floor(Math.random() * 1000),
+                  taskId: replicaTask.id,
+                  memberId: tMemberId,
+                  member_id: tMemberId,
+                  roleInTask: 'Colaborador',
+                  createdAt: new Date().toISOString(),
+                };
+                await DB.save('task_members', newTm);
+              }
+            }
+          }
+        }
+
         UndoEngine.pushAction({
           type: 'TASK_CREATE',
           taskId: newTask.id,
         });
 
-        showToast('Nova atividade criada e vinculada!', 'success');
+        if (replicatedCount > 0) {
+          showToast(`Atividade criada e replicada +${replicatedCount} vezes com sucesso!`, 'success');
+        } else {
+          showToast('Nova atividade criada com sucesso!', 'success');
+        }
       }
 
       closeModal(modalTask);
@@ -936,6 +1130,72 @@ document.addEventListener('DOMContentLoaded', async () => {
       await DB.save('projects', newProject);
       showToast(`Projeto "${name}" criado com sucesso!`, 'success');
       closeModal(modalProject);
+      await refreshUI();
+    });
+  }
+
+  // ============================================================
+  // REGISTRO DE ESCALA E AUSÊNCIAS (HOME OFFICE, FÉRIAS, ATESTADOS, FOLGAS)
+  // ============================================================
+
+  const modalAbsence = document.getElementById('modal-absence');
+  const formAbsence = document.getElementById('form-absence');
+  const btnOpenModalAbsence = document.getElementById('btn-open-modal-absence');
+
+  if (btnOpenModalAbsence && modalAbsence) {
+    btnOpenModalAbsence.addEventListener('click', async () => {
+      const selectMember = document.getElementById('absence-member');
+      if (selectMember) {
+        const members = (await DB.getAll('members')) || [];
+        selectMember.innerHTML = members
+          .map((m) => `<option value="${m.id}">${m.name} (${m.role || 'Membro'})</option>`)
+          .join('');
+      }
+
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const startDateInput = document.getElementById('absence-start-date');
+      const endDateInput = document.getElementById('absence-end-date');
+
+      if (startDateInput) startDateInput.value = todayStr;
+      if (endDateInput) endDateInput.value = todayStr;
+
+      openModal(modalAbsence);
+    });
+  }
+
+  if (formAbsence) {
+    formAbsence.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const memberId = document.getElementById('absence-member').value;
+      const type = document.getElementById('absence-type').value;
+      const startDate = document.getElementById('absence-start-date').value;
+      const endDate = document.getElementById('absence-end-date').value;
+      const notes = document.getElementById('absence-notes').value.trim();
+
+      if (!memberId || !startDate || !endDate) {
+        showToast('Preencha os campos obrigatórios para o registro de escala.', 'warning');
+        return;
+      }
+
+      if (startDate > endDate) {
+        showToast('A data de início não pode ser posterior à data de término.', 'warning');
+        return;
+      }
+
+      const newAbsence = {
+        id: 'abs-' + Date.now(),
+        memberId,
+        type,
+        startDate,
+        endDate,
+        notes,
+        createdAt: new Date().toISOString(),
+      };
+
+      await DB.save('member_absences', newAbsence);
+      showToast('Registro de escala/ausência salvo com sucesso!', 'success');
+      closeModal(modalAbsence);
       await refreshUI();
     });
   }
@@ -1023,6 +1283,36 @@ document.addEventListener('DOMContentLoaded', async () => {
       ? String(task.dueDate).split('T')[0].split('-').reverse().join('/')
       : 'Sem prazo';
 
+    const allImpediments = (await DB.getAll('impediments')) || [];
+    const taskImpediments = allImpediments.filter((imp) => String(imp.taskId) === String(task.id));
+
+    let impedimentsHtml = '';
+    if (taskImpediments.length > 0) {
+      impedimentsHtml = `
+        <div style="margin-top:0.75rem; background:rgba(245, 158, 11, 0.1); border:1px solid rgba(245, 158, 11, 0.3); border-radius:8px; padding:0.85rem;">
+          <h5 style="margin:0 0 0.5rem 0; font-size:0.875rem; color:#f59e0b; font-weight:700; display:flex; align-items:center; gap:0.4rem;">
+            ⚠️ Contratempos / Impedimentos Relatados (${taskImpediments.length})
+          </h5>
+          <div style="display:flex; flex-direction:column; gap:0.6rem; max-height:180px !important; overflow-y:auto !important; padding-right:0.35rem;">
+            ${taskImpediments.map(imp => {
+              const impDate = imp.createdAt ? String(imp.createdAt).split('T')[0].split('-').reverse().join('/') : '';
+              return `
+                <div style="background:rgba(0,0,0,0.25); padding:0.6rem 0.75rem; border-radius:6px; font-size:0.825rem; color:#e5e7eb; display:flex; justify-content:space-between; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+                  <div style="flex:1;">
+                    <div><strong>Motivo:</strong> ${imp.description || 'Sem descrição'}</div>
+                    ${impDate ? `<div style="font-size:0.75rem; color:var(--text-dim, #9ca3af); margin-top:0.2rem;">📅 Relatado em: ${impDate}</div>` : ''}
+                  </div>
+                  <button class="btn btn-delete-impediment" data-imp-id="${imp.id}" style="padding:0.25rem 0.55rem; font-size:0.75rem; background:rgba(239, 68, 68, 0.2); color:#ef4444; border:1px solid rgba(239, 68, 68, 0.4); border-radius:4px; cursor:pointer;" title="Excluir este contratempo">
+                    🗑️ Excluir Contratempo
+                  </button>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      `;
+    }
+
     // Monta o corpo dinâmico do modal
     container.innerHTML = `
       <div style="display:flex; flex-direction:column; gap:0.85rem;">
@@ -1038,6 +1328,8 @@ document.addEventListener('DOMContentLoaded', async () => {
           <span><strong>📅 Prazo:</strong> ${formattedDueDate}</span>
         </div>
 
+        ${impedimentsHtml}
+
         <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1.25rem; border-top:1px solid var(--border-color, #374151); padding-top:1rem;">
           <button id="btn-edit-task-action" class="btn btn-secondary" style="font-size:0.825rem; padding:0.5rem 1rem;">
             ✏️ Editar Atividade
@@ -1048,6 +1340,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         </div>
       </div>
     `;
+
+    // Listener para Excluir Contratempo
+    container.querySelectorAll('.btn-delete-impediment').forEach((btnImp) => {
+      btnImp.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const impId = btnImp.dataset.impId;
+        if (!impId) return;
+
+        if (confirm('Deseja realmente excluir este contratempo?')) {
+          await DB.delete('impediments', impId);
+          showToast('Contratempo excluído com sucesso!', 'success');
+          closeModal(modalTaskDetails);
+          await refreshUI();
+        }
+      });
+    });
 
     // Ação: EDITAR ATIVIDADE
     const btnEdit = container.querySelector('#btn-edit-task-action');

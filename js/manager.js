@@ -18,12 +18,15 @@ export const ManagerEngine = {
     const members = (await DB.getAll('members')) || [];
     const tasks = (await DB.getAll('tasks')) || [];
     const impediments = (await DB.getAll('impediments')) || [];
+    const absences = (await DB.getAll('member_absences')) || [];
+    window.cachedAbsences = absences;
 
     // Monta o contêiner de filtro sem duplicar o título
     this.injectDateFilterContainer();
     this.renderDateFilterControls(members, tasks, impediments);
 
     this.renderMemberCards(members, tasks, impediments);
+    this.renderAbsenceMatrix(absences, members);
     this.renderImpedimentsAlertList(impediments, tasks, members, onViewEvidenceCallback);
     this.renderCalendarGrid(tasks, members, onOpenDayDetailsCallback);
   },
@@ -167,6 +170,8 @@ export const ManagerEngine = {
 
     const filteredTasks = this.filterTasksByDateRange(tasks);
 
+    const todayStr = new Date().toISOString().slice(0, 10);
+
     container.innerHTML = visibleMembers.map(member => {
       const memberTasks = filteredTasks.filter(t => String(t.member_id || t.memberId) === String(member.id));
 
@@ -182,6 +187,26 @@ export const ManagerEngine = {
       const memberTaskIds = new Set(memberTasks.map(t => String(t.id)));
       const memberImpediments = impediments.filter(imp => memberTaskIds.has(String(imp.taskId)));
 
+      // Status de ausência/escala ativo hoje
+      const memberAbsencesList = (window.cachedAbsences || []).filter(a => String(a.memberId) === String(member.id));
+      const activeAbsenceToday = memberAbsencesList.find(a => a.startDate <= todayStr && a.endDate >= todayStr);
+
+      let absenceBadgeHtml = '';
+      if (activeAbsenceToday) {
+        const labels = {
+          home_office: '🏡 Home Office',
+          ferias: '🏝️ Férias',
+          atestado: '📄 Atestado Médico',
+          folga: '🏖️ Folga / DSR',
+          presencial: '🏢 Presencial'
+        };
+        absenceBadgeHtml = `
+          <div style="background:rgba(99,102,241,0.15); border:1px solid rgba(99,102,241,0.35); color:#a5b4fc; padding:0.25rem 0.5rem; border-radius:6px; font-size:0.725rem; font-weight:700; margin-top:0.35rem; display:inline-block;">
+            ${labels[activeAbsenceToday.type] || '📍 Ausência Ativa'} (${activeAbsenceToday.endDate.split('-').reverse().join('/')})
+          </div>
+        `;
+      }
+
       return `
         <div class="manager-card">
           <div class="manager-card-header" style="display:flex; align-items:center; justify-content:space-between; width:100%; gap:0.5rem;">
@@ -190,7 +215,7 @@ export const ManagerEngine = {
               <div style="min-width:0; overflow:hidden;">
                 <h3 style="font-size:1rem; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${member.name}</h3>
                 <p style="font-size:0.775rem; color:var(--text-muted); margin:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${member.role || 'Membro da Equipe'}</p>
-                <p style="font-size:0.7rem; color:var(--text-dim); margin:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${member.email || member.contact || ''}</p>
+                ${absenceBadgeHtml}
               </div>
             </div>
 
@@ -268,6 +293,10 @@ export const ManagerEngine = {
       });
     }
 
+    container.style.setProperty('max-height', '210px', 'important');
+    container.style.setProperty('overflow-y', 'auto', 'important');
+    container.style.paddingRight = '0.35rem';
+
     if (visibleImpediments.length === 0) {
       container.innerHTML = `
         <div style="text-align:center; padding:1.5rem; color:var(--text-muted); font-size:0.85rem;">
@@ -284,23 +313,28 @@ export const ManagerEngine = {
       const dateFormatted = new Date(imp.createdAt).toLocaleString('pt-BR');
 
       return `
-        <div style="background:var(--bg-input); border:1px solid var(--border-color); border-radius:var(--radius-md); padding:1rem; margin-bottom:0.75rem; display:flex; justify-content:space-between; align-items:flex-start; gap:1rem; flex-wrap:wrap;">
+        <div style="background:var(--bg-input); border:1px solid var(--border-color); border-radius:var(--radius-md); padding:0.85rem; margin-bottom:0.75rem; display:flex; justify-content:space-between; align-items:center; gap:0.75rem; flex-wrap:wrap;">
           <div style="flex:1;">
-            <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.4rem;">
+            <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.3rem;">
               <span class="badge-impediment">⚠️ Contratempo</span>
-              <strong style="font-size:0.9rem;">${task.title}</strong>
+              <strong style="font-size:0.875rem;">${task.title}</strong>
             </div>
-            <p style="font-size:0.85rem; color:var(--text-main); margin-bottom:0.4rem;">"${imp.description}"</p>
-            <div style="font-size:0.75rem; color:var(--text-dim); display:flex; align-items:center; gap:0.5rem;">
+            <p style="font-size:0.825rem; color:var(--text-main); margin-bottom:0.3rem;">"${imp.description}"</p>
+            <div style="font-size:0.725rem; color:var(--text-dim); display:flex; align-items:center; gap:0.5rem;">
               <span>👤 ${member.name}</span> • <span>🕒 ${dateFormatted}</span>
             </div>
           </div>
 
-          ${imp.evidenceImage ? `
-            <button class="btn btn-secondary btn-view-evidence" data-img="${imp.evidenceImage}" style="font-size:0.75rem; padding:0.35rem 0.75rem;">
-              🖼️ Ver Evidência
+          <div style="display:flex; align-items:center; gap:0.4rem;">
+            ${imp.evidenceImage ? `
+              <button class="btn btn-secondary btn-view-evidence" data-img="${imp.evidenceImage}" style="font-size:0.75rem; padding:0.25rem 0.6rem;">
+                🖼️ Evidência
+              </button>
+            ` : ''}
+            <button class="btn btn-delete-imp-mgr" data-imp-id="${imp.id}" style="font-size:0.75rem; padding:0.25rem 0.6rem; background:rgba(239,68,68,0.2); color:#ef4444; border:1px solid rgba(239,68,68,0.4); cursor:pointer;" title="Excluir este contratempo">
+              🗑️ Excluir
             </button>
-          ` : ''}
+          </div>
         </div>
       `;
     }).join('');
@@ -308,6 +342,87 @@ export const ManagerEngine = {
     container.querySelectorAll('.btn-view-evidence').forEach(btn => {
       btn.addEventListener('click', () => {
         if (onViewEvidence) onViewEvidence(btn.dataset.img);
+      });
+    });
+
+    container.querySelectorAll('.btn-delete-imp-mgr').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const impId = btn.dataset.impId;
+        if (!impId) return;
+
+        if (confirm('Deseja realmente excluir este contratempo?')) {
+          await DB.delete('impediments', impId);
+          if (window.showToast) window.showToast('Contratempo excluído!', 'success');
+          if (window.refreshUI) await window.refreshUI();
+        }
+      });
+    });
+  },
+
+  /**
+   * Renderiza a Matriz de Escala e Ausências da Equipe
+   */
+  renderAbsenceMatrix(absences = [], members = []) {
+    const container = document.getElementById('absence-matrix-container');
+    if (!container) return;
+
+    if (absences.length === 0) {
+      container.innerHTML = `
+        <div style="text-align:center; padding:1.25rem; color:var(--text-muted); font-size:0.85rem;">
+          🌱 Nenhum registro de ausência ou escala diferenciada cadastrado no momento.
+        </div>
+      `;
+      return;
+    }
+
+    const membersMap = new Map(members.map(m => [String(m.id), m]));
+
+    const typeConfig = {
+      home_office: { label: '🏡 Home Office', bg: 'rgba(99,102,241,0.15)', border: 'rgba(99,102,241,0.4)', color: '#818cf8' },
+      ferias: { label: '🏝️ Férias', bg: 'rgba(245,158,11,0.15)', border: 'rgba(245,158,11,0.4)', color: '#f59e0b' },
+      atestado: { label: '📄 Atestado Médico', bg: 'rgba(239,68,68,0.15)', border: 'rgba(239,68,68,0.4)', color: '#ef4444' },
+      folga: { label: '🏖️ Folga / DSR', bg: 'rgba(234,179,8,0.15)', border: 'rgba(234,179,8,0.4)', color: '#eab308' },
+      presencial: { label: '🏢 Presencial', bg: 'rgba(16,185,129,0.15)', border: 'rgba(16,185,129,0.4)', color: '#10b981' }
+    };
+
+    container.innerHTML = absences.map(abs => {
+      const member = membersMap.get(String(abs.memberId)) || { name: 'Desconhecido' };
+      const cfg = typeConfig[abs.type] || typeConfig.presencial;
+      const startFormatted = abs.startDate ? abs.startDate.split('-').reverse().join('/') : '';
+      const endFormatted = abs.endDate ? abs.endDate.split('-').reverse().join('/') : '';
+
+      return `
+        <div style="background:var(--bg-input); border:1px solid var(--border-color); border-radius:var(--radius-md); padding:0.75rem 0.9rem; margin-bottom:0.6rem; display:flex; justify-content:space-between; align-items:center; gap:0.75rem; flex-wrap:wrap;">
+          <div style="flex:1;">
+            <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.25rem;">
+              <span style="background:${cfg.bg}; border:1px solid ${cfg.border}; color:${cfg.color}; padding:0.2rem 0.5rem; border-radius:999px; font-size:0.75rem; font-weight:700;">
+                ${cfg.label}
+              </span>
+              <strong style="font-size:0.875rem; color:#fff;">${member.name}</strong>
+            </div>
+            <div style="font-size:0.775rem; color:var(--text-muted); display:flex; gap:0.75rem; flex-wrap:wrap;">
+              <span>📅 <strong>Período:</strong> ${startFormatted} até ${endFormatted}</span>
+              ${abs.notes ? `<span>📝 <strong>Obs:</strong> ${abs.notes}</span>` : ''}
+            </div>
+          </div>
+
+          <button class="btn btn-delete-absence" data-abs-id="${abs.id}" style="font-size:0.75rem; padding:0.25rem 0.6rem; background:rgba(239,68,68,0.2); color:#ef4444; border:1px solid rgba(239,68,68,0.4); cursor:pointer;" title="Excluir este registro">
+            🗑️ Excluir
+          </button>
+        </div>
+      `;
+    }).join('');
+
+    container.querySelectorAll('.btn-delete-absence').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const absId = btn.dataset.absId;
+        if (!absId) return;
+
+        if (confirm('Deseja realmente excluir este registro de escala/ausência?')) {
+          await DB.delete('member_absences', absId);
+          if (window.showToast) window.showToast('Registro de ausência excluído!', 'success');
+          if (window.refreshUI) await window.refreshUI();
+        }
       });
     });
   },

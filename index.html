@@ -393,15 +393,27 @@
           👥 Desempenho e Horas da Equipe
         </h2>
 
-        <div id="dashboard-date-filter-container"></div>
+        <div style="display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap;">
+          <button type="button" id="btn-open-modal-absence" class="btn btn-primary" style="font-size:0.8rem; padding:0.45rem 0.9rem;">
+            ➕ Registrar Escala / Ausência
+          </button>
+          <div id="dashboard-date-filter-container"></div>
+        </div>
       </div>
-
 
       <div class="dashboard-grid" id="manager-members-grid"></div>
 
+      <!-- 📅 NOVA SEÇÃO: MATRIZ DE ESCALA E AUSÊNCIAS DA EQUIPE -->
+      <div class="calendar-panel" style="margin-bottom:1.5rem;">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem; margin-bottom:1rem;">
+          <h3 style="font-size:1.1rem; font-weight:700; display:flex; align-items:center; gap:0.5rem; margin:0;">
+            📅 Escala de Presença e Ausências da Equipe (Home Office, Férias, Atestados, Folgas)
+          </h3>
+        </div>
+        <div id="absence-matrix-container" style="max-height: 240px !important; overflow-y: auto !important; padding-right: 0.35rem;"></div>
+      </div>
 
       <div class="calendar-panel" style="margin-bottom:1.5rem;">
-
         <h3 style="
             font-size:1.1rem;
             font-weight:700;
@@ -412,9 +424,7 @@
           ">
           ⚠️ Central de Contratempos e Imprevistos Relatados
         </h3>
-
-        <div id="impediments-list-container"></div>
-
+        <div id="impediments-list-container" style="max-height: 210px !important; overflow-y: auto !important; padding-right: 0.35rem;"></div>
       </div>
 
 
@@ -640,14 +650,20 @@
 
         <!-- Chips de Sugestão Rápida -->
         <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.85rem;">
-          <button type="button" class="btn btn-secondary ai-chip-btn" data-prompt="Faça um resumo analítico da situação atual das tarefas do Kanban." style="padding: 0.35rem 0.75rem; font-size: 0.775rem;">
+          <button type="button" class="btn btn-secondary ai-chip-btn" data-prompt="Quais são os pisos salariais da CONVENÇÃO COLETIVA DE TRABALHO 2026/2026 (SECOVI-PB / SINTEG-PB)?" style="padding: 0.35rem 0.75rem; font-size: 0.775rem;">
+            📜 Pisos CCT 2026 (SECOVI-PB)
+          </button>
+          <button type="button" class="btn btn-secondary ai-chip-btn" data-prompt="Quais são os pisos salariais e adicionais da CONVENÇÃO COLETIVA DE TRABALHO 2026 (SINCOM-BA / SECIR - COMÉRCIO DE IRECÊ E REGIÃO)?" style="padding: 0.35rem 0.75rem; font-size: 0.775rem;">
+            🛒 Pisos CCT 2026 (SINCOM-BA)
+          </button>
+          <button type="button" class="btn btn-secondary ai-chip-btn" data-prompt="Qual o valor e as regras do auxílio alimentação e refeição nas Convenções Coletivas 2026?" style="padding: 0.35rem 0.75rem; font-size: 0.775rem;">
+            🥪 Auxílio Alimentação (VR)
+          </button>
+          <button type="button" class="btn btn-secondary ai-chip-btn" data-prompt="Quais as regras de horas extras, adicionais (quebra de caixa, triênio) e domingos nas CCTs 2026?" style="padding: 0.35rem 0.75rem; font-size: 0.775rem;">
+            ⏰ Horas Extras e Adicionais
+          </button>
+          <button type="button" class="btn btn-secondary ai-chip-btn" data-prompt="Faça um resumo analítico da situação atual das tarefas do Quadro Kanban." style="padding: 0.35rem 0.75rem; font-size: 0.775rem;">
             📊 Resumir Quadro Kanban
-          </button>
-          <button type="button" class="btn btn-secondary ai-chip-btn" data-prompt="Quais são as melhores práticas para priorizar tarefas com gargalos ou impedimentos?" style="padding: 0.35rem 0.75rem; font-size: 0.775rem;">
-            ⚡ Dicas de Priorização
-          </button>
-          <button type="button" class="btn btn-secondary ai-chip-btn" data-prompt="Crie um checklist de implantação de novos projetos para a equipe." style="padding: 0.35rem 0.75rem; font-size: 0.775rem;">
-            📋 Checklist de Implantação
           </button>
         </div>
 
@@ -1013,25 +1029,72 @@
 
 
           <div class="form-group">
-
             <label for="task-date" class="form-label">
               Prazo (Data Limite) *
             </label>
-
             <input type="date" id="task-date" class="input-control" required>
-
+            <div id="absence-warning-banner" style="display: none; margin-top: 0.5rem; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.4); color: #f59e0b; padding: 0.5rem 0.75rem; border-radius: 6px; font-size: 0.8rem; font-weight: 700;"></div>
           </div>
 
+          <!-- 🔄 CAMPO REPLICAR ATIVIDADE -->
+          <div class="form-group">
+            <label for="task-replicate" class="form-label">
+              Replicar Atividade?
+            </label>
+            <select id="task-replicate" class="select-control">
+              <option value="nao" selected>Não</option>
+              <option value="sim">Sim</option>
+            </select>
+          </div>
+
+          <!-- ⚙️ PAINEL DE OPÇÕES DE REPLICAÇÃO (ESCONDIDO POR PADRÃO) -->
+          <div id="replicate-options-panel" class="form-group full-width" style="display: none; background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(99, 102, 241, 0.25); border-radius: var(--radius-sm); padding: 0.85rem;">
+            <label class="form-label" style="color: #a5b4fc; font-weight: 700; margin-bottom: 0.5rem; display: block;">
+              🔄 Opções de Replicação da Atividade
+            </label>
+
+            <div style="display: flex; gap: 1.25rem; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap;">
+              <label style="display: flex; align-items: center; gap: 0.35rem; cursor: pointer; font-size: 0.85rem; color: #fff; font-weight: 600;">
+                <input type="radio" name="replicate-type" value="mensal" checked> 📅 Mensalmente
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.35rem; cursor: pointer; font-size: 0.85rem; color: #fff; font-weight: 600;">
+                <input type="radio" name="replicate-type" value="datas"> 🗓️ Incluir Várias Datas Específicas
+              </label>
+            </div>
+
+            <!-- SUB-OPÇÃO 1: MENSALMENTE -->
+            <div id="replicate-type-mensal-container">
+              <label for="replicate-months-count" class="form-label" style="font-size: 0.8rem;">
+                Replicar por quantos meses à frente?
+              </label>
+              <select id="replicate-months-count" class="select-control" style="max-width: 220px; font-size: 0.825rem;">
+                <option value="2">2 Meses (Próximos 2 meses)</option>
+                <option value="3" selected>3 Meses (Próximos 3 meses)</option>
+                <option value="6">6 Meses (Próximos 6 meses)</option>
+                <option value="12">12 Meses (Próximo 1 ano)</option>
+              </select>
+            </div>
+
+            <!-- SUB-OPÇÃO 2: VÁRIAS DATAS DINÂMICAS -->
+            <div id="replicate-type-datas-container" style="display: none;">
+              <label class="form-label" style="font-size: 0.8rem; margin-bottom: 0.35rem; display: block;">
+                Selecione as datas para criar réplicas (preencher uma abrirá automaticamente a próxima):
+              </label>
+              <div id="dynamic-dates-list" style="display: flex; flex-direction: column; gap: 0.5rem;">
+                <div class="dynamic-date-row" style="display: flex; align-items: center; gap: 0.5rem;">
+                  <input type="date" class="input-control input-dynamic-date" style="max-width: 200px; font-size: 0.825rem;">
+                  <span style="font-size: 0.75rem; color: var(--text-dim);">Data 1</span>
+                </div>
+              </div>
+            </div>
+          </div>
 
           <div class="form-group full-width">
-
             <label for="task-desc" class="form-label">
               Descrição dos Detalhes
             </label>
-
             <textarea id="task-desc" class="input-control" rows="3"
               placeholder="Instruções e requisitos da atividade..."></textarea>
-
           </div>
 
         </div>
@@ -1085,6 +1148,78 @@
         </button>
 
       </div>
+
+    </div>
+
+  </div>
+
+  <!-- ============================================================
+        MODAL REGISTRAR ESCALA / AUSÊNCIA (FÉRIAS, ATESTADO, FOLGA, HOME OFFICE)
+        ============================================================ -->
+  <div class="modal-overlay" id="modal-absence">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">
+          📅 Registrar Escala / Status de Ausência
+        </h3>
+        <button class="modal-close">&times;</button>
+      </div>
+
+      <form id="form-absence">
+        <div class="form-grid">
+          <div class="form-group full-width">
+            <label for="absence-member" class="form-label">
+              Colaborador *
+            </label>
+            <select id="absence-member" class="select-control" required></select>
+          </div>
+
+          <div class="form-group">
+            <label for="absence-type" class="form-label">
+              Tipo de Status / Modalidade *
+            </label>
+            <select id="absence-type" class="select-control" required>
+              <option value="home_office">🏡 Home Office</option>
+              <option value="ferias">🏝️ Férias</option>
+              <option value="atestado">📄 Atestado Médico</option>
+              <option value="folga">🏖️ Folga / DSR</option>
+              <option value="presencial">🏢 Presencial</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="absence-start-date" class="form-label">
+              Data de Início *
+            </label>
+            <input type="date" id="absence-start-date" class="input-control" required>
+          </div>
+
+          <div class="form-group">
+            <label for="absence-end-date" class="form-label">
+              Data de Término *
+            </label>
+            <input type="date" id="absence-end-date" class="input-control" required>
+          </div>
+
+          <div class="form-group full-width">
+            <label for="absence-notes" class="form-label">
+              Observações / Detalhes (Opcional)
+            </label>
+            <input type="text" id="absence-notes" class="input-control" placeholder="Ex: Atestado Dra. Ana, Férias de Julho, etc.">
+          </div>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary btn-modal-cancel">
+            Cancelar
+          </button>
+          <button type="submit" class="btn btn-primary">
+            Salvar Registro
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
 
     </div>
 
