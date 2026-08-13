@@ -2,16 +2,16 @@
  * Controladora Principal do Aplicativo Kanban de Equipe (App Core Controller)
  */
 
-import { DB } from './db.js?v=32';
-import { TimerEngine } from './timer.js?v=32';
-import { KanbanEngine } from './kanban.js?v=32';
-import { ManagerEngine } from './manager.js?v=32';
-import { MapEngine } from './map.js?v=32';
-import { SettingsEngine } from './settings.js?v=32';
-import { ProjectsEngine } from './projects.js?v=32';
-import { UndoEngine } from './undo.js?v=32';
-import { ChatEngine } from './chat.js?v=32';
-import { AIEngine } from './ai.js?v=32';
+import { DB } from './db.js?v=33';
+import { TimerEngine } from './timer.js?v=33';
+import { KanbanEngine } from './kanban.js?v=33';
+import { ManagerEngine } from './manager.js?v=33';
+import { MapEngine } from './map.js?v=33';
+import { SettingsEngine } from './settings.js?v=33';
+import { ProjectsEngine } from './projects.js?v=33';
+import { UndoEngine } from './undo.js?v=33';
+import { ChatEngine } from './chat.js?v=33';
+import { AIEngine } from './ai.js?v=33';
 
 document.addEventListener('DOMContentLoaded', async () => {
 
@@ -54,7 +54,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
 
       if (btnViewAdmin) {
-        btnViewAdmin.style.display = isAdmin() ? 'inline-flex' : 'none';
+        btnViewAdmin.style.display = isManager() ? 'inline-flex' : 'none';
       }
 
       // Inicia a escuta de chat em segundo plano e escuta de eventos admin
@@ -230,10 +230,26 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
       }
 
-      let accessLevel = 'colaborador';
-      if (matchedMember.accessLevel === 'admin' || (matchedMember.role && matchedMember.role.toLowerCase().includes('admin')) || matchedMember.name.toLowerCase().includes('admin')) {
+      let accessLevel = matchedMember.accessLevel || 'colaborador';
+      const nameLower = (matchedMember.name || '').toLowerCase();
+      const roleLower = (matchedMember.role || '').toLowerCase();
+      const emailLower = (matchedMember.email || '').toLowerCase();
+
+      if (
+        matchedMember.accessLevel === 'admin' ||
+        roleLower.includes('admin') ||
+        nameLower.includes('admin') ||
+        nameLower.includes('leandro') ||
+        emailLower.includes('leandro')
+      ) {
         accessLevel = 'admin';
-      } else if (matchedMember.accessLevel === 'gestor' || (matchedMember.role && matchedMember.role.toLowerCase().includes('gestor'))) {
+      } else if (
+        matchedMember.accessLevel === 'gestor' ||
+        roleLower.includes('gestor') ||
+        roleLower.includes('gerente') ||
+        roleLower.includes('coordenador') ||
+        nameLower.includes('gestor')
+      ) {
         accessLevel = 'gestor';
       }
 
