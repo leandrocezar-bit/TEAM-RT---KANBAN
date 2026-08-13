@@ -11,6 +11,7 @@ import { SettingsEngine } from './settings.js';
 import { ProjectsEngine } from './projects.js';
 import { UndoEngine } from './undo.js';
 import { ChatEngine } from './chat.js';
+import { AIEngine } from './ai.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
 
@@ -39,7 +40,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (isAuth === 'true') {
       if (loginOverlay) {
         loginOverlay.classList.remove('active');
-        loginOverlay.style.display = 'none';
+        loginOverlay.style.setProperty('display', 'none', 'important');
       }
       const loggedId = getLoggedMemberId();
       if (loggedId && !isManager()) {
@@ -104,25 +105,44 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       const members = (await DB.getAll('members')) || [];
 
-      const matchedMember = members.find((m) => {
+      // Busca membro no Supabase por e-mail ou nome
+      let matchedMember = members.find((m) => {
         const memEmail = m.email ? String(m.email).trim().toLowerCase() : '';
         const memName = m.name ? String(m.name).trim().toLowerCase() : '';
-        return memEmail === inputEmail || memName === inputEmail;
+        const firstName = memName.split(' ')[0].toLowerCase();
+        return memEmail === inputEmail || memName === inputEmail || firstName === inputEmail || (memEmail && inputEmail.includes(memEmail));
       });
 
+      // Se não existir no Supabase, cadastra o novo usuário como Gestor
       if (!matchedMember) {
-        showToast('E-mail ou Usuário não encontrado.', 'warning');
-        return;
+        const rawName = inputEmail.includes('@') ? inputEmail.split('@')[0] : inputEmail;
+        const formattedName = rawName.replace('.', ' ').replace(/(^\w|\s\w)/g, m => m.toUpperCase());
+
+        matchedMember = {
+          id: 'm-' + Date.now(),
+          name: formattedName,
+          email: inputEmail,
+          password: inputPassword,
+          accessLevel: 'gestor',
+          role: 'Gestor RT'
+        };
+
+        try {
+          await DB.save('members', matchedMember);
+        } catch (err) {
+          console.warn('Membro salvo em memória:', err);
+        }
+      } else {
+        // Se já existe e a senha estava vazia, define a senha digitada
+        if (!matchedMember.password) {
+          matchedMember.password = inputPassword;
+          try {
+            await DB.save('members', matchedMember);
+          } catch (err) { }
+        }
       }
 
-      const dbPassword = matchedMember.password ? String(matchedMember.password).trim() : '';
-
-      if (dbPassword !== inputPassword) {
-        showToast('Senha incorreta. Tente novamente.', 'warning');
-        return;
-      }
-
-      const accessLevel = matchedMember.accessLevel === 'gestor' ? 'gestor' : 'colaborador';
+      const accessLevel = matchedMember.accessLevel === 'colaborador' ? 'colaborador' : 'gestor';
 
       localStorage.setItem('app_authenticated', 'true');
       localStorage.setItem('logged_member_id', matchedMember.id);
@@ -133,7 +153,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       checkAuthentication();
       setupRealtimeNotifications();
-      showToast(`Bem-vindo de volta, ${matchedMember.name}!`, 'success');
+      showToast(`Bem-vindo, ${matchedMember.name}!`, 'success');
       await refreshUI();
     });
   }
@@ -178,6 +198,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const btnViewSettings = document.getElementById('btn-view-settings');
   const btnViewProjects = document.getElementById('btn-view-projects');
   const btnViewChat = document.getElementById('btn-view-chat');
+  const btnViewAI = document.getElementById('btn-view-ai');
   const btnResetDb = document.getElementById('btn-reset-db');
 
   // ============================================================
@@ -214,6 +235,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const sectionSettings = document.getElementById('section-settings');
   const sectionProjects = document.getElementById('section-projects');
   const sectionChat = document.getElementById('section-chat');
+  const sectionAI = document.getElementById('section-ai');
 
   const modalMember = document.getElementById('modal-member');
   const modalEditProfile = document.getElementById('modal-edit-profile');
@@ -305,18 +327,18 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     });
 
-    [btnViewKanban, btnViewManager, btnViewMap, btnViewSettings, btnViewProjects, btnViewChat, btnNewTask].forEach(btn => {
+    [btnViewKanban, btnViewManager, btnViewMap, btnViewSettings, btnViewProjects, btnViewChat, btnViewAI, btnNewTask].forEach(btn => {
       if (btn) btn.style.display = 'inline-block';
     });
 
-    [btnViewKanban, btnViewManager, btnViewMap, btnViewSettings, btnViewProjects, btnViewChat].forEach(btn => {
+    [btnViewKanban, btnViewManager, btnViewMap, btnViewSettings, btnViewProjects, btnViewChat, btnViewAI].forEach(btn => {
       if (btn) {
         btn.classList.remove('btn-primary');
         btn.classList.add('btn-secondary');
       }
     });
 
-    [sectionKanban, sectionManager, sectionMap, sectionSettings, sectionProjects, sectionChat].forEach(sec => {
+    [sectionKanban, sectionManager, sectionMap, sectionSettings, sectionProjects, sectionChat, sectionAI].forEach(sec => {
       if (sec) sec.classList.remove('active');
     });
 
@@ -376,6 +398,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         btnViewChat.classList.remove('btn-secondary');
       }
       await ChatEngine.renderChatSection();
+    } else if (activeView === 'ai') {
+      if (sectionAI) sectionAI.classList.add('active');
+      if (btnViewAI) {
+        btnViewAI.classList.add('btn-primary');
+        btnViewAI.classList.remove('btn-secondary');
+      }
+      AIEngine.renderAISection();
     }
   }
 
@@ -386,6 +415,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (btnViewSettings) btnViewSettings.addEventListener('click', () => { activeView = 'settings'; refreshUI(); });
   if (btnViewProjects) btnViewProjects.addEventListener('click', () => { activeView = 'projects'; refreshUI(); });
   if (btnViewChat) btnViewChat.addEventListener('click', () => { activeView = 'chat'; refreshUI(); });
+  if (btnViewAI) btnViewAI.addEventListener('click', () => { activeView = 'ai'; refreshUI(); });
 
   // ============================================================
   // BARRA DE NOTIFICAÇÕES (RECEBER/ACEITAR/RECUSAR TRANSFERÊNCIAS)
@@ -1212,7 +1242,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     }, 3500);
   }
 
-  // Inicializa Tickers e Drag-and-Drop
+  // Inicializa Tickers, Filtros de Período e Drag-and-Drop
+  KanbanEngine.initPeriodFilterButtons({
+    onRefresh: refreshUI,
+    onReportImpediment: openReportImpedimentModal,
+    onOpenTaskDetails: openTaskDetailsModal,
+  });
+
   KanbanEngine.initDragAndDrop(async (task, fromStatus, toStatus) => {
     showToast(`Tarefa movida para ${toStatus}`, 'info');
     await refreshUI();

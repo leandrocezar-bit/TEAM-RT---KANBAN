@@ -814,3 +814,24 @@ body {
   color: var(--accent-primary);
 }
 
+/* Estilização dos Botões de Filtro por Período */
+.btn-period-filter {
+  transition: all var(--transition-fast);
+  font-weight: 600;
+}
+
+.btn-period-filter:hover {
+  border-color: var(--border-glow);
+  color: var(--text-main);
+  transform: translateY(-1px);
+}
+
+.btn-period-filter.active {
+  background: var(--accent-gradient) !important;
+  color: #ffffff !important;
+  border-color: transparent !important;
+  box-shadow: var(--shadow-glow), 0 4px 12px rgba(99, 102, 241, 0.3);
+  font-weight: 700;
+}
+
+

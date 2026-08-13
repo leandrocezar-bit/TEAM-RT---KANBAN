@@ -604,7 +604,6 @@
       </div>
     </section>
 
-
     <!-- ==========================================================
           SEÇÃO 7: ASSISTENTE IA
           ========================================================== -->
@@ -613,24 +612,43 @@
         style="max-width: 850px; margin: 0 auto; background: var(--bg-card, #111827); border: 1px solid var(--border-color, #1f2937); border-radius: 12px; padding: 1.5rem;">
 
         <div
-          style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; border-bottom: 1px solid var(--border-color, #1f2937); padding-bottom: 0.75rem;">
-          <span style="font-size: 1.8rem;">🤖</span>
-          <div>
-            <h3 style="margin: 0; color: #fff; font-size: 1.15rem;">Assistente TeamTask IA</h3>
-            <p style="margin: 0; font-size: 0.8rem; color: var(--text-dim, #6b7280);">Gere ideias de tarefas, tire
-              dúvidas ou solicite resumos da equipe.</p>
+          style="display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; margin-bottom: 1rem; border-bottom: 1px solid var(--border-color, #1f2937); padding-bottom: 0.75rem;">
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <span style="font-size: 1.8rem;">🤖</span>
+            <div>
+              <h3 style="margin: 0; color: #fff; font-size: 1.15rem;">Assistente TeamTask IA (Gemini)</h3>
+              <p style="margin: 0; font-size: 0.8rem; color: var(--text-dim, #6b7280);">Gere ideias de tarefas, tire dúvidas ou solicite resumos da equipe.</p>
+            </div>
           </div>
+          <span style="font-size: 0.75rem; background: rgba(99, 102, 241, 0.15); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3); padding: 0.25rem 0.6rem; border-radius: 999px; font-weight: 600;">
+            ⚡ Gemini AI Ativa
+          </span>
         </div>
 
         <div id="ai-response-container"
-          style="min-height: 180px; max-height: 400px; overflow-y: auto; background: var(--bg-input, #1f2937); border-radius: 8px; padding: 1rem; color: #e5e7eb; font-size: 0.9rem; line-height: 1.6; margin-bottom: 1rem; white-space: pre-wrap;">
-          <span style="color: var(--text-dim, #6b7280);">Olá! Como posso ajudar na gestão das suas atividades
-            hoje?</span>
+          style="min-height: 220px; max-height: 420px; overflow-y: auto; background: var(--bg-input, #1f2937); border: 1px solid var(--border-color, #374151); border-radius: 8px; padding: 1rem; color: #e5e7eb; font-size: 0.9rem; line-height: 1.6; margin-bottom: 1rem; display: flex; flex-direction: column;">
+          <div class="ai-init-notice" style="text-align: center; color: var(--text-dim, #6b7280); margin: auto; padding: 1.5rem;">
+            🤖 <strong>Olá! Sou sua Assistente IA.</strong><br>
+            Como posso ajudar na gestão ou planejamento das suas atividades hoje?
+          </div>
+        </div>
+
+        <!-- Chips de Sugestão Rápida -->
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.85rem;">
+          <button type="button" class="btn btn-secondary ai-chip-btn" data-prompt="Faça um resumo analítico da situação atual das tarefas do Kanban." style="padding: 0.35rem 0.75rem; font-size: 0.775rem;">
+            📊 Resumir Quadro Kanban
+          </button>
+          <button type="button" class="btn btn-secondary ai-chip-btn" data-prompt="Quais são as melhores práticas para priorizar tarefas com gargalos ou impedimentos?" style="padding: 0.35rem 0.75rem; font-size: 0.775rem;">
+            ⚡ Dicas de Priorização
+          </button>
+          <button type="button" class="btn btn-secondary ai-chip-btn" data-prompt="Crie um checklist de implantação de novos projetos para a equipe." style="padding: 0.35rem 0.75rem; font-size: 0.775rem;">
+            📋 Checklist de Implantação
+          </button>
         </div>
 
         <form id="form-ai-prompt" style="display: flex; gap: 0.5rem;">
           <input type="text" id="ai-prompt-input" class="input-control"
-            placeholder="Ex: Crie um checklist de tarefas para implantação de sistema..." style="flex: 1;" required>
+            placeholder="Ex: Crie um plano de ação para resolver pendências da equipe..." style="flex: 1;" required>
           <button type="submit" id="btn-send-ai" class="btn btn-primary"
             style="padding: 0.65rem 1.25rem; font-weight: 700;">
             Perguntar 🚀
@@ -639,6 +657,9 @@
 
       </div>
     </section>
+
+
+
 
   </main>
 

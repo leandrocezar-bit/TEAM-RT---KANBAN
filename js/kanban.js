@@ -16,8 +16,80 @@ export const KanbanEngine = {
    */
   setPeriodFilter(period, callbacks = null) {
     this.currentPeriodFilter = period;
+    this.updatePeriodButtonsUI();
     const cbs = (callbacks && Object.keys(callbacks).length > 0) ? callbacks : this.lastCallbacks;
     this.renderBoard(this.activeMemberId, cbs);
+  },
+
+  /**
+   * 🎨 Atualiza a classe 'active' nos botões de filtro no DOM
+   */
+  updatePeriodButtonsUI() {
+    const periodButtons = document.querySelectorAll('.btn-period-filter');
+    periodButtons.forEach(btn => {
+      if (btn.dataset.period === this.currentPeriodFilter) {
+        btn.classList.add('active');
+      } else {
+        btn.classList.remove('active');
+      }
+    });
+  },
+
+  /**
+   * 🖱️ Inicializa os ouvintes de clique nos botões de filtro de período
+   */
+  initPeriodFilterButtons(callbacks = {}) {
+    if (callbacks && Object.keys(callbacks).length > 0) {
+      this.lastCallbacks = callbacks;
+    }
+    const periodButtons = document.querySelectorAll('.btn-period-filter');
+    periodButtons.forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const period = btn.dataset.period;
+        this.setPeriodFilter(period, callbacks);
+      });
+    });
+    this.updatePeriodButtonsUI();
+  },
+
+  /**
+   * 📅 Normaliza e converte qualquer formato de data da tarefa para objeto Date (à meia-noite)
+   */
+  parseTaskDate(t) {
+    const rawDate = t.dueDate || t.due_date || t.createdAt || t.created_at || t.completedAt || t.completed_at;
+    if (!rawDate) return null;
+
+    if (typeof rawDate === 'string') {
+      const cleanStr = rawDate.split('T')[0];
+      if (cleanStr.includes('-')) {
+        const parts = cleanStr.split('-');
+        if (parts.length >= 3) {
+          const year = parseInt(parts[0], 10);
+          const month = parseInt(parts[1], 10) - 1;
+          const day = parseInt(parts[2], 10);
+          if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+            return new Date(year, month, day);
+          }
+        }
+      } else if (cleanStr.includes('/')) {
+        const parts = cleanStr.split('/');
+        if (parts.length >= 3) {
+          const day = parseInt(parts[0], 10);
+          const month = parseInt(parts[1], 10) - 1;
+          const year = parseInt(parts[2], 10);
+          if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+            return new Date(year, month, day);
+          }
+        }
+      }
+    }
+
+    const d = new Date(rawDate);
+    if (!isNaN(d.getTime())) {
+      return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    }
+    return null;
   },
 
   /**
@@ -173,6 +245,8 @@ export const KanbanEngine = {
       this.lastCallbacks = callbacks;
     }
 
+    this.updatePeriodButtonsUI();
+
     const tasks = (await DB.getAll('tasks')) || [];
     const members = (await DB.getAll('members')) || [];
     const impediments = (await DB.getAll('impediments')) || [];
@@ -215,22 +289,19 @@ export const KanbanEngine = {
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
       filteredTasks = filteredTasks.filter(t => {
-        if (!t.dueDate) return false;
-
-        const parts = String(t.dueDate).split('T')[0].split('-');
-        if (parts.length < 3) return false;
-
-        const taskDate = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+        const taskDate = this.parseTaskDate(t);
+        if (!taskDate) return false;
 
         if (this.currentPeriodFilter === 'daily') {
-          return taskDate.getTime() === today.getTime();
+          return taskDate.getFullYear() === today.getFullYear() &&
+                 taskDate.getMonth() === today.getMonth() &&
+                 taskDate.getDate() === today.getDate();
         }
 
         if (this.currentPeriodFilter === 'weekly') {
           const dayOfWeek = today.getDay();
-          const diffToMonday = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
-
-          const monday = new Date(today.getFullYear(), today.getMonth(), diffToMonday);
+          const diffToMonday = (dayOfWeek === 0 ? -6 : 1) - dayOfWeek;
+          const monday = new Date(today.getFullYear(), today.getMonth(), today.getDate() + diffToMonday);
           monday.setHours(0, 0, 0, 0);
 
           const sunday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6);
