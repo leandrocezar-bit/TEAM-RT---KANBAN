@@ -1118,18 +1118,9 @@ export const DB = {
      * SEMPRE consulta o Supabase.
      */
 
-    if (
-      !forceRefresh &&
-      cacheIsFresh &&
-      hasCachedData
-    ) {
-
-      return [
-        ...memoryStore[storeName]
-      ];
-
+    if (storeName === 'member_absences') {
+      return [...(memoryStore[storeName] || [])];
     }
-
 
     try {
 
@@ -1418,28 +1409,21 @@ export const DB = {
     // OUTRAS TABELAS
     // ======================================================
 
-    const dbItem =
-      this.toSnakeCase(
-        item
-      );
+    if (storeName === 'member_absences') {
+      this.upsertMemoryItem(storeName, item);
+      return item;
+    }
 
+    const dbItem = this.toSnakeCase(item);
 
     try {
-
-      const {
-        data,
-        error
-      } = await supabase
+      const { data, error } = await supabase
         .from(tableName)
-        .upsert(
-          dbItem
-        )
+        .upsert(dbItem)
         .select('*')
         .single();
 
-
       if (error) {
-        // Se a tabela do Supabase estiver com RLS ativado ou não existir, faz fallback silencioso para o cache local
         this.upsertMemoryItem(storeName, item);
         return item;
       }
