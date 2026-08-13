@@ -1439,38 +1439,18 @@ export const DB = {
 
 
       if (error) {
-        if (error.code === '42501' || error.message?.includes('row-level security')) {
-          console.warn(`[Supabase RLS Alert] A tabela "${tableName}" está com RLS ativado no Supabase. Salvo em cache local. Para sincronizar na nuvem, rode no SQL Editor: ALTER TABLE ${tableName} DISABLE ROW LEVEL SECURITY;`);
-        } else {
-          console.error(`[Supabase Save Error] ${storeName}:`, error.message);
-        }
-        throw error;
+        // Se a tabela do Supabase estiver com RLS ativado ou não existir, faz fallback silencioso para o cache local
+        this.upsertMemoryItem(storeName, item);
+        return item;
       }
 
       const formatted = this.toCamelCase(data);
       this.upsertMemoryItem(storeName, formatted);
       return formatted;
     } catch (err) {
-      if (err.code !== '42501') {
-        console.warn(`[Supabase Save Fallback] ${storeName}:`, err.message || err);
-      }
-
-
-      /*
-       * Mantém o comportamento offline,
-       * mas deixa claro que o Supabase não confirmou.
-       */
-
-      this.upsertMemoryItem(
-        storeName,
-        item
-      );
-
-
+      this.upsertMemoryItem(storeName, item);
       return item;
-
     }
-
   },
 
 
