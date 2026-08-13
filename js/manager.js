@@ -15,7 +15,18 @@ export const ManagerEngine = {
    * Renderiza o Dashboard Completo do Gestor
    */
   async renderDashboard(onViewEvidenceCallback, onDeleteMemberCallback, onOpenDayDetailsCallback) {
-    const members = (await DB.getAll('members')) || [];
+    const isAdminMember = (m) => {
+      if (!m) return false;
+      const id = String(m.id || '').toLowerCase();
+      const name = String(m.name || '').toLowerCase();
+      const email = String(m.email || '').toLowerCase();
+      const role = String(m.role || '').toLowerCase();
+      const level = String(m.accessLevel || '').toLowerCase();
+      return level === 'admin' || id === 'm-admin' || id === 'admin' || name.includes('admin') || email.includes('admin') || role.includes('administrador');
+    };
+
+    const allMembers = (await DB.getAll('members')) || [];
+    const members = allMembers.filter(m => !isAdminMember(m));
     const tasks = (await DB.getAll('tasks')) || [];
     const impediments = (await DB.getAll('impediments')) || [];
     const absences = (await DB.getAll('member_absences')) || [];
@@ -62,7 +73,7 @@ export const ManagerEngine = {
 
       const title = document.createElement('h2');
       title.style.cssText = 'font-size:1.15rem; font-weight:800; display:flex; align-items:center; gap:0.5rem; margin:0;';
-      title.innerHTML = '👥 Desempenho e Horas da Equipe';
+      title.innerHTML = 'Desempenho e Horas da Equipe';
       header.appendChild(title);
 
       const filterBox = document.createElement('div');
@@ -90,7 +101,7 @@ export const ManagerEngine = {
 
     container.innerHTML = `
       <div style="display:flex; align-items:center; gap:0.5rem; background:var(--bg-secondary, #1f2937); padding:0.4rem 0.75rem; border-radius:var(--radius-md, 8px); border:1px solid var(--border-color, #374151); flex-wrap:wrap;">
-        <span style="font-size:0.8rem; font-weight:700; color:var(--text-muted, #9ca3af);">🗓️ Filtrar Período:</span>
+        <span style="font-size:0.8rem; font-weight:700; color:var(--text-muted, #9ca3af);">Filtrar Período:</span>
         
         <label style="font-size:0.75rem; color:var(--text-dim, #9ca3af); display:flex; align-items:center; gap:0.3rem;">
           De:
@@ -155,12 +166,25 @@ export const ManagerEngine = {
     const container = document.getElementById('manager-members-grid');
     if (!container) return;
 
+    const isAdminMember = (m) => {
+      if (!m) return false;
+      const id = String(m.id || '').toLowerCase();
+      const name = String(m.name || '').toLowerCase();
+      const email = String(m.email || '').toLowerCase();
+      const role = String(m.role || '').toLowerCase();
+      const level = String(m.accessLevel || '').toLowerCase();
+      return level === 'admin' || id === 'm-admin' || id === 'admin' || name.includes('admin') || email.includes('admin') || role.includes('administrador');
+    };
+
+    const rawOperational = (members || []).filter(m => !isAdminMember(m));
+    const operationalMembers = window.sortMembersByCustomOrder ? window.sortMembersByCustomOrder(rawOperational) : rawOperational;
+
     const isManager = localStorage.getItem('logged_access_level') === 'gestor';
     const loggedMemberId = localStorage.getItem('logged_member_id');
 
-    let visibleMembers = members;
+    let visibleMembers = operationalMembers;
     if (!isManager && loggedMemberId) {
-      visibleMembers = members.filter(m => String(m.id) === String(loggedMemberId));
+      visibleMembers = operationalMembers.filter(m => String(m.id) === String(loggedMemberId));
     }
 
     if (visibleMembers.length === 0) {

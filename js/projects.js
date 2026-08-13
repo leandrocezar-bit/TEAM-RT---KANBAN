@@ -23,7 +23,7 @@ export const ProjectsEngine = {
       <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem; margin-bottom:1.5rem;">
         <div>
           <h2 style="font-size:1.25rem; font-weight:800; display:flex; align-items:center; gap:0.5rem;">
-            📁 Gestão de Projetos e Atividades em Grupo
+            Gestão de Projetos e Atividades em Grupo
           </h2>
           <p style="font-size:0.8rem; color:var(--text-muted, #aaa);">
             Crie projetos, atribua múltiplos colaboradores e acompanhe entregáveis da equipe em tempo real.
@@ -31,7 +31,7 @@ export const ProjectsEngine = {
         </div>
 
         <button id="btn-create-project" class="btn btn-primary" onclick="window.ProjectsEngine.openCreateModal()">
-          + Criar Novo Projeto
+          + Novo Projeto
         </button>
       </div>
     `;
@@ -39,7 +39,6 @@ export const ProjectsEngine = {
     if (projects.length === 0) {
       html += `
         <div class="card-panel" style="text-align:center; padding:3rem 1.5rem;">
-          <div style="font-size:3rem; margin-bottom:1rem;">📂</div>
           <h3 style="font-size:1.1rem; font-weight:700; margin-bottom:0.5rem;">Nenhum projeto cadastrado no momento</h3>
           <p style="font-size:0.85rem; color:var(--text-muted, #aaa); margin-bottom:1.5rem;">
             Clique no botão acima para abrir um novo projeto.
@@ -51,7 +50,7 @@ export const ProjectsEngine = {
         <div style="display:flex; gap:0.5rem; overflow-x:auto; margin-bottom:1.5rem; border-bottom:1px solid var(--border-color, #333); padding-bottom:0.5rem;">
           ${projects.map(p => `
             <button class="btn ${this.activeProjectId === p.id ? 'btn-primary' : 'btn-secondary'} btn-project-tab" onclick="window.ProjectsEngine.selectProject('${p.id}')">
-              📂 ${p.name}
+              ${p.name}
             </button>
           `).join('')}
         </div>
@@ -76,26 +75,26 @@ export const ProjectsEngine = {
 
               <div style="display:flex; align-items:center; gap:0.5rem;">
                 <button class="btn btn-secondary" onclick="window.ProjectsEngine.openEditModal('${activeProject.id}')" style="font-size:0.75rem;">
-                  ✏️ Editar Projeto
+                  Editar Projeto
                 </button>
                 <button class="btn" onclick="window.ProjectsEngine.deleteProject('${activeProject.id}')" style="font-size:0.75rem; background:rgba(239, 68, 68, 0.15); color:#ef4444; border:1px solid rgba(239, 68, 68, 0.3);">
-                  🗑️ Excluir Projeto
+                  Excluir Projeto
                 </button>
               </div>
             </div>
 
-            <div style="background:var(--bg-input, #222); padding:1rem; border-radius:8px; margin-bottom:1.5rem;">
-              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.4rem; font-size:0.85rem;">
-                <span>Progresso das Entregas</span>
-                <strong>${progress}% Concluído (${doneTasks.length}/${projectTasks.length})</strong>
+            <div style="background: var(--bg-surface); border: 1px solid var(--border-color); color: var(--text-main); padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem; font-size: 0.85rem;">
+                <span style="font-weight: 700; color: var(--text-main);">Progresso das Entregas</span>
+                <strong style="color: var(--text-main);">${progress}% Concluído (${doneTasks.length}/${projectTasks.length})</strong>
               </div>
-              <div style="background:rgba(255,255,255,0.1); border-radius:10px; height:10px; overflow:hidden;">
-                <div style="background:var(--accent-gradient, #7c3aed); width:${progress}%; height:100%;"></div>
+              <div style="background: var(--border-color); border-radius: 10px; height: 10px; overflow: hidden;">
+                <div style="background: var(--accent-gradient); width: ${progress}%; height: 100%;"></div>
               </div>
             </div>
 
             <h4 style="font-size:1rem; font-weight:700; margin-bottom:0.75rem;">
-              📌 Atividades em Grupo do Projeto
+              Atividades em Grupo do Projeto
             </h4>
 
             <div class="table-responsive">

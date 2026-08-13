@@ -80,39 +80,85 @@
 <body>
 
   <!-- ============================================================
-        OVERLAY DE LOGIN / PASSCODE GATE
+        OVERLAY DE LOGIN MINIMALISTA ESCURO
         ============================================================ -->
-  <div id="login-overlay" class="login-overlay active">
+  <div id="login-overlay"
+    style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: linear-gradient(180deg, #0e0e0e 0%, #222222 100%); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 1.5rem;">
 
-    <div class="login-card">
+    <div
+      style="width: 100%; max-width: 400px; display: flex; flex-direction: column; align-items: center; text-align: center; padding: 1rem;">
 
-      <div class="login-logo">🔒</div>
+      <!-- Logo da Equipe RT Anexado -->
+      <div style="margin-bottom: 1.25rem;">
+        <img src="assets/logo-rt.png" alt="Logo RT"
+          style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 2px solid rgba(255, 255, 255, 0.15); box-shadow: 0 8px 25px rgba(0, 0, 0, 0.7);">
+      </div>
 
-      <h2>Acesso ao Painel Kanban</h2>
+      <!-- Título Fino Espaçado idêntico à imagem de referência -->
+      <h2
+        style="font-family: 'Plus Jakarta Sans', -apple-system, sans-serif; font-size: 1.45rem; font-weight: 200; letter-spacing: 4px; color: #999999; text-transform: uppercase; margin: 0 0 2.5rem 0;">
+        TEAM TASK KANBAN
+      </h2>
 
-      <p>
-        Identifique-se e digite a senha da equipe para entrar:
-      </p>
+      <form id="form-login" style="width: 100%; display: flex; flex-direction: column;">
 
-      <form id="form-login" style="margin-top:1.25rem;">
+        <!-- Campo E-mail / Usuário Sublinhado -->
+        <div
+          style="position: relative; width: 100%; display: flex; align-items: center; margin-bottom: 2.25rem; border-bottom: 1px solid #444444; transition: border-color 0.3s ease;">
+          <svg
+            style="width: 18px; height: 18px; fill: #888888; margin-right: 1.25rem; margin-left: 0.25rem; flex-shrink: 0;"
+            viewBox="0 0 24 24">
+            <path
+              d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z" />
+          </svg>
+          <input type="text" id="input-login-user" placeholder="E-mail ou Usuário" required autocomplete="off"
+            style="width: 100%; background: transparent !important; border: none !important; outline: none !important; color: #ffffff !important; font-size: 0.95rem !important; font-weight: 300 !important; letter-spacing: 0.5px !important; padding: 0.75rem 0 !important; box-shadow: none !important; border-radius: 0 !important; -webkit-box-shadow: 0 0 0px 1000px #161616 inset !important; -webkit-text-fill-color: #ffffff !important;">
+        </div>
 
-        <div class="form-group" style="margin-bottom:1rem;">
+        <!-- Campo Senha Sublinhado -->
+        <div
+          style="position: relative; width: 100%; display: flex; align-items: center; margin-bottom: 2rem; border-bottom: 1px solid #444444; transition: border-color 0.3s ease;">
+          <svg
+            style="width: 18px; height: 18px; fill: #888888; margin-right: 1.25rem; margin-left: 0.25rem; flex-shrink: 0;"
+            viewBox="0 0 24 24">
+            <path
+              d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z" />
+          </svg>
+          <input type="password" id="input-passcode" placeholder="Senha" required autocomplete="new-password"
+            style="width: 100%; background: transparent !important; border: none !important; outline: none !important; color: #ffffff !important; font-size: 0.95rem !important; font-weight: 300 !important; letter-spacing: 0.5px !important; padding: 0.75rem 0 !important; box-shadow: none !important; border-radius: 0 !important; -webkit-box-shadow: 0 0 0px 1000px #161616 inset !important; -webkit-text-fill-color: #ffffff !important;">
+          <button type="button" id="btn-toggle-passcode" title="Mostrar/ocultar senha"
+            style="background: none; border: none; color: #777777; font-size: 1rem; cursor: pointer; padding: 0.2rem 0.5rem; flex-shrink: 0;">
+            <svg style="width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8;"
+              viewBox="0 0 24 24">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+              <circle cx="12" cy="12" r="3"></circle>
+            </svg>
+          </button>
+        </div>
 
-          <input type="text" id="input-login-user" class="input-control" placeholder="Seu Nome ou E-mail cadastrado..."
-            required style="text-align:center; font-size:1.1rem;">
+        <!-- Opções Lembrar-me (Esquerda) e Alternar Tema (Direita) -->
+        <div
+          style="display: flex; align-items: center; justify-content: space-between; width: 100%; margin-top: -0.25rem; margin-bottom: 2.75rem;">
+
+          <label
+            style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.8rem; color: #888888; font-weight: 300; font-style: italic; cursor: pointer; user-select: none;">
+            <input type="checkbox" id="chk-remember-me" checked
+              style="accent-color: #888888; width: 14px; height: 14px; cursor: pointer;">
+            <span>Lembrar-me</span>
+          </label>
+
+          <button type="button" id="btn-toggle-theme-login" title="Alternar Tema Escuro / Claro"
+            style="background: none; border: none; color: #888888; font-size: 0.8rem; font-weight: 300; font-style: italic; cursor: pointer; display: flex; align-items: center; gap: 6px; padding: 0; transition: color 0.3s ease;">
+            <span id="theme-toggle-icon">🌙</span>
+            <span id="theme-toggle-label">Modo Escuro</span>
+          </button>
 
         </div>
 
-        <div class="form-group" style="margin-bottom:1.25rem;">
-
-          <input type="password" id="input-passcode" class="input-control" placeholder="Digite sua senha..." required
-            style="text-align:center; font-size:1.2rem; letter-spacing:0.3em;">
-
-        </div>
-
-        <button type="submit" class="btn btn-primary"
-          style="width:100%; padding:0.75rem; font-size:1rem; font-weight:700;">
-          Entrar no Painel
+        <!-- Botão LOGIN Retangular idêntico à imagem de referência -->
+        <button type="submit" class="btn-ref-login"
+          style="width: 100%; height: 48px; background: rgba(255, 255, 255, 0.02); border: 1px solid #555555; color: #cccccc; font-size: 0.85rem; font-weight: 500; letter-spacing: 4px; text-transform: uppercase; cursor: pointer; border-radius: 0px; transition: all 0.25s ease;">
+          LOGIN
         </button>
 
       </form>
@@ -161,68 +207,78 @@
     <div class="nav-actions">
 
       <button id="btn-view-kanban" class="btn btn-primary">
-        📋 Quadro Kanban
+        Quadro Kanban
       </button>
 
 
       <button id="btn-view-manager" class="btn btn-secondary">
-        📊 Dashboard
+        Dashboard
       </button>
 
 
       <button id="btn-view-map" class="btn btn-secondary">
-        🗺️ Portfólio do Setor
+        Portfólio do Setor
       </button>
 
 
       <button id="btn-view-settings" class="btn btn-secondary">
-        ➡️ Transferir Atividade
+        Transferir Atividades
       </button>
 
 
       <button id="btn-view-projects" class="btn btn-secondary">
-        📘 Projetos
+        Projetos
       </button>
 
-      <!-- 💬 BOTÃO DE CHAT NO MENU -->
+      <!-- BOTÃO DE CHAT NO MENU -->
       <button id="btn-view-chat" class="btn btn-secondary">
-        💬 Chat Geral
+        Chat Geral
       </button>
 
-      <!-- 🤖 BOTÃO DE ASSISTENTE IA NO MENU -->
+      <!-- BOTÃO DE ASSISTENTE IA NO MENU -->
       <button id="btn-view-ai" class="btn btn-secondary">
-        🤖 Assistente IA
+        Assistente IA
       </button>
 
-
-      <button id="btn-new-member" class="btn btn-secondary">
-        + Colaborador
+      <!-- BOTÃO PAINEL ADMIN NO MENU -->
+      <button id="btn-view-admin" class="btn"
+        style="background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%); color: #ffffff; font-weight: 700; display: none;">
+        Painel Admin
       </button>
-
-
-      <button id="btn-new-task" class="btn btn-primary">
-        + Nova Atividade
-      </button>
-
 
       <!-- ========================================================
-            PERFIL DO USUÁRIO LOGADO
+            PERFIL DO USUÁRIO LOGADO COM DROPDOWN DE SAÍDA
             ======================================================== -->
-      <div id="user-profile-header" class="user-profile-bar">
+      <div class="user-profile-menu-wrapper" style="position: relative;">
 
-        <img id="user-avatar" src="https://ui-avatars.com/api/?name=User&background=6366f1&color=fff" alt="Foto"
-          class="avatar-img">
+        <button type="button" id="btn-user-profile-menu" class="btn-profile-pill"
+          style="display: flex; align-items: center; gap: 0.55rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 9999px; padding: 0.3rem 0.75rem 0.3rem 0.35rem; cursor: pointer; color: var(--text-main); font-size: 0.85rem; font-weight: 600; outline: none; transition: all 0.2s ease;">
+          <img id="user-avatar" src="https://ui-avatars.com/api/?name=User&background=6366f1&color=fff" alt="Foto"
+            style="width: 28px; height: 28px; border-radius: 50%; object-fit: cover;">
+          <span id="user-name"
+            style="max-width: 130px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Carregando...</span>
+          <svg
+            style="width: 14px; height: 14px; fill: none; stroke: var(--text-muted); stroke-width: 2.2; transition: transform 0.2s ease;"
+            viewBox="0 0 24 24">
+            <path d="M6 9l6 6 6-6" />
+          </svg>
+        </button>
 
-        <span id="user-name" class="user-name-text">
-          Carregando...
-        </span>
+        <!-- Dropdown com Opção de Logoff -->
+        <div id="user-profile-dropdown"
+          style="display: none; position: absolute; top: calc(100% + 8px); right: 0; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; padding: 0.4rem; min-width: 170px; box-shadow: var(--shadow-md); z-index: 1000;">
+          <button type="button" id="btn-logout"
+            style="width: 100%; display: flex; align-items: center; gap: 0.6rem; padding: 0.6rem 0.85rem; border: none; background: transparent; color: #ef4444; border-radius: 8px; font-size: 0.85rem; font-weight: 700; cursor: pointer; text-align: left; transition: background 0.2s ease;">
+            <svg style="width: 16px; height: 16px; fill: none; stroke: #ef4444; stroke-width: 2;" viewBox="0 0 24 24">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+              <polyline points="16 17 21 12 16 7"></polyline>
+              <line x1="21" y1="12" x2="9" y2="12"></line>
+            </svg>
+            Sair do Sistema
+          </button>
+        </div>
 
       </div>
-
-
-      <button id="btn-logout" class="btn btn-secondary" title="Sair do aplicativo" style="padding:0.4rem 0.6rem;">
-        🔒 Sair
-      </button>
 
     </div>
 
@@ -272,7 +328,7 @@
               font-weight:700;
               color:var(--text-muted);
             ">
-            🗓️ Filtrar Período:
+            Filtrar Período:
           </span>
 
 
@@ -394,7 +450,8 @@
         </h2>
 
         <div style="display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap;">
-          <button type="button" id="btn-open-modal-absence" class="btn btn-primary" style="font-size:0.8rem; padding:0.45rem 0.9rem;">
+          <button type="button" id="btn-open-modal-absence" class="btn btn-primary"
+            style="font-size:0.8rem; padding:0.45rem 0.9rem;">
             ➕ Registrar Escala / Ausência
           </button>
           <div id="dashboard-date-filter-container"></div>
@@ -405,12 +462,14 @@
 
       <!-- 📅 NOVA SEÇÃO: MATRIZ DE ESCALA E AUSÊNCIAS DA EQUIPE -->
       <div class="calendar-panel" style="margin-bottom:1.5rem;">
-        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem; margin-bottom:1rem;">
+        <div
+          style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem; margin-bottom:1rem;">
           <h3 style="font-size:1.1rem; font-weight:700; display:flex; align-items:center; gap:0.5rem; margin:0;">
             📅 Escala de Presença e Ausências da Equipe (Home Office, Férias, Atestados, Folgas)
           </h3>
         </div>
-        <div id="absence-matrix-container" style="max-height: 240px !important; overflow-y: auto !important; padding-right: 0.35rem;"></div>
+        <div id="absence-matrix-container"
+          style="max-height: 240px !important; overflow-y: auto !important; padding-right: 0.35rem;"></div>
       </div>
 
       <div class="calendar-panel" style="margin-bottom:1.5rem;">
@@ -424,7 +483,8 @@
           ">
           ⚠️ Central de Contratempos e Imprevistos Relatados
         </h3>
-        <div id="impediments-list-container" style="max-height: 210px !important; overflow-y: auto !important; padding-right: 0.35rem;"></div>
+        <div id="impediments-list-container"
+          style="max-height: 210px !important; overflow-y: auto !important; padding-right: 0.35rem;"></div>
       </div>
 
 
@@ -477,15 +537,20 @@
 
       <div class="card-panel">
 
-        <div class="panel-header">
+        <div class="panel-header"
+          style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.75rem;">
 
-          <h3 class="panel-title">
-            🗓️ Roadmap de Atividades Ativas no Mês
-          </h3>
+          <div>
+            <h3 class="panel-title" style="margin:0;">
+              Roadmap de Atividades Ativas no Mês
+            </h3>
 
-          <span class="summary-pill">
-            Acompanhamento Geral
-          </span>
+            <span class="summary-pill" style="margin-top:0.25rem; display:inline-block;">
+              Acompanhamento Geral
+            </span>
+          </div>
+
+          <div id="roadmap-date-filter-container"></div>
 
         </div>
 
@@ -546,7 +611,8 @@
             💬 Chat Geral da Equipe
           </h3>
           <div style="display: flex; align-items: center; gap: 0.75rem;">
-            <button type="button" id="btn-chat-test-sound" class="btn btn-secondary" style="font-size: 0.75rem; padding: 0.25rem 0.65rem;" title="Testar som de notificação">
+            <button type="button" id="btn-chat-test-sound" class="btn btn-secondary"
+              style="font-size: 0.75rem; padding: 0.25rem 0.65rem;" title="Testar som de notificação">
               🔔 Testar Som
             </button>
             <span style="font-size: 0.75rem; color: #10b981; font-weight: 600;">🟢 On-line</span>
@@ -612,7 +678,7 @@
 
           <button type="submit" class="btn btn-primary"
             style="padding: 0.65rem 1.25rem; font-weight: 700; font-size: 0.875rem;">
-            Enviar ✈️
+            Enviar
           </button>
         </form>
 
@@ -629,17 +695,19 @@
         <div
           style="display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; margin-bottom: 1rem; border-bottom: 1px solid var(--border-color, #1f2937); padding-bottom: 0.75rem;">
           <div style="display: flex; align-items: center; gap: 0.75rem;">
-            <span style="font-size: 1.8rem;">🤖</span>
             <div>
-              <h3 style="margin: 0; color: #fff; font-size: 1.15rem;">Assistente TeamTask IA (Gemini)</h3>
-              <p style="margin: 0; font-size: 0.8rem; color: var(--text-dim, #6b7280);">Gere ideias de tarefas, tire dúvidas ou solicite resumos da equipe.</p>
+              <h3 style="margin: 0; color: var(--text-main); font-size: 1.15rem;">Assistente IA (Gemini)</h3>
+              <p style="margin: 0; font-size: 0.8rem; color: var(--text-dim, #6b7280);">Gere ideias de tarefas, tire
+                dúvidas ou solicite resumos da equipe.</p>
             </div>
           </div>
           <div style="display: flex; align-items: center; gap: 0.5rem;">
-            <button type="button" id="btn-config-ai-key" class="btn btn-secondary" style="padding: 0.25rem 0.6rem; font-size: 0.75rem;" title="Configurar Chave de API do Gemini">
+            <button type="button" id="btn-config-ai-key" class="btn btn-secondary"
+              style="padding: 0.25rem 0.6rem; font-size: 0.75rem;" title="Configurar Chave de API do Gemini">
               🔑 Chave API
             </button>
-            <span style="font-size: 0.75rem; background: rgba(99, 102, 241, 0.15); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3); padding: 0.25rem 0.6rem; border-radius: 999px; font-weight: 600;">
+            <span
+              style="font-size: 0.75rem; background: rgba(99, 102, 241, 0.15); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3); padding: 0.25rem 0.6rem; border-radius: 999px; font-weight: 600;">
               ⚡ Gemini AI
             </span>
           </div>
@@ -647,29 +715,11 @@
 
         <div id="ai-response-container"
           style="min-height: 220px; max-height: 420px; overflow-y: auto; background: var(--bg-input, #1f2937); border: 1px solid var(--border-color, #374151); border-radius: 8px; padding: 1rem; color: #e5e7eb; font-size: 0.9rem; line-height: 1.6; margin-bottom: 1rem; display: flex; flex-direction: column;">
-          <div class="ai-init-notice" style="text-align: center; color: var(--text-dim, #6b7280); margin: auto; padding: 1.5rem;">
+          <div class="ai-init-notice"
+            style="text-align: center; color: var(--text-dim, #6b7280); margin: auto; padding: 1.5rem;">
             🤖 <strong>Olá! Sou sua Assistente IA.</strong><br>
             Como posso ajudar na gestão ou planejamento das suas atividades hoje?
           </div>
-        </div>
-
-        <!-- Chips de Sugestão Rápida -->
-        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.85rem;">
-          <button type="button" class="btn btn-secondary ai-chip-btn" data-prompt="Quais são os pisos salariais da CONVENÇÃO COLETIVA DE TRABALHO 2026/2026 (SECOVI-PB / SINTEG-PB)?" style="padding: 0.35rem 0.75rem; font-size: 0.775rem;">
-            📜 Pisos CCT 2026 (SECOVI-PB)
-          </button>
-          <button type="button" class="btn btn-secondary ai-chip-btn" data-prompt="Quais são os pisos salariais e adicionais da CONVENÇÃO COLETIVA DE TRABALHO 2026 (SINCOM-BA / SECIR - COMÉRCIO DE IRECÊ E REGIÃO)?" style="padding: 0.35rem 0.75rem; font-size: 0.775rem;">
-            🛒 Pisos CCT 2026 (SINCOM-BA)
-          </button>
-          <button type="button" class="btn btn-secondary ai-chip-btn" data-prompt="Qual o valor e as regras do auxílio alimentação e refeição nas Convenções Coletivas 2026?" style="padding: 0.35rem 0.75rem; font-size: 0.775rem;">
-            🥪 Auxílio Alimentação (VR)
-          </button>
-          <button type="button" class="btn btn-secondary ai-chip-btn" data-prompt="Quais as regras de horas extras, adicionais (quebra de caixa, triênio) e domingos nas CCTs 2026?" style="padding: 0.35rem 0.75rem; font-size: 0.775rem;">
-            ⏰ Horas Extras e Adicionais
-          </button>
-          <button type="button" class="btn btn-secondary ai-chip-btn" data-prompt="Faça um resumo analítico da situação atual das tarefas do Quadro Kanban." style="padding: 0.35rem 0.75rem; font-size: 0.775rem;">
-            📊 Resumir Quadro Kanban
-          </button>
         </div>
 
         <form id="form-ai-prompt" style="display: flex; gap: 0.5rem;">
@@ -1038,7 +1088,9 @@
               Prazo (Data Limite) *
             </label>
             <input type="date" id="task-date" class="input-control" required>
-            <div id="absence-warning-banner" style="display: none; margin-top: 0.5rem; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.4); color: #f59e0b; padding: 0.5rem 0.75rem; border-radius: 6px; font-size: 0.8rem; font-weight: 700;"></div>
+            <div id="absence-warning-banner"
+              style="display: none; margin-top: 0.5rem; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.4); color: #f59e0b; padding: 0.5rem 0.75rem; border-radius: 6px; font-size: 0.8rem; font-weight: 700;">
+            </div>
           </div>
 
           <!-- 🔄 CAMPO REPLICAR ATIVIDADE -->
@@ -1053,16 +1105,19 @@
           </div>
 
           <!-- ⚙️ PAINEL DE OPÇÕES DE REPLICAÇÃO (ESCONDIDO POR PADRÃO) -->
-          <div id="replicate-options-panel" class="form-group full-width" style="display: none; background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(99, 102, 241, 0.25); border-radius: var(--radius-sm); padding: 0.85rem;">
+          <div id="replicate-options-panel" class="form-group full-width"
+            style="display: none; background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(99, 102, 241, 0.25); border-radius: var(--radius-sm); padding: 0.85rem;">
             <label class="form-label" style="color: #a5b4fc; font-weight: 700; margin-bottom: 0.5rem; display: block;">
               🔄 Opções de Replicação da Atividade
             </label>
 
             <div style="display: flex; gap: 1.25rem; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap;">
-              <label style="display: flex; align-items: center; gap: 0.35rem; cursor: pointer; font-size: 0.85rem; color: #fff; font-weight: 600;">
+              <label
+                style="display: flex; align-items: center; gap: 0.35rem; cursor: pointer; font-size: 0.85rem; color: #fff; font-weight: 600;">
                 <input type="radio" name="replicate-type" value="mensal" checked> 📅 Mensalmente
               </label>
-              <label style="display: flex; align-items: center; gap: 0.35rem; cursor: pointer; font-size: 0.85rem; color: #fff; font-weight: 600;">
+              <label
+                style="display: flex; align-items: center; gap: 0.35rem; cursor: pointer; font-size: 0.85rem; color: #fff; font-weight: 600;">
                 <input type="radio" name="replicate-type" value="datas"> 🗓️ Incluir Várias Datas Específicas
               </label>
             </div>
@@ -1087,7 +1142,8 @@
               </label>
               <div id="dynamic-dates-list" style="display: flex; flex-direction: column; gap: 0.5rem;">
                 <div class="dynamic-date-row" style="display: flex; align-items: center; gap: 0.5rem;">
-                  <input type="date" class="input-control input-dynamic-date" style="max-width: 200px; font-size: 0.825rem;">
+                  <input type="date" class="input-control input-dynamic-date"
+                    style="max-width: 200px; font-size: 0.825rem;">
                   <span style="font-size: 0.75rem; color: var(--text-dim);">Data 1</span>
                 </div>
               </div>
@@ -1210,7 +1266,8 @@
             <label for="absence-notes" class="form-label">
               Observações / Detalhes (Opcional)
             </label>
-            <input type="text" id="absence-notes" class="input-control" placeholder="Ex: Atestado Dra. Ana, Férias de Julho, etc.">
+            <input type="text" id="absence-notes" class="input-control"
+              placeholder="Ex: Atestado Dra. Ana, Férias de Julho, etc.">
           </div>
         </div>
 
@@ -1226,7 +1283,7 @@
     </div>
   </div>
 
-    </div>
+  </div>
 
   </div>
 
@@ -1509,6 +1566,110 @@
 
 
   <!-- ============================================================
+        MODAL 10: PAINEL DE CONTROLE ADMINISTRATIVO (ADMIN SUPERPOWERS)
+        ============================================================ -->
+  <div class="modal-overlay" id="modal-admin-control">
+    <div class="modal-card" style="max-width:760px; width: 95%;">
+
+      <div class="modal-header"
+        style="border-bottom: 1px solid var(--border-color); padding-bottom: 0.85rem; margin-bottom: 1rem;">
+        <h3 class="modal-title"
+          style="display: flex; align-items: center; gap: 8px; font-size: 1.2rem; font-weight: 800; color: #f59e0b;">
+          👑 Painel de Controle Administrativo
+        </h3>
+        <button class="modal-close" id="btn-close-admin-modal">&times;</button>
+      </div>
+
+      <!-- Abas Internas do Admin -->
+      <div
+        style="display: flex; gap: 8px; margin-bottom: 1.25rem; border-bottom: 1px solid var(--border-color); padding-bottom: 8px; overflow-x: auto;">
+        <button type="button" class="btn btn-sm btn-primary admin-tab-btn active" data-tab="admin-tab-logout">🔴
+          Deslogar & Segurança</button>
+        <button type="button" class="btn btn-sm btn-secondary admin-tab-btn" data-tab="admin-tab-members">👥
+          Colaboradores & Senhas</button>
+        <button type="button" class="btn btn-sm btn-secondary admin-tab-btn" data-tab="admin-tab-cleanup">🧹 Limpeza de
+          Dados</button>
+        <button type="button" class="btn btn-sm btn-secondary admin-tab-btn" data-tab="admin-tab-logs">📜 Logs de
+          Auditoria</button>
+      </div>
+
+      <!-- CONTEÚDO DA ABA 1: DESLOGAR & SEGURANÇA -->
+      <div id="admin-tab-logout" class="admin-tab-content active">
+        <div
+          style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); padding: 1.25rem; border-radius: 12px; margin-bottom: 1.25rem;">
+          <h4 style="color: #ef4444; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 6px;">
+            🔴 Deslogar Todos os Usuários (Encerramento Global em Tempo Real)
+          </h4>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">
+            Esta ação envia um sinal imediato via Supabase Realtime para deslogar <strong>TODAS as conexões
+              ativas</strong> de colaboradores no sistema e derrubar suas sessões na hora.
+          </p>
+          <button type="button" id="btn-admin-force-logout-all" class="btn"
+            style="background: #ef4444; color: #fff; font-weight: 700; padding: 0.65rem 1.25rem; border: none; border-radius: 8px; cursor: pointer; box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4);">
+            🔴 Deslogar Todos os Conectados Agora
+          </button>
+        </div>
+
+        <div
+          style="background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); padding: 1.25rem; border-radius: 12px;">
+          <h4 style="color: #f59e0b; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 6px;">
+            🚧 Modo Manutenção (Trava de Edição do Kanban)
+          </h4>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">
+            Ative para travar a movimentação e criação de tarefas para todos os colaboradores. O Kanban ficará em modo
+            "Somente Leitura" durante atualizações.
+          </p>
+          <label style="display: flex; align-items: center; gap: 10px; font-weight: 700; cursor: pointer;">
+            <input type="checkbox" id="chk-admin-maintenance-mode"
+              style="width: 18px; height: 18px; accent-color: #f59e0b;">
+            <span>Ativar Modo Manutenção (Kanban Read-Only)</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- CONTEÚDO DA ABA 2: GESTÃO DE COLABORADORES & SENHAS -->
+      <div id="admin-tab-members" class="admin-tab-content" style="display: none;">
+        <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.85rem;">
+          Gerencie colaboradores cadastrados, redefina senhas de acesso ou altere o nível de permissão:
+        </p>
+        <div id="admin-members-table-container"
+          style="max-height: 320px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 8px;"></div>
+      </div>
+
+      <!-- CONTEÚDO DA ABA 3: LIMPEZA DE DADOS -->
+      <div id="admin-tab-cleanup" class="admin-tab-content" style="display: none;">
+        <div
+          style="background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.3); padding: 1.25rem; border-radius: 12px;">
+          <h4 style="color: #818cf8; margin-bottom: 0.5rem;">🧹 Limpeza em Massa de Atividades Antigas</h4>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">
+            Arquive ou remova em lote as atividades da coluna "Concluído" que foram finalizadas há mais de 30 dias para
+            manter o banco leve.
+          </p>
+          <button type="button" id="btn-admin-purge-old-tasks" class="btn btn-primary" style="font-weight: 700;">
+            🧹 Purgar Tarefas Concluídas (+30 Dias)
+          </button>
+        </div>
+      </div>
+
+      <!-- CONTEÚDO DA ABA 4: LOGS DE AUDITORIA -->
+      <div id="admin-tab-logs" class="admin-tab-content" style="display: none;">
+        <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.85rem;">
+          Registro recente de acessos, logins e ações críticas de administradores:
+        </p>
+        <div id="admin-audit-logs-container"
+          style="max-height: 300px; overflow-y: auto; font-family: monospace; font-size: 0.8rem; background: rgba(15, 23, 42, 0.8); border: 1px solid var(--border-color); border-radius: 8px; padding: 0.75rem;">
+        </div>
+      </div>
+
+      <div class="modal-actions" style="margin-top: 1.25rem;">
+        <button type="button" class="btn btn-secondary" id="btn-admin-modal-close-foot">Fechar</button>
+      </div>
+
+    </div>
+  </div>
+
+
+  <!-- ============================================================
         CONTAINER DE TOASTS
         ============================================================ -->
   <div id="toast-container" class="toast-container"></div>
@@ -1517,7 +1678,7 @@
   <!-- ============================================================
         SCRIPT PRINCIPAL
         ============================================================ -->
-  <script type="module" src="js/app.js?v=4"></script>
+  <script type="module" src="js/app.js?v=31"></script>
 
 </body>
 

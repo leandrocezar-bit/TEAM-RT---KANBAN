@@ -41,7 +41,19 @@ export const SettingsEngine = {
     // CARREGAMENTO DOS DADOS
     // ============================================================
 
-    const members = (await DB.getAll('members')) || [];
+    const isAdminMember = (m) => {
+      if (!m) return false;
+      const id = String(m.id || '').toLowerCase();
+      const name = String(m.name || '').toLowerCase();
+      const email = String(m.email || '').toLowerCase();
+      const role = String(m.role || '').toLowerCase();
+      const level = String(m.accessLevel || '').toLowerCase();
+      return level === 'admin' || id === 'm-admin' || id === 'admin' || name.includes('admin') || email.includes('admin') || role.includes('administrador');
+    };
+
+    const allMembers = (await DB.getAll('members')) || [];
+    const rawMembers = allMembers.filter(m => !isAdminMember(m));
+    const members = window.sortMembersByCustomOrder ? window.sortMembersByCustomOrder(rawMembers) : rawMembers;
     const tasks = (await DB.getAll('tasks')) || [];
     const transfers = (await DB.getAll('activity_transfers')) || [];
 
@@ -255,6 +267,17 @@ export const SettingsEngine = {
   // ============================================================
 
   renderTableRows(tasks, members, transfers) {
+    const isAdminMember = (m) => {
+      if (!m) return false;
+      const id = String(m.id || '').toLowerCase();
+      const name = String(m.name || '').toLowerCase();
+      const email = String(m.email || '').toLowerCase();
+      const role = String(m.role || '').toLowerCase();
+      const level = String(m.accessLevel || '').toLowerCase();
+      return level === 'admin' || id === 'm-admin' || id === 'admin' || name.includes('admin') || email.includes('admin') || role.includes('administrador');
+    };
+
+    members = (members || []).filter(m => !isAdminMember(m));
 
     const filteredTasks = this.isManager
       ? (

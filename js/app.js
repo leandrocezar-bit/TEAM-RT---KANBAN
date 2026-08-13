@@ -2,16 +2,16 @@
  * Controladora Principal do Aplicativo Kanban de Equipe (App Core Controller)
  */
 
-import { DB } from './db.js';
-import { TimerEngine } from './timer.js';
-import { KanbanEngine } from './kanban.js';
-import { ManagerEngine } from './manager.js';
-import { MapEngine } from './map.js';
-import { SettingsEngine } from './settings.js';
-import { ProjectsEngine } from './projects.js?v=2';
-import { UndoEngine } from './undo.js';
-import { ChatEngine } from './chat.js';
-import { AIEngine } from './ai.js';
+import { DB } from './db.js?v=31';
+import { TimerEngine } from './timer.js?v=31';
+import { KanbanEngine } from './kanban.js?v=31';
+import { ManagerEngine } from './manager.js?v=31';
+import { MapEngine } from './map.js?v=31';
+import { SettingsEngine } from './settings.js?v=31';
+import { ProjectsEngine } from './projects.js?v=31';
+import { UndoEngine } from './undo.js?v=31';
+import { ChatEngine } from './chat.js?v=31';
+import { AIEngine } from './ai.js?v=31';
 
 document.addEventListener('DOMContentLoaded', async () => {
 
@@ -27,7 +27,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   const formLogin = document.getElementById('form-login');
 
   function isManager() {
-    return localStorage.getItem('logged_access_level') === 'gestor';
+    const level = localStorage.getItem('logged_access_level');
+    return level === 'gestor' || level === 'admin';
+  }
+
+  function isAdmin() {
+    return localStorage.getItem('logged_access_level') === 'admin';
   }
 
   function getLoggedMemberId() {
@@ -36,6 +41,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function checkAuthentication() {
     const isAuth = localStorage.getItem('app_authenticated');
+    const btnViewAdmin = document.getElementById('btn-view-admin');
 
     if (isAuth === 'true') {
       if (loginOverlay) {
@@ -46,14 +52,46 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (loggedId && !isManager()) {
         currentMemberFilter = loggedId;
       }
-      // Inicia a escuta de chat em segundo plano em qualquer aba
+
+      if (btnViewAdmin) {
+        btnViewAdmin.style.display = isAdmin() ? 'inline-flex' : 'none';
+      }
+
+      // Inicia a escuta de chat em segundo plano e escuta de eventos admin
       ChatEngine.startAutoSync();
+      setupAdminRealtimeListener();
     } else {
       if (loginOverlay) {
         loginOverlay.classList.add('active');
         loginOverlay.style.display = 'flex';
       }
+      if (btnViewAdmin) {
+        btnViewAdmin.style.display = 'none';
+      }
     }
+  }
+
+  function setupAdminRealtimeListener() {
+    if (!DB.supabase) return;
+    if (window.adminRealtimeChannel) return;
+
+    window.adminRealtimeChannel = DB.supabase
+      .channel('system_admin_events')
+      .on('broadcast', { event: 'FORCE_LOGOUT_ALL' }, (payload) => {
+        console.log('🔴 Broadcast de Deslogamento em Tempo Real recebido:', payload);
+        const loggedId = getLoggedMemberId();
+        const level = localStorage.getItem('logged_access_level');
+
+        if (level !== 'admin' && String(payload.payload?.adminId) !== String(loggedId)) {
+          localStorage.removeItem('app_authenticated');
+          localStorage.removeItem('logged_member_id');
+          localStorage.removeItem('logged_access_level');
+
+          checkAuthentication();
+          showToast(`⚠️ Sua sessão foi encerrada pelo Administrador (${payload.payload?.adminName || 'Admin'}).`, 'warning');
+        }
+      })
+      .subscribe();
   }
 
   // ============================================================
@@ -93,76 +131,149 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
   }
 
+  // ============================================================
+  // GERENCIADOR DE TEMAS (ESCURO / CLARO NA TELA DE LOGIN)
+  // ============================================================
+  function applyAppTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    document.body.setAttribute('data-theme', theme);
+    localStorage.setItem('app_theme', theme);
+
+    const isLight = theme === 'light';
+
+    // Atualiza botão da tela de login
+    const themeIconLogin = document.getElementById('theme-toggle-icon');
+    const themeLabelLogin = document.getElementById('theme-toggle-label');
+    if (themeIconLogin) themeIconLogin.textContent = isLight ? '☀️' : '🌙';
+    if (themeLabelLogin) themeLabelLogin.textContent = isLight ? 'Modo Claro' : 'Modo Escuro';
+
+    // Atualiza visual da tela de login se ela existir
+    const loginOverlay = document.getElementById('login-overlay');
+    if (loginOverlay) {
+      loginOverlay.style.background = isLight
+        ? 'linear-gradient(180deg, #f8fafc 0%, #cbd5e1 100%)'
+        : 'linear-gradient(180deg, #1a1a1a 0%, #0d0d0d 100%)';
+    }
+  }
+
+  function toggleCurrentTheme() {
+    const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+    const nextTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    applyAppTheme(nextTheme);
+  }
+
+  // Inicializa tema salvo
+  const savedTheme = localStorage.getItem('app_theme') || 'dark';
+  applyAppTheme(savedTheme);
+
+  const btnThemeLogin = document.getElementById('btn-toggle-theme-login');
+  if (btnThemeLogin) btnThemeLogin.addEventListener('click', toggleCurrentTheme);
+
+  const btnTogglePass = document.getElementById('btn-toggle-passcode');
+  const inputPasscode = document.getElementById('input-passcode');
+  if (btnTogglePass && inputPasscode) {
+    btnTogglePass.addEventListener('click', () => {
+      const isPass = inputPasscode.type === 'password';
+      inputPasscode.type = isPass ? 'text' : 'password';
+    });
+  }
+
   if (formLogin) {
     formLogin.addEventListener('submit', async (e) => {
       e.preventDefault();
 
-      const inputEmail = document.getElementById('input-login-user').value.trim().toLowerCase();
+      const inputUser = document.getElementById('input-login-user').value.trim().toLowerCase();
       const inputPassword = document.getElementById('input-passcode').value.trim();
 
-      if (!inputEmail || !inputPassword) {
-        showToast('Informe e-mail e senha para entrar.', 'warning');
+      if (!inputUser || !inputPassword) {
+        showToast('Informe usuário/e-mail e senha para entrar.', 'warning');
         return;
       }
 
-      const members = (await DB.getAll('members')) || [];
+      // Busca a lista atualizada de colaboradores na tabela 'members' do Supabase
+      const members = (await DB.getAll('members', { forceRefresh: true })) || [];
 
-      // Busca membro no Supabase por e-mail ou nome
+      // Procura o colaborador por e-mail, nome completo ou primeiro nome
       let matchedMember = members.find((m) => {
         const memEmail = m.email ? String(m.email).trim().toLowerCase() : '';
         const memName = m.name ? String(m.name).trim().toLowerCase() : '';
         const firstName = memName.split(' ')[0].toLowerCase();
-        return memEmail === inputEmail || memName === inputEmail || firstName === inputEmail || (memEmail && inputEmail.includes(memEmail));
+        return (
+          memEmail === inputUser ||
+          memName === inputUser ||
+          firstName === inputUser ||
+          (memEmail && inputUser.includes(memEmail))
+        );
       });
 
-      // Se não existir no Supabase, cadastra o novo usuário como Gestor
+      // 1. REGRA DE SEGURANÇA: Só entra quem está cadastrado na tabela 'members'
       if (!matchedMember) {
-        const rawName = inputEmail.includes('@') ? inputEmail.split('@')[0] : inputEmail;
-        const formattedName = rawName.replace('.', ' ').replace(/(^\w|\s\w)/g, m => m.toUpperCase());
+        showToast('❌ Acesso negado: Usuário não cadastrado na tabela de colaboradores.', 'warning');
+        return;
+      }
 
-        matchedMember = {
-          id: 'm-' + Date.now(),
-          name: formattedName,
-          email: inputEmail,
-          password: inputPassword,
-          accessLevel: 'gestor',
-          role: 'Gestor RT'
-        };
+      // 2. REGRA DE SEGURANÇA DE SENHA: A senha DEVE coincidir exatamente com a da tabela
+      const registeredPassword = matchedMember.password ? String(matchedMember.password).trim() : null;
 
+      if (registeredPassword) {
+        if (registeredPassword !== inputPassword) {
+          showToast('❌ Senha incorreta! Verifique sua senha de acesso.', 'warning');
+          return;
+        }
+      } else {
+        // Se o colaborador não possuía senha gravada na tabela, vincula a senha informada
+        matchedMember.password = inputPassword;
         try {
           await DB.save('members', matchedMember);
         } catch (err) {
-          console.warn('Membro salvo em memória:', err);
-        }
-      } else {
-        // Se já existe e a senha estava vazia, define a senha digitada
-        if (!matchedMember.password) {
-          matchedMember.password = inputPassword;
-          try {
-            await DB.save('members', matchedMember);
-          } catch (err) { }
+          console.warn('Erro ao registrar senha do colaborador:', err);
         }
       }
 
-      const accessLevel = matchedMember.accessLevel === 'colaborador' ? 'colaborador' : 'gestor';
+      let accessLevel = 'colaborador';
+      if (matchedMember.accessLevel === 'admin' || (matchedMember.role && matchedMember.role.toLowerCase().includes('admin')) || matchedMember.name.toLowerCase().includes('admin')) {
+        accessLevel = 'admin';
+      } else if (matchedMember.accessLevel === 'gestor' || (matchedMember.role && matchedMember.role.toLowerCase().includes('gestor'))) {
+        accessLevel = 'gestor';
+      }
 
       localStorage.setItem('app_authenticated', 'true');
       localStorage.setItem('logged_member_id', matchedMember.id);
       localStorage.setItem('logged_access_level', accessLevel);
+      localStorage.setItem('logged_member_name', matchedMember.name);
 
-      currentMemberFilter = accessLevel === 'gestor' ? 'all' : matchedMember.id;
+      currentMemberFilter = (accessLevel === 'gestor' || accessLevel === 'admin') ? 'all' : matchedMember.id;
       activeView = 'kanban';
 
       checkAuthentication();
       setupRealtimeNotifications();
-      showToast(`Bem-vindo, ${matchedMember.name}!`, 'success');
+      showToast(`Bem-vindo(a), ${matchedMember.name}!`, 'success');
       await refreshUI();
+    });
+  }
+
+  const btnProfileMenu = document.getElementById('btn-user-profile-menu');
+  const userProfileDropdown = document.getElementById('user-profile-dropdown');
+
+  if (btnProfileMenu && userProfileDropdown) {
+    btnProfileMenu.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isVisible = userProfileDropdown.style.display === 'block';
+      userProfileDropdown.style.display = isVisible ? 'none' : 'block';
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!userProfileDropdown.contains(e.target) && !btnProfileMenu.contains(e.target)) {
+        userProfileDropdown.style.display = 'none';
+      }
     });
   }
 
   const btnLogout = document.getElementById('btn-logout');
   if (btnLogout) {
     btnLogout.addEventListener('click', () => {
+      if (userProfileDropdown) userProfileDropdown.style.display = 'none';
+
       if (window.activeNotificationChannel && DB.supabase) {
         DB.supabase.removeChannel(window.activeNotificationChannel);
       }
@@ -341,14 +452,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     [sectionKanban, sectionManager, sectionMap, sectionSettings, sectionProjects, sectionChat, sectionAI].forEach(sec => {
-      if (sec) sec.classList.remove('active');
+      if (sec) {
+        sec.classList.remove('active');
+        sec.style.display = 'none';
+      }
     });
 
     await renderMemberTabs();
     await renderTopNotificationBar();
 
     if (activeView === 'kanban') {
-      if (sectionKanban) sectionKanban.classList.add('active');
+      if (sectionKanban) { sectionKanban.classList.add('active'); sectionKanban.style.display = 'block'; }
       if (btnViewKanban) {
         btnViewKanban.classList.add('btn-primary');
         btnViewKanban.classList.remove('btn-secondary');
@@ -359,7 +473,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         onOpenTaskDetails: openTaskDetailsModal,
       });
     } else if (activeView === 'manager') {
-      if (sectionManager) sectionManager.classList.add('active');
+      if (sectionManager) { sectionManager.classList.add('active'); sectionManager.style.display = 'block'; }
       if (btnViewManager) {
         btnViewManager.classList.add('btn-primary');
         btnViewManager.classList.remove('btn-secondary');
@@ -370,14 +484,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         openCalendarDayModal
       );
     } else if (activeView === 'map') {
-      if (sectionMap) sectionMap.classList.add('active');
+      if (sectionMap) { sectionMap.classList.add('active'); sectionMap.style.display = 'block'; }
       if (btnViewMap) {
         btnViewMap.classList.add('btn-primary');
         btnViewMap.classList.remove('btn-secondary');
       }
       await MapEngine.renderSectorMap(currentMemberFilter);
     } else if (activeView === 'settings') {
-      if (sectionSettings) sectionSettings.classList.add('active');
+      if (sectionSettings) { sectionSettings.classList.add('active'); sectionSettings.style.display = 'block'; }
       if (btnViewSettings) {
         btnViewSettings.classList.add('btn-primary');
         btnViewSettings.classList.remove('btn-secondary');
@@ -387,21 +501,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         memberId: loggedId,
       });
     } else if (activeView === 'projects') {
-      if (sectionProjects) sectionProjects.classList.add('active');
+      if (sectionProjects) { sectionProjects.classList.add('active'); sectionProjects.style.display = 'block'; }
       if (btnViewProjects) {
         btnViewProjects.classList.add('btn-primary');
         btnViewProjects.classList.remove('btn-secondary');
       }
       await ProjectsEngine.renderProjectsSection(showToast, refreshUI);
     } else if (activeView === 'chat') {
-      if (sectionChat) sectionChat.classList.add('active');
+      if (sectionChat) { sectionChat.classList.add('active'); sectionChat.style.display = 'block'; }
       if (btnViewChat) {
         btnViewChat.classList.add('btn-primary');
         btnViewChat.classList.remove('btn-secondary');
       }
       await ChatEngine.renderChatSection();
     } else if (activeView === 'ai') {
-      if (sectionAI) sectionAI.classList.add('active');
+      if (sectionAI) { sectionAI.classList.add('active'); sectionAI.style.display = 'block'; }
       if (btnViewAI) {
         btnViewAI.classList.add('btn-primary');
         btnViewAI.classList.remove('btn-secondary');
@@ -580,12 +694,22 @@ document.addEventListener('DOMContentLoaded', async () => {
   // SELECTS E RENDERIZAÇÃO DE EQUIPE/GRUPO DE MEMBROS
   // ============================================================
 
+  function isAdminMember(m) {
+    if (!m) return false;
+    const id = String(m.id || '').toLowerCase();
+    const name = String(m.name || '').toLowerCase();
+    const email = String(m.email || '').toLowerCase();
+    const role = String(m.role || '').toLowerCase();
+    const level = String(m.accessLevel || '').toLowerCase();
+    return level === 'admin' || id === 'm-admin' || id === 'admin' || name.includes('admin') || email.includes('admin') || role.includes('administrador');
+  }
+
   async function renderTeamMembersCheckboxes(selectedMemberId, selectedTeamMemberIds = []) {
     const container = document.getElementById('task-team-members-container');
     if (!container) return;
 
-    const members = (await DB.getAll('members')) || [];
-    const otherMembers = members.filter((m) => String(m.id) !== String(selectedMemberId));
+    const allMembers = (await DB.getAll('members')) || [];
+    const otherMembers = allMembers.filter((m) => String(m.id) !== String(selectedMemberId) && !isAdminMember(m));
 
     if (otherMembers.length === 0) {
       container.innerHTML = `<span style="font-size: 0.75rem; color: var(--text-dim);">Nenhum outro integrante disponível.</span>`;
@@ -622,13 +746,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const absences = window.cachedAbsences || (await DB.getAll('member_absences')) || [];
     const members = (await DB.getAll('members')) || [];
-    const member = members.find((m) => String(m.id) === String(memberId));
 
     const activeAbsence = absences.find(
-      (a) => String(a.memberId) === String(memberId) && a.startDate <= dateStr && a.endDate >= dateStr
+      (a) =>
+        String(a.memberId || a.member_id) === String(memberId) &&
+        a.startDate <= dateStr &&
+        a.endDate >= dateStr
     );
 
     if (activeAbsence) {
+      const member = members.find((m) => String(m.id) === String(memberId));
       const typeLabels = {
         home_office: '🏡 Home Office',
         ferias: '🏝️ Férias',
@@ -661,7 +788,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const manager = isManager();
     const loggedId = getLoggedMemberId();
-    const members = (await DB.getAll('members')) || [];
+    const allMembers = (await DB.getAll('members')) || [];
+    const members = window.sortMembersByCustomOrder(allMembers.filter(m => !isAdminMember(m)));
 
     select.innerHTML = members
       .map(
@@ -696,7 +824,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     container.style.display = 'flex';
-    const members = (await DB.getAll('members')) || [];
+    const allMembers = (await DB.getAll('members')) || [];
+    const members = window.sortMembersByCustomOrder(allMembers.filter(m => !isAdminMember(m)));
 
     let html = `
       <button class="tab-btn ${currentMemberFilter === 'all' ? 'active' : ''}" data-id="all">
@@ -1568,6 +1697,305 @@ document.addEventListener('DOMContentLoaded', async () => {
   UndoEngine.initKeyboardShortcut(refreshUI, showToast);
 
   window.openTaskDetailsModal = openTaskDetailsModal;
+
+  // ============================================================
+  // PAINEL DE CONTROLE ADMINISTRATIVO (ADMIN ENGINE)
+  // ============================================================
+  const btnViewAdmin = document.getElementById('btn-view-admin');
+  const modalAdminControl = document.getElementById('modal-admin-control');
+  const btnCloseAdminModal = document.getElementById('btn-close-admin-modal');
+  const btnAdminModalCloseFoot = document.getElementById('btn-admin-modal-close-foot');
+  const btnAdminForceLogoutAll = document.getElementById('btn-admin-force-logout-all');
+  const chkAdminMaintenanceMode = document.getElementById('chk-admin-maintenance-mode');
+  const btnAdminPurgeOldTasks = document.getElementById('btn-admin-purge-old-tasks');
+  const adminMembersTableContainer = document.getElementById('admin-members-table-container');
+  const adminAuditLogsContainer = document.getElementById('admin-audit-logs-container');
+
+  let adminAuditLogs = JSON.parse(localStorage.getItem('admin_audit_logs') || '[]');
+
+  function addAuditLog(action, details) {
+    const logEntry = {
+      timestamp: new Date().toLocaleString('pt-BR'),
+      admin: localStorage.getItem('logged_member_name') || 'Admin',
+      action,
+      details
+    };
+    adminAuditLogs.unshift(logEntry);
+    if (adminAuditLogs.length > 100) adminAuditLogs.pop();
+    localStorage.setItem('admin_audit_logs', JSON.stringify(adminAuditLogs));
+  }
+
+  function renderAuditLogs() {
+    if (!adminAuditLogsContainer) return;
+    if (adminAuditLogs.length === 0) {
+      adminAuditLogsContainer.innerHTML = '<div style="color:var(--text-muted); padding:0.5rem;">Nenhum log registrado ainda.</div>';
+      return;
+    }
+    adminAuditLogsContainer.innerHTML = adminAuditLogs.map(log => `
+      <div style="padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
+        <span style="color:#6366f1;">[${log.timestamp}]</span>
+        <strong style="color:#f59e0b;"> ${log.admin}:</strong>
+        <span style="color:#10b981;"> ${log.action}</span> -
+        <span style="color:#94a3b8;">${log.details}</span>
+      </div>
+    `).join('');
+  }
+
+  window.getMemberOrderMap = function() {
+    try {
+      return JSON.parse(localStorage.getItem('team_members_order_map') || '{}');
+    } catch (e) {
+      return {};
+    }
+  };
+
+  window.saveMemberOrderMap = function(orderMap) {
+    try {
+      localStorage.setItem('team_members_order_map', JSON.stringify(orderMap));
+    } catch (e) {}
+  };
+
+  window.sortMembersByCustomOrder = function(membersList) {
+    const orderMap = window.getMemberOrderMap();
+    return (membersList || []).sort((a, b) => {
+      const orderA = orderMap[String(a.id)] !== undefined ? orderMap[String(a.id)] : (a.order ?? 999);
+      const orderB = orderMap[String(b.id)] !== undefined ? orderMap[String(b.id)] : (b.order ?? 999);
+      return Number(orderA) - Number(orderB);
+    });
+  };
+
+  async function renderAdminMembersTable() {
+    if (!adminMembersTableContainer) return;
+    adminMembersTableContainer.innerHTML = '<div style="padding:1rem; text-align:center;">Carregando colaboradores...</div>';
+
+    const rawMembers = (await DB.getAll('members', { forceRefresh: true })) || [];
+
+    if (rawMembers.length === 0) {
+      adminMembersTableContainer.innerHTML = '<div style="padding:1rem; text-align:center;">Nenhum colaborador encontrado.</div>';
+      return;
+    }
+
+    // Ordena os membros pela ordem salva no mapa customizado
+    const members = window.sortMembersByCustomOrder(rawMembers);
+
+    let html = `
+      <table style="width:100%; border-collapse:collapse; font-size:0.825rem; text-align:left;">
+        <thead>
+          <tr style="background:rgba(15,23,42,0.9); border-bottom:1px solid var(--border-color); color:var(--text-muted);">
+            <th style="padding:0.6rem 0.75rem; text-align:center; width:90px;">Ordem</th>
+            <th style="padding:0.6rem 0.75rem;">Nome</th>
+            <th style="padding:0.6rem 0.75rem;">Função</th>
+            <th style="padding:0.6rem 0.75rem;">Permissão</th>
+            <th style="padding:0.6rem 0.75rem;">Nova Senha</th>
+            <th style="padding:0.6rem 0.75rem; text-align:right;">Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+    `;
+
+    members.forEach((m, idx) => {
+      const currentLevel = m.accessLevel || (m.role && m.role.toLowerCase().includes('gestor') ? 'gestor' : 'colaborador');
+      const isFirst = idx === 0;
+      const isLast = idx === members.length - 1;
+
+      html += `
+        <tr style="border-bottom:1px solid var(--border-color);" data-id="${m.id}" data-index="${idx}">
+          <td style="padding:0.6rem 0.75rem; text-align:center; white-space:nowrap;">
+            <button type="button" class="btn btn-secondary btn-sm admin-move-up" data-id="${m.id}" data-index="${idx}" ${isFirst ? 'disabled style="opacity:0.3; cursor:not-allowed; padding:2px 6px;"' : 'style="padding:2px 6px; cursor:pointer;"'} title="Mover para cima na lista do gestor">
+              ▲
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm admin-move-down" data-id="${m.id}" data-index="${idx}" ${isLast ? 'disabled style="opacity:0.3; cursor:not-allowed; padding:2px 6px;"' : 'style="padding:2px 6px; cursor:pointer;"'} title="Mover para baixo na lista do gestor">
+              ▼
+            </button>
+          </td>
+          <td style="padding:0.6rem 0.75rem; font-weight:700;">${m.name}</td>
+          <td style="padding:0.6rem 0.75rem; color:var(--text-muted);">${m.role || 'Colaborador'}</td>
+          <td style="padding:0.6rem 0.75rem;">
+            <select class="admin-change-level" data-id="${m.id}" style="background:rgba(15,23,42,0.8); color:var(--text-main); border:1px solid var(--border-color); border-radius:6px; padding:2px 6px; font-size:0.8rem;">
+              <option value="colaborador" ${currentLevel === 'colaborador' ? 'selected' : ''}>Colaborador</option>
+              <option value="gestor" ${currentLevel === 'gestor' ? 'selected' : ''}>Gestor</option>
+              <option value="admin" ${currentLevel === 'admin' ? 'selected' : ''}>Administrador</option>
+            </select>
+          </td>
+          <td style="padding:0.6rem 0.75rem;">
+            <input type="text" class="admin-new-pass-input" data-id="${m.id}" placeholder="Definir senha..." value="${m.password || ''}" style="width:120px; background:rgba(15,23,42,0.8); color:var(--text-main); border:1px solid var(--border-color); border-radius:6px; padding:2px 6px; font-size:0.8rem;">
+          </td>
+          <td style="padding:0.6rem 0.75rem; text-align:right;">
+            <button type="button" class="btn btn-sm btn-primary admin-save-member-btn" data-id="${m.id}" style="padding:3px 8px; font-size:0.75rem;">
+              💾 Salvar
+            </button>
+          </td>
+        </tr>
+      `;
+    });
+
+    html += `</tbody></table>`;
+    adminMembersTableContainer.innerHTML = html;
+
+    // Listener para Mover Para Cima (▲)
+    adminMembersTableContainer.querySelectorAll('.admin-move-up').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        const idx = parseInt(e.currentTarget.getAttribute('data-index'), 10);
+        if (isNaN(idx) || idx <= 0) return;
+
+        const temp = members[idx];
+        members[idx] = members[idx - 1];
+        members[idx - 1] = temp;
+
+        const orderMap = window.getMemberOrderMap();
+        for (let i = 0; i < members.length; i++) {
+          members[i].order = i + 1;
+          orderMap[String(members[i].id)] = i + 1;
+          DB.save('members', members[i]).catch(() => {});
+        }
+        window.saveMemberOrderMap(orderMap);
+
+        addAuditLog('Reordenação da Equipe', `Membro ${temp.name} movido para a posição ${idx}`);
+        showToast(`📍 Nova ordem dos membros salva!`, 'success');
+
+        await renderAdminMembersTable();
+        await refreshUI();
+      });
+    });
+
+    // Listener para Mover Para Baixo (▼)
+    adminMembersTableContainer.querySelectorAll('.admin-move-down').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        const idx = parseInt(e.currentTarget.getAttribute('data-index'), 10);
+        if (isNaN(idx) || idx >= members.length - 1) return;
+
+        const temp = members[idx];
+        members[idx] = members[idx + 1];
+        members[idx + 1] = temp;
+
+        const orderMap = window.getMemberOrderMap();
+        for (let i = 0; i < members.length; i++) {
+          members[i].order = i + 1;
+          orderMap[String(members[i].id)] = i + 1;
+          DB.save('members', members[i]).catch(() => {});
+        }
+        window.saveMemberOrderMap(orderMap);
+
+        addAuditLog('Reordenação da Equipe', `Membro ${temp.name} movido para a posição ${idx + 2}`);
+        showToast(`📍 Nova ordem dos membros salva!`, 'success');
+
+        await renderAdminMembersTable();
+        await refreshUI();
+      });
+    });
+
+    adminMembersTableContainer.querySelectorAll('.admin-save-member-btn').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        const memberId = e.currentTarget.getAttribute('data-id');
+        const row = e.currentTarget.closest('tr');
+        const newPass = row.querySelector('.admin-new-pass-input').value.trim();
+        const newLevel = row.querySelector('.admin-change-level').value;
+
+        const targetMember = members.find(m => String(m.id) === String(memberId));
+        if (targetMember) {
+          targetMember.password = newPass;
+          targetMember.accessLevel = newLevel;
+
+          await DB.save('members', targetMember);
+          addAuditLog('Alteração de Colaborador', `Atualizada senha/permissão de ${targetMember.name} (Nível: ${newLevel})`);
+          showToast(`✅ Permissões de ${targetMember.name} atualizadas com sucesso!`, 'success');
+          await refreshUI();
+        }
+      });
+    });
+  }
+
+  document.querySelectorAll('.admin-tab-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      document.querySelectorAll('.admin-tab-btn').forEach(b => {
+        b.classList.remove('active', 'btn-primary');
+        b.classList.add('btn-secondary');
+      });
+      document.querySelectorAll('.admin-tab-content').forEach(c => c.style.display = 'none');
+
+      const targetTab = e.currentTarget.getAttribute('data-tab');
+      e.currentTarget.classList.add('active', 'btn-primary');
+      e.currentTarget.classList.remove('btn-secondary');
+
+      const activeContent = document.getElementById(targetTab);
+      if (activeContent) activeContent.style.display = 'block';
+
+      if (targetTab === 'admin-tab-members') renderAdminMembersTable();
+      if (targetTab === 'admin-tab-logs') renderAuditLogs();
+    });
+  });
+
+  if (btnAdminForceLogoutAll) {
+    btnAdminForceLogoutAll.addEventListener('click', async () => {
+      if (!confirm('🚨 ATENÇÃO: Deseja realmente DESLOGAR TODOS os colaboradores conectados no sistema agora?')) {
+        return;
+      }
+
+      if (DB.supabase) {
+        const channel = DB.supabase.channel('system_admin_events');
+        await channel.subscribe();
+        await channel.send({
+          type: 'broadcast',
+          event: 'FORCE_LOGOUT_ALL',
+          payload: {
+            adminId: getLoggedMemberId(),
+            adminName: localStorage.getItem('logged_member_name') || 'Administrador',
+            timestamp: Date.now()
+          }
+        });
+      }
+
+      addAuditLog('Deslogamento Global', 'Disparado encerramento forçado de todas as sessões ativas no sistema.');
+      showToast('🔴 Sinal de deslogamento global enviado a todas as conexões!', 'warning');
+    });
+  }
+
+  if (chkAdminMaintenanceMode) {
+    const isMaintenance = localStorage.getItem('admin_maintenance_mode') === 'true';
+    chkAdminMaintenanceMode.checked = isMaintenance;
+
+    chkAdminMaintenanceMode.addEventListener('change', async (e) => {
+      const active = e.target.checked;
+      localStorage.setItem('admin_maintenance_mode', active ? 'true' : 'false');
+      addAuditLog('Modo Manutenção', active ? 'Ativado Modo Manutenção (Read-Only)' : 'Desativado Modo Manutenção');
+      showToast(active ? '🚧 Modo Manutenção Ativado!' : '✅ Modo Manutenção Desativado!', active ? 'warning' : 'success');
+    });
+  }
+
+  if (btnAdminPurgeOldTasks) {
+    btnAdminPurgeOldTasks.addEventListener('click', async () => {
+      if (!confirm('Deseja remover da coluna "Concluído" todas as tarefas finalizadas há mais de 30 dias?')) {
+        return;
+      }
+
+      const tasks = (await DB.getAll('tasks')) || [];
+      const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
+      let count = 0;
+
+      for (const t of tasks) {
+        if (t.status === 'done') {
+          const finishedTime = t.updatedAt ? new Date(t.updatedAt).getTime() : 0;
+          if (finishedTime > 0 && finishedTime < thirtyDaysAgo) {
+            await DB.delete('tasks', t.id);
+            count++;
+          }
+        }
+      }
+
+      addAuditLog('Limpeza em Massa', `Removidas ${count} tarefas antigas concluídas.`);
+      showToast(`🧹 Limpeza concluída: ${count} tarefas removidas!`, 'success');
+      await refreshUI();
+    });
+  }
+
+  if (btnViewAdmin) {
+    btnViewAdmin.addEventListener('click', () => {
+      openModal(modalAdminControl);
+    });
+  }
+
+  if (btnCloseAdminModal) btnCloseAdminModal.addEventListener('click', () => closeModal(modalAdminControl));
+  if (btnAdminModalCloseFoot) btnAdminModalCloseFoot.addEventListener('click', () => closeModal(modalAdminControl));
 
   await refreshUI();
 });

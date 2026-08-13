@@ -847,4 +847,61 @@ body {
   font-weight: 700;
 }
 
+/* ==========================================================================
+   MODO CLARO (KANBAN HIGH CONTRAST)
+   ========================================================================== */
+
+[data-theme="light"] .kanban-column {
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05) !important;
+}
+
+[data-theme="light"] .kanban-column-header {
+  border-bottom: 2px solid #e2e8f0 !important;
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .kanban-card {
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #0f172a !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04) !important;
+}
+
+[data-theme="light"] .kanban-card:hover {
+  border-color: #4f46e5 !important;
+  box-shadow: 0 6px 16px rgba(79, 70, 229, 0.12) !important;
+}
+
+[data-theme="light"] .kanban-card-title {
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .kanban-card-desc {
+  color: #475569 !important;
+}
+
+[data-theme="light"] .btn-period-filter {
+  background: #ffffff;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+}
+
+[data-theme="light"] .btn-period-filter.active {
+  background: var(--accent-gradient) !important;
+  color: #ffffff !important;
+}
+
+[data-theme="light"] .btn-reorder {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+}
+
+[data-theme="light"] .btn-reorder:hover:not(:disabled) {
+  background: #4f46e5;
+  color: #ffffff;
+}
+
 

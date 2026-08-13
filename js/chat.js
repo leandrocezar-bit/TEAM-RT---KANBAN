@@ -190,11 +190,11 @@ export const ChatEngine = {
                  alt="${sender.name}" 
                  style="width: 28px; height: 28px; border-radius: 50%; object-fit: cover; flex-shrink: 0;">
             
-            <div style="max-width: 70%; background: ${isMe ? 'linear-gradient(135deg, #8b5cf6, #6366f1)' : 'var(--bg-input, #1f2937)'}; border: 1px solid ${isMe ? 'transparent' : 'var(--border-color, #374151)'}; border-radius: 12px; ${isMe ? 'border-bottom-right-radius: 2px;' : 'border-bottom-left-radius: 2px;'} padding: 0.6rem 0.85rem; color: #fff;">
-              ${!isMe ? `<div style="font-size: 0.7rem; font-weight: 700; color: #a5b4fc; margin-bottom: 0.2rem;">${sender.name}</div>` : ''}
+            <div style="max-width: 70%; background: ${isMe ? 'linear-gradient(135deg, #8b5cf6, #6366f1)' : 'var(--bg-card)'}; border: 1px solid ${isMe ? 'transparent' : 'var(--border-color)'}; border-radius: 12px; ${isMe ? 'border-bottom-right-radius: 2px;' : 'border-bottom-left-radius: 2px;'} padding: 0.6rem 0.85rem; color: ${isMe ? '#ffffff' : 'var(--text-main)'};">
+              ${!isMe ? `<div style="font-size: 0.7rem; font-weight: 700; color: #6366f1; margin-bottom: 0.2rem;">${sender.name}</div>` : ''}
               ${msg.content ? `<div style="font-size: 0.85rem; line-height: 1.4; word-break: break-word;">${msg.content}</div>` : ''}
               ${fileHtml}
-              <div style="font-size: 0.65rem; color: rgba(255,255,255,0.6); text-align: right; margin-top: 0.25rem;">${timeStr}</div>
+              <div style="font-size: 0.65rem; color: ${isMe ? 'rgba(255,255,255,0.7)' : 'var(--text-muted)'}; text-align: right; margin-top: 0.25rem;">${timeStr}</div>
             </div>
           </div>
         `;

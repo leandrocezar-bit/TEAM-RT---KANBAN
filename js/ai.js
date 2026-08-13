@@ -397,8 +397,8 @@ ${context}`;
 
         if (container) {
           const aiBubble = document.createElement('div');
-          aiBubble.style.cssText = 'background: var(--bg-card, #1f2937); border: 1px solid var(--border-color, #374151); color: #f3f4f6; padding: 0.85rem 1rem; border-radius: 10px; border-bottom-left-radius: 2px; margin-bottom: 0.75rem; max-width: 90%; word-break: break-word; font-size: 0.875rem; line-height: 1.6;';
-          aiBubble.innerHTML = `<div style="font-size: 0.75rem; font-weight: 700; color: #818cf8; margin-bottom: 0.35rem; display: flex; align-items: center; gap: 0.3rem;">🤖 Assistente IA</div>` + this.formatMarkdown(responseText);
+          aiBubble.style.cssText = 'background: var(--bg-card); border: 1px solid var(--border-color); color: var(--text-main); padding: 0.85rem 1rem; border-radius: 10px; border-bottom-left-radius: 2px; margin-bottom: 0.75rem; max-width: 90%; word-break: break-word; font-size: 0.875rem; line-height: 1.6;';
+          aiBubble.innerHTML = `<div style="font-size: 0.75rem; font-weight: 700; color: #6366f1; margin-bottom: 0.35rem; display: flex; align-items: center; gap: 0.3rem;">Assistente IA</div>` + this.formatMarkdown(responseText);
           container.appendChild(aiBubble);
           container.scrollTop = container.scrollHeight;
         }
@@ -427,7 +427,7 @@ ${context}`;
     const section = document.getElementById('section-ai');
     if (section) {
       section.classList.add('active');
-      section.style.setProperty('display', 'block', 'important');
+      section.style.display = 'block';
     }
     this.setupListeners();
   }

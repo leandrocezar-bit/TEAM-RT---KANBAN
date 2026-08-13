@@ -1891,6 +1891,18 @@ export const DB = {
     // ------------------------------------------------------
 
     const initialMembers = [
+      {
+        id: 'm-admin',
+        name: 'Administrador RT',
+        role: 'Gestor Geral & Administrador',
+        email: 'admin@rt.com.br',
+        accessLevel: 'admin',
+        photo: createAvatarSvg(
+          '#ef4444',
+          'AD'
+        ),
+        contact: '(11) 99999-9999'
+      },
 
       {
         id: 'm-1',
