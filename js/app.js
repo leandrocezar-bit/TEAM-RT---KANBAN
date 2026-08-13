@@ -46,6 +46,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (loggedId && !isManager()) {
         currentMemberFilter = loggedId;
       }
+      // Inicia a escuta de chat em segundo plano em qualquer aba
+      ChatEngine.startAutoSync();
     } else {
       if (loginOverlay) {
         loginOverlay.classList.add('active');
