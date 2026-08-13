@@ -1439,40 +1439,21 @@ export const DB = {
 
 
       if (error) {
-
-        console.error(
-          `[Supabase Save Error] ${storeName}:`,
-          error.message
-        );
-
-
+        if (error.code === '42501' || error.message?.includes('row-level security')) {
+          console.warn(`[Supabase RLS Alert] A tabela "${tableName}" está com RLS ativado no Supabase. Salvo em cache local. Para sincronizar na nuvem, rode no SQL Editor: ALTER TABLE ${tableName} DISABLE ROW LEVEL SECURITY;`);
+        } else {
+          console.error(`[Supabase Save Error] ${storeName}:`, error.message);
+        }
         throw error;
-
       }
 
-
-      const formatted =
-        this.toCamelCase(
-          data
-        );
-
-
-      this.upsertMemoryItem(
-        storeName,
-        formatted
-      );
-
-
+      const formatted = this.toCamelCase(data);
+      this.upsertMemoryItem(storeName, formatted);
       return formatted;
-
-    }
-
-    catch (err) {
-
-      console.warn(
-        `[Supabase Save Fallback] ${storeName}:`,
-        err
-      );
+    } catch (err) {
+      if (err.code !== '42501') {
+        console.warn(`[Supabase Save Fallback] ${storeName}:`, err.message || err);
+      }
 
 
       /*
