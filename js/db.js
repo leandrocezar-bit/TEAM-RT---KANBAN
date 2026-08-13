@@ -1118,10 +1118,6 @@ export const DB = {
      * SEMPRE consulta o Supabase.
      */
 
-    if (storeName === 'member_absences') {
-      return [...(memoryStore[storeName] || [])];
-    }
-
     try {
 
       const {
@@ -1292,126 +1288,34 @@ export const DB = {
   // SAVE
   // ========================================================
 
-  async save(
-    storeName,
-    item
-  ) {
+  mapStoreName(storeName) {
+    return storeName;
+  },
 
-    const tableName =
-      this.mapStoreName(
-        storeName
-      );
+  async save(storeName, item) {
+    const tableName = this.mapStoreName(storeName);
 
-
-    // ======================================================
-    // ACTIVITY TRANSFERS
-    // ======================================================
-
-    if (
-      storeName ===
-      'activity_transfers'
-    ) {
-
-      const dbItem =
-        this.prepareActivityTransfer(
-          item
-        );
-
-
-      /*
-       * IMPORTANTE:
-       *
-       * Não atualizamos o cache como confirmado
-       * antes do Supabase responder.
-       */
-
-
+    if (storeName === 'activity_transfers') {
+      const dbItem = this.toSnakeCase(item);
       try {
-
-        const {
-          data,
-          error
-        } = await supabase
-          .from(tableName)
-          .upsert(
-            dbItem,
-            {
-              onConflict: 'id'
-            }
-          )
+        const { data, error } = await supabase
+          .from('activity_transfers')
+          .upsert(dbItem)
           .select('*')
           .single();
 
-
         if (error) {
-
-          console.error(
-            '[Supabase Save Error] activity_transfers:',
-            error.message
-          );
-
-
-          /*
-           * Retorna erro explícito.
-           */
-
-          throw error;
-
+          console.warn('[Supabase Save Error] activity_transfers:', error.message);
+          return null;
         }
 
-
-        const formatted =
-          this.formatActivityTransfer(
-            data
-          );
-
-
-        /*
-         * Só agora o cache é atualizado.
-         */
-
-        this.upsertMemoryItem(
-          storeName,
-          formatted
-        );
-
-
-        this.dispatchDatabaseEvent(
-          'activity_transfer_saved',
-          formatted
-        );
-
-
+        const formatted = this.formatActivityTransfer(data);
+        this.upsertMemoryItem('activity_transfers', formatted);
         return formatted;
-
-      }
-
-      catch (err) {
-
-        console.error(
-          '[Supabase Save Exception] activity_transfers:',
-          err
-        );
-
-
-        /*
-         * NÃO fingir que salvou.
-         */
-
+      } catch (err) {
+        console.warn('[Supabase Save Exception] activity_transfers:', err);
         return null;
-
       }
-
-    }
-
-
-    // ======================================================
-    // OUTRAS TABELAS
-    // ======================================================
-
-    if (storeName === 'member_absences') {
-      this.upsertMemoryItem(storeName, item);
-      return item;
     }
 
     const dbItem = this.toSnakeCase(item);
@@ -1424,6 +1328,7 @@ export const DB = {
         .single();
 
       if (error) {
+        console.warn(`[Supabase Save Fallback] ${storeName}:`, error.message);
         this.upsertMemoryItem(storeName, item);
         return item;
       }
@@ -1432,6 +1337,7 @@ export const DB = {
       this.upsertMemoryItem(storeName, formatted);
       return formatted;
     } catch (err) {
+      console.warn(`[Supabase Save Exception] ${storeName}:`, err);
       this.upsertMemoryItem(storeName, item);
       return item;
     }
