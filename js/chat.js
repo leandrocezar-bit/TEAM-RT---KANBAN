@@ -9,6 +9,8 @@ let pendingFileName = null;
 let chatPollingInterval = null;
 
 export const ChatEngine = {
+    isInitialized: false,
+
     /**
      * Renderiza a Seção do Chat da Equipe
      */
@@ -115,6 +117,87 @@ export const ChatEngine = {
         }
 
         this.isInitialized = true;
+    },
+
+    /**
+     * Sinal sonoro suave de notificação de nova mensagem no chat
+     */
+    playNotificationSound() {
+        try {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContext) return;
+            const ctx = new AudioContext();
+
+            // Tom 1: C5 (523.25Hz)
+            const osc1 = ctx.createOscillator();
+            const gain1 = ctx.createGain();
+            osc1.type = 'sine';
+            osc1.frequency.setValueAtTime(523.25, ctx.currentTime);
+            gain1.gain.setValueAtTime(0.12, ctx.currentTime);
+            gain1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+            osc1.connect(gain1);
+            gain1.connect(ctx.destination);
+            osc1.start(ctx.currentTime);
+            osc1.stop(ctx.currentTime + 0.12);
+
+            // Tom 2: G5 (783.99Hz) - Chime de notificação brilhante e cristalino
+            const osc2 = ctx.createOscillator();
+            const gain2 = ctx.createGain();
+            osc2.type = 'sine';
+            osc2.frequency.setValueAtTime(783.99, ctx.currentTime + 0.08);
+            gain2.gain.setValueAtTime(0.18, ctx.currentTime + 0.08);
+            gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+            osc2.connect(gain2);
+            gain2.connect(ctx.destination);
+            osc2.start(ctx.currentTime + 0.08);
+            osc2.stop(ctx.currentTime + 0.3);
+        } catch (e) {
+            console.warn('⚡ Não foi possível reproduzir áudio de notificação:', e);
+        }
+    },
+
+    /**
+     * Monta o HTML individual de cada mensagem
+     */
+    buildMessageHtml(msg, membersMap, loggedMemberId) {
+        const senderId = msg.sender_id || msg.senderId;
+        const isMe = String(senderId).trim() === String(loggedMemberId).trim();
+        const sender = membersMap.get(String(senderId)) || { name: 'Desconhecido', photo: '' };
+
+        const timeStr = (msg.created_at || msg.createdAt)
+            ? new Date(msg.created_at || msg.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+            : '';
+
+        let fileHtml = '';
+        if (msg.file_data || msg.fileData) {
+            const fileData = msg.file_data || msg.fileData;
+            const fileName = msg.file_name || msg.fileName || 'Arquivo Anexo';
+
+            if (fileData.startsWith('data:image/')) {
+                fileHtml = `<div style="margin-top: 0.5rem;"><img src="${fileData}" alt="${fileName}" style="max-width: 100%; max-height: 200px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2);"></div>`;
+            } else {
+                fileHtml = `
+                  <div style="margin-top: 0.5rem; background: rgba(0,0,0,0.2); padding: 0.4rem 0.6rem; border-radius: 6px; display: inline-flex; align-items: center; gap: 0.4rem;">
+                    📎 <a href="${fileData}" download="${fileName}" style="color: #60a5fa; text-decoration: underline; font-size: 0.8rem; word-break: break-all;">${fileName}</a>
+                  </div>
+                `;
+            }
+        }
+
+        return `
+          <div class="chat-msg-item" data-id="${msg.id}" style="display: flex; gap: 0.6rem; align-items: flex-end; ${isMe ? 'flex-direction: row-reverse;' : ''}">
+            <img src="${sender.photo || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(sender.name)}" 
+                 alt="${sender.name}" 
+                 style="width: 28px; height: 28px; border-radius: 50%; object-fit: cover; flex-shrink: 0;">
+            
+            <div style="max-width: 70%; background: ${isMe ? 'linear-gradient(135deg, #8b5cf6, #6366f1)' : 'var(--bg-input, #1f2937)'}; border: 1px solid ${isMe ? 'transparent' : 'var(--border-color, #374151)'}; border-radius: 12px; ${isMe ? 'border-bottom-right-radius: 2px;' : 'border-bottom-left-radius: 2px;'} padding: 0.6rem 0.85rem; color: #fff;">
+              ${!isMe ? `<div style="font-size: 0.7rem; font-weight: 700; color: #a5b4fc; margin-bottom: 0.2rem;">${sender.name}</div>` : ''}
+              ${msg.content ? `<div style="font-size: 0.85rem; line-height: 1.4; word-break: break-word;">${msg.content}</div>` : ''}
+              ${fileHtml}
+              <div style="font-size: 0.65rem; color: rgba(255,255,255,0.6); text-align: right; margin-top: 0.25rem;">${timeStr}</div>
+            </div>
+          </div>
+        `;
     },
 
     /**
