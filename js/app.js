@@ -2,16 +2,16 @@
  * Controladora Principal do Aplicativo Kanban de Equipe (App Core Controller)
  */
 
-import { DB } from './db.js?v=31';
-import { TimerEngine } from './timer.js?v=31';
-import { KanbanEngine } from './kanban.js?v=31';
-import { ManagerEngine } from './manager.js?v=31';
-import { MapEngine } from './map.js?v=31';
-import { SettingsEngine } from './settings.js?v=31';
-import { ProjectsEngine } from './projects.js?v=31';
-import { UndoEngine } from './undo.js?v=31';
-import { ChatEngine } from './chat.js?v=31';
-import { AIEngine } from './ai.js?v=31';
+import { DB } from './db.js?v=32';
+import { TimerEngine } from './timer.js?v=32';
+import { KanbanEngine } from './kanban.js?v=32';
+import { ManagerEngine } from './manager.js?v=32';
+import { MapEngine } from './map.js?v=32';
+import { SettingsEngine } from './settings.js?v=32';
+import { ProjectsEngine } from './projects.js?v=32';
+import { UndoEngine } from './undo.js?v=32';
+import { ChatEngine } from './chat.js?v=32';
+import { AIEngine } from './ai.js?v=32';
 
 document.addEventListener('DOMContentLoaded', async () => {
 
