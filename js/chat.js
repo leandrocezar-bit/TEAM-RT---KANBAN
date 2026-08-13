@@ -63,6 +63,7 @@ export const ChatEngine = {
         const notice = document.getElementById('no-messages-notice');
 
         let hasNewMessages = false;
+        let isIncomingFromOther = false;
 
         // Insere apenas as mensagens que AINDA NÃO ESTÃO no container da tela
         messages.forEach(msg => {
@@ -72,12 +73,61 @@ export const ChatEngine = {
                 const msgHtml = this.buildMessageHtml(msg, membersMap, loggedMemberId);
                 container.insertAdjacentHTML('beforeend', msgHtml);
                 hasNewMessages = true;
+
+                const senderId = msg.sender_id || msg.senderId;
+                if (loggedMemberId && String(senderId).trim() !== String(loggedMemberId).trim()) {
+                    isIncomingFromOther = true;
+                }
             }
         });
 
-        // Se chegaram mensagens novas, rola automaticamente para o final
+        // Se chegaram mensagens novas, rola para o final
         if (hasNewMessages) {
             container.scrollTop = container.scrollHeight;
+
+            // Se for mensagem vinda de outro membro e não for a primeira carga inicial da tela, toca o sinal sonoro
+            if (isIncomingFromOther && this.isInitialized) {
+                this.playNotificationSound();
+            }
+        }
+
+        this.isInitialized = true;
+    },
+
+    /**
+     * Sinal sonoro suave de notificação de nova mensagem no chat
+     */
+    playNotificationSound() {
+        try {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContext) return;
+            const ctx = new AudioContext();
+
+            // Tom 1: C5 (523.25Hz)
+            const osc1 = ctx.createOscillator();
+            const gain1 = ctx.createGain();
+            osc1.type = 'sine';
+            osc1.frequency.setValueAtTime(523.25, ctx.currentTime);
+            gain1.gain.setValueAtTime(0.12, ctx.currentTime);
+            gain1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+            osc1.connect(gain1);
+            gain1.connect(ctx.destination);
+            osc1.start(ctx.currentTime);
+            osc1.stop(ctx.currentTime + 0.12);
+
+            // Tom 2: G5 (783.99Hz) - Chime de notificação brilhante e cristalino
+            const osc2 = ctx.createOscillator();
+            const gain2 = ctx.createGain();
+            osc2.type = 'sine';
+            osc2.frequency.setValueAtTime(783.99, ctx.currentTime + 0.08);
+            gain2.gain.setValueAtTime(0.18, ctx.currentTime + 0.08);
+            gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+            osc2.connect(gain2);
+            gain2.connect(ctx.destination);
+            osc2.start(ctx.currentTime + 0.08);
+            osc2.stop(ctx.currentTime + 0.3);
+        } catch (e) {
+            console.warn('⚡ Não foi possível reproduzir áudio de notificação:', e);
         }
     },
 
@@ -167,6 +217,14 @@ export const ChatEngine = {
      * Configuração dos eventos do formulário, emojis e anexos
      */
     setupListeners() {
+        const btnTestSound = document.getElementById('btn-chat-test-sound');
+        if (btnTestSound && !btnTestSound.dataset.bound) {
+            btnTestSound.dataset.bound = 'true';
+            btnTestSound.addEventListener('click', () => {
+                this.playNotificationSound();
+            });
+        }
+
         const form = document.getElementById('form-chat-send');
         if (!form || form.dataset.listenerBound) return;
         form.dataset.listenerBound = 'true';
