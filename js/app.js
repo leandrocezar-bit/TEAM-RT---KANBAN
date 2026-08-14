@@ -2,16 +2,16 @@
  * Controladora Principal do Aplicativo Kanban de Equipe (App Core Controller)
  */
 
-import { DB } from './db.js?v=33';
-import { TimerEngine } from './timer.js?v=33';
-import { KanbanEngine } from './kanban.js?v=33';
-import { ManagerEngine } from './manager.js?v=33';
-import { MapEngine } from './map.js?v=33';
-import { SettingsEngine } from './settings.js?v=33';
-import { ProjectsEngine } from './projects.js?v=33';
-import { UndoEngine } from './undo.js?v=33';
-import { ChatEngine } from './chat.js?v=33';
-import { AIEngine } from './ai.js?v=33';
+import { DB } from './db.js';
+import { TimerEngine } from './timer.js';
+import { KanbanEngine } from './kanban.js';
+import { ManagerEngine } from './manager.js';
+import { MapEngine } from './map.js';
+import { SettingsEngine } from './settings.js';
+import { ProjectsEngine } from './projects.js';
+import { UndoEngine } from './undo.js';
+import { ChatEngine } from './chat.js';
+import { AIEngine } from './ai.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
 
@@ -239,18 +239,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
       }
 
-      // 2. REGRA DE SEGURANÇA DE SENHA: Criptografia SHA-256 e validação segura
+      // 2. REGRA DE SEGURANÇA DE SENHA: A senha DEVE coincidir exatamente com a da tabela
       const registeredPassword = matchedMember.password ? String(matchedMember.password).trim() : null;
 
       if (registeredPassword) {
-        const isValid = await AuthEngine.verifyPassword(inputPassword, registeredPassword, matchedMember);
-        if (!isValid) {
+        if (registeredPassword !== inputPassword) {
           showToast('❌ Senha incorreta! Verifique sua senha de acesso.', 'warning');
           return;
         }
       } else {
-        // Se o colaborador não possuía senha gravada na tabela, vincula a senha criptografada em Hash SHA-256
-        matchedMember.password = await AuthEngine.hashPassword(inputPassword);
+        // Se o colaborador não possuía senha gravada na tabela, vincula a senha informada
+        matchedMember.password = inputPassword;
         try {
           await DB.save('members', matchedMember);
         } catch (err) {
