@@ -467,6 +467,19 @@
 
       <div class="dashboard-grid" id="manager-members-grid"></div>
 
+      <!-- ⚙️ QUADRO DOS COLABORADORES E PERMISSÕES (VISÃO ADMIN/GESTOR) -->
+      <div class="calendar-panel" style="margin-bottom:1.5rem;">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem; margin-bottom:1rem;">
+          <h3 style="font-size:1.1rem; font-weight:700; display:flex; align-items:center; gap:0.5rem; margin:0;">
+            ⚙️ Gerenciamento de Colaboradores, Permissões e Ordem da Equipe
+          </h3>
+          <button type="button" class="btn btn-primary btn-open-new-member" style="font-size:0.8rem; padding:0.4rem 0.85rem;">
+            ➕ Novo Colaborador
+          </button>
+        </div>
+        <div class="table-responsive admin-members-table-container" style="max-height: 350px; overflow-y: auto;"></div>
+      </div>
+
       <!-- 📅 NOVA SEÇÃO: MATRIZ DE ESCALA E AUSÊNCIAS DA EQUIPE -->
       <div class="calendar-panel" style="margin-bottom:1.5rem;">
         <div
@@ -576,6 +589,8 @@
                 <th>Prazo</th>
                 <th>Saúde do Prazo</th>
                 <th>Horário de Execução</th>
+                <th>Tempo Trabalhado</th>
+                <th>Tempo Pausado</th>
                 <th>Data da Conclusão</th>
               </tr>
 
@@ -1267,6 +1282,20 @@
               Data de Término *
             </label>
             <input type="date" id="absence-end-date" class="input-control" required>
+          </div>
+
+          <div class="form-group">
+            <label for="absence-start-time" class="form-label">
+              Horário Inicial (Se parcial)
+            </label>
+            <input type="time" id="absence-start-time" class="input-control">
+          </div>
+
+          <div class="form-group">
+            <label for="absence-end-time" class="form-label">
+              Horário Final (Se parcial)
+            </label>
+            <input type="time" id="absence-end-time" class="input-control">
           </div>
 
           <div class="form-group full-width">

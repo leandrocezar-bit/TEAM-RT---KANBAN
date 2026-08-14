@@ -353,7 +353,7 @@ export const MapEngine = {
     if (filteredTasks.length === 0) {
       container.innerHTML = `
         <tr>
-          <td colspan="8" style="text-align:center; padding:2rem; color:var(--text-dim);">Nenhuma demanda cadastrada para esta seleção.</td>
+          <td colspan="10" style="text-align:center; padding:2rem; color:var(--text-dim);">Nenhuma demanda cadastrada para esta seleção.</td>
         </tr>
       `;
       return;
@@ -394,6 +394,43 @@ export const MapEngine = {
         timeIntervalStr = `🕒 ${startTime} às ${endTime}`;
       }
 
+      // Função de parsing seguro para milissegundos
+      const parseToMs = (val) => {
+        if (!val) return null;
+        if (typeof val === 'number' && !isNaN(val)) return val;
+        const ms = new Date(val).getTime();
+        return isNaN(ms) ? null : ms;
+      };
+
+      // Tempo Ativo (Trabalhado)
+      const isTodo = task.status === 'A FAZER';
+      const activeSecs = isTodo ? 0 : TimerEngine.getCurrentElapsedSeconds(task);
+      const activeTimeStr = activeSecs > 0 ? TimerEngine.formatTime(activeSecs) : '00:00';
+
+      // Ponto de início da primeira execução
+      const startMs = isTodo ? null : (
+        parseToMs(task.firstExecutionStartedAt) ||
+        parseToMs(task.lastTimerStartedAt) ||
+        (task.status === 'EM EXECUÇÃO' || task.status === 'CONCLUÍDO' || activeSecs > 0 || task.completedAt || task.lastTimerStoppedAt
+          ? parseToMs(task.createdAt)
+          : null)
+      );
+
+      let pausedTimeStr = '00:00';
+
+      if (startMs && !isTodo) {
+        let endMs = Date.now();
+        if (task.status === 'CONCLUÍDO') {
+          endMs = parseToMs(task.completedAt) || parseToMs(task.lastTimerStoppedAt) || parseToMs(task.updatedAt) || Date.now();
+        }
+
+        const totalElapsedSecs = Math.max(0, Math.floor((endMs - startMs) / 1000));
+        const pausedSecs = Math.max(0, totalElapsedSecs - activeSecs);
+        if (pausedSecs > 0) {
+          pausedTimeStr = TimerEngine.formatTime(pausedSecs);
+        }
+      }
+
       let completionDateStr = '-';
       if (task.status === 'CONCLUÍDO') {
         const rawCompletion = task.completedAt || task.updatedAt;
@@ -424,6 +461,12 @@ export const MapEngine = {
           <td>${deadlineBadge}</td>
           <td style="font-size:0.775rem; color:var(--text-main); font-weight:600; white-space:nowrap;">
             ${timeIntervalStr}
+          </td>
+          <td style="font-size:0.775rem; font-weight:700; color:#10b981; white-space:nowrap;">
+            ⏱️ ${activeTimeStr}
+          </td>
+          <td style="font-size:0.775rem; font-weight:700; color:${pausedTimeStr !== '00:00' ? '#f59e0b' : 'var(--text-dim)'}; white-space:nowrap;">
+            ⏸️ ${pausedTimeStr}
           </td>
           <td style="font-size:0.775rem; font-weight:700; color:${task.status === 'CONCLUÍDO' ? '#10b981' : 'var(--text-dim)'}; white-space:nowrap;">
             ${completionDateStr}

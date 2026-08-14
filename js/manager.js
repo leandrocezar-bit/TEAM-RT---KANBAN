@@ -218,9 +218,11 @@ export const ManagerEngine = {
           folga: '🏖️ Folga / DSR',
           presencial: '🏢 Presencial'
         };
+        const isPartial = activeAbsenceToday.durationType === 'parcial' && activeAbsenceToday.startTime && activeAbsenceToday.endTime;
+        const timeBadge = isPartial ? ` ⏰ ${activeAbsenceToday.startTime}-${activeAbsenceToday.endTime}` : '';
         absenceBadgeHtml = `
           <div style="background:rgba(99,102,241,0.15); border:1px solid rgba(99,102,241,0.35); color:#a5b4fc; padding:0.25rem 0.5rem; border-radius:6px; font-size:0.725rem; font-weight:700; margin-top:0.35rem; display:inline-block;">
-            ${labels[activeAbsenceToday.type] || '📍 Ausência Ativa'} (${activeAbsenceToday.endDate.split('-').reverse().join('/')})
+            ${labels[activeAbsenceToday.type] || '📍 Ausência Ativa'} (${activeAbsenceToday.endDate.split('-').reverse().join('/')}${timeBadge})
           </div>
         `;
       }
@@ -408,6 +410,8 @@ export const ManagerEngine = {
       const cfg = typeConfig[abs.type] || typeConfig.presencial;
       const startFormatted = abs.startDate ? abs.startDate.split('-').reverse().join('/') : '';
       const endFormatted = abs.endDate ? abs.endDate.split('-').reverse().join('/') : '';
+      const isPartial = abs.durationType === 'parcial' && abs.startTime && abs.endTime;
+      const hoursStr = isPartial ? ` ⏰ <strong>Horário:</strong> ${abs.startTime} às ${abs.endTime} (Parcial)` : ' (Dia Inteiro)';
 
       return `
         <div style="background:var(--bg-input); border:1px solid var(--border-color); border-radius:var(--radius-md); padding:0.75rem 0.9rem; margin-bottom:0.6rem; display:flex; justify-content:space-between; align-items:center; gap:0.75rem; flex-wrap:wrap;">
@@ -419,7 +423,7 @@ export const ManagerEngine = {
               <strong style="font-size:0.875rem; color:#fff;">${member.name}</strong>
             </div>
             <div style="font-size:0.775rem; color:var(--text-muted); display:flex; gap:0.75rem; flex-wrap:wrap;">
-              <span>📅 <strong>Período:</strong> ${startFormatted} até ${endFormatted}</span>
+              <span>📅 <strong>Período:</strong> ${startFormatted} até ${endFormatted}${hoursStr}</span>
               ${abs.notes ? `<span>📝 <strong>Obs:</strong> ${abs.notes}</span>` : ''}
             </div>
           </div>

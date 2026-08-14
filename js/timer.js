@@ -43,6 +43,9 @@ export const TimerEngine = {
   async startTimer(task) {
     if (task.isTimerRunning) return task;
 
+    if (!task.firstExecutionStartedAt) {
+      task.firstExecutionStartedAt = new Date().toISOString();
+    }
     task.isTimerRunning = true;
     task.lastTimerStartedAt = Date.now();
     await DB.save('tasks', task);
@@ -61,6 +64,7 @@ export const TimerEngine = {
     task.elapsedSeconds = (task.elapsedSeconds || 0) + Math.max(0, diffSecs);
     task.isTimerRunning = false;
     task.lastTimerStartedAt = null;
+    task.lastTimerStoppedAt = new Date().toISOString();
 
     await DB.save('tasks', task);
     return task;

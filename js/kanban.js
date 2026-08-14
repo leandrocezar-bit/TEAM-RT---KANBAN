@@ -148,7 +148,18 @@ export const KanbanEngine = {
     task.status = targetStatus;
 
     // Regras de Timer Automático por Mudança de Coluna
-    if (targetStatus === 'EM EXECUÇÃO') {
+    if (targetStatus === 'A FAZER') {
+      // 🔄 Se a tarefa voltou para A FAZER, zera todo o tempo trabalhado, pausado e marcadores
+      task.elapsedSeconds = 0;
+      task.isTimerRunning = false;
+      task.lastTimerStartedAt = null;
+      task.lastTimerStoppedAt = null;
+      task.firstExecutionStartedAt = null;
+      task.completedAt = null;
+    } else if (targetStatus === 'EM EXECUÇÃO') {
+      if (!task.firstExecutionStartedAt) {
+        task.firstExecutionStartedAt = nowIso;
+      }
       if (!task.lastTimerStartedAt) {
         task.lastTimerStartedAt = nowIso;
       }

@@ -38,6 +38,14 @@ export const UndoEngine = {
         const task = await DB.get('tasks', action.taskId);
         if (task) {
           task.status = action.fromStatus;
+          if (action.fromStatus === 'A FAZER') {
+            task.elapsedSeconds = 0;
+            task.isTimerRunning = false;
+            task.lastTimerStartedAt = null;
+            task.lastTimerStoppedAt = null;
+            task.firstExecutionStartedAt = null;
+            task.completedAt = null;
+          }
           await DB.save('tasks', task);
           undoDescription = `Restaurado status da tarefa "${task.title}" para ${action.fromStatus}`;
         }

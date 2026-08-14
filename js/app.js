@@ -478,6 +478,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         handleDeleteMember,
         openCalendarDayModal
       );
+      await renderAdminMembersTable();
     } else if (activeView === 'map') {
       if (sectionMap) { sectionMap.classList.add('active'); sectionMap.style.display = 'block'; }
       if (btnViewMap) {
@@ -861,13 +862,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   // EVENTOS DE ABERTURA DE MODAIS
   // ============================================================
 
-  if (btnNewMember) {
-    btnNewMember.addEventListener('click', () => {
-      if (!isManager()) {
-        showToast('Apenas gestores podem cadastrar colaboradores.', 'warning');
-        return;
-      }
-
+  document.querySelectorAll('#btn-new-member, .btn-open-new-member').forEach(btn => {
+    btn.addEventListener('click', () => {
       if (formMember) formMember.reset();
       const preview = document.getElementById('member-photo-preview');
       if (preview) {
@@ -877,7 +873,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       openModal(modalMember);
     });
-  }
+  });
 
   async function openNewTaskModal() {
     if (formTask) formTask.reset();
@@ -1282,9 +1278,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       const todayStr = new Date().toISOString().slice(0, 10);
       const startDateInput = document.getElementById('absence-start-date');
       const endDateInput = document.getElementById('absence-end-date');
+      const startTimeInput = document.getElementById('absence-start-time');
+      const endTimeInput = document.getElementById('absence-end-time');
+      const notesInput = document.getElementById('absence-notes');
 
       if (startDateInput) startDateInput.value = todayStr;
       if (endDateInput) endDateInput.value = todayStr;
+      if (startTimeInput) startTimeInput.value = '';
+      if (endTimeInput) endTimeInput.value = '';
+      if (notesInput) notesInput.value = '';
 
       openModal(modalAbsence);
     });
@@ -1298,6 +1300,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       const type = document.getElementById('absence-type').value;
       const startDate = document.getElementById('absence-start-date').value;
       const endDate = document.getElementById('absence-end-date').value;
+      const startTime = document.getElementById('absence-start-time') ? document.getElementById('absence-start-time').value : '';
+      const endTime = document.getElementById('absence-end-time') ? document.getElementById('absence-end-time').value : '';
       const notes = document.getElementById('absence-notes').value.trim();
 
       if (!memberId || !startDate || !endDate) {
@@ -1310,12 +1314,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
       }
 
+      const isPartial = Boolean(startTime || endTime);
+      if (isPartial && (!startTime || !endTime)) {
+        showToast('Preencha tanto o Horário Inicial quanto o Horário Final se for ausência parcial.', 'warning');
+        return;
+      }
+
       const newAbsence = {
         id: 'abs-' + Date.now(),
         memberId,
         type,
+        durationType: isPartial ? 'parcial' : 'dia_inteiro',
         startDate,
         endDate,
+        startTime: isPartial ? startTime : null,
+        endTime: isPartial ? endTime : null,
         notes,
         createdAt: new Date().toISOString(),
       };
@@ -1761,17 +1774,22 @@ document.addEventListener('DOMContentLoaded', async () => {
   };
 
   async function renderAdminMembersTable() {
-    if (!adminMembersTableContainer) return;
-    adminMembersTableContainer.innerHTML = '<div style="padding:1rem; text-align:center;">Carregando colaboradores...</div>';
+    const containers = document.querySelectorAll('.admin-members-table-container, #admin-members-table-container');
+    if (!containers || containers.length === 0) return;
+
+    containers.forEach(c => {
+      c.innerHTML = '<div style="padding:1rem; text-align:center;">Carregando colaboradores...</div>';
+    });
 
     const rawMembers = (await DB.getAll('members', { forceRefresh: true })) || [];
 
     if (rawMembers.length === 0) {
-      adminMembersTableContainer.innerHTML = '<div style="padding:1rem; text-align:center;">Nenhum colaborador encontrado.</div>';
+      containers.forEach(c => {
+        c.innerHTML = '<div style="padding:1rem; text-align:center;">Nenhum colaborador encontrado.</div>';
+      });
       return;
     }
 
-    // Ordena os membros pela ordem salva no mapa customizado
     const members = window.sortMembersByCustomOrder(rawMembers);
 
     let html = `
@@ -1797,10 +1815,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       html += `
         <tr style="border-bottom:1px solid var(--border-color);" data-id="${m.id}" data-index="${idx}">
           <td style="padding:0.6rem 0.75rem; text-align:center; white-space:nowrap;">
-            <button type="button" class="btn btn-secondary btn-sm admin-move-up" data-id="${m.id}" data-index="${idx}" ${isFirst ? 'disabled style="opacity:0.3; cursor:not-allowed; padding:2px 6px;"' : 'style="padding:2px 6px; cursor:pointer;"'} title="Mover para cima na lista do gestor">
+            <button type="button" class="btn btn-secondary btn-sm admin-move-up" data-id="${m.id}" data-index="${idx}" ${isFirst ? 'disabled style="opacity:0.3; cursor:not-allowed; padding:2px 6px;"' : 'style="padding:2px 6px; cursor:pointer;"'} title="Mover para cima">
               ▲
             </button>
-            <button type="button" class="btn btn-secondary btn-sm admin-move-down" data-id="${m.id}" data-index="${idx}" ${isLast ? 'disabled style="opacity:0.3; cursor:not-allowed; padding:2px 6px;"' : 'style="padding:2px 6px; cursor:pointer;"'} title="Mover para baixo na lista do gestor">
+            <button type="button" class="btn btn-secondary btn-sm admin-move-down" data-id="${m.id}" data-index="${idx}" ${isLast ? 'disabled style="opacity:0.3; cursor:not-allowed; padding:2px 6px;"' : 'style="padding:2px 6px; cursor:pointer;"'} title="Mover para baixo">
               ▼
             </button>
           </td>
@@ -1826,77 +1844,78 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     html += `</tbody></table>`;
-    adminMembersTableContainer.innerHTML = html;
 
-    // Listener para Mover Para Cima (▲)
-    adminMembersTableContainer.querySelectorAll('.admin-move-up').forEach(btn => {
-      btn.addEventListener('click', async (e) => {
-        const idx = parseInt(e.currentTarget.getAttribute('data-index'), 10);
-        if (isNaN(idx) || idx <= 0) return;
+    containers.forEach(container => {
+      container.innerHTML = html;
 
-        const temp = members[idx];
-        members[idx] = members[idx - 1];
-        members[idx - 1] = temp;
+      container.querySelectorAll('.admin-move-up').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          const idx = parseInt(e.currentTarget.getAttribute('data-index'), 10);
+          if (isNaN(idx) || idx <= 0) return;
 
-        const orderMap = window.getMemberOrderMap();
-        for (let i = 0; i < members.length; i++) {
-          members[i].order = i + 1;
-          orderMap[String(members[i].id)] = i + 1;
-          DB.save('members', members[i]).catch(() => {});
-        }
-        window.saveMemberOrderMap(orderMap);
+          const temp = members[idx];
+          members[idx] = members[idx - 1];
+          members[idx - 1] = temp;
 
-        addAuditLog('Reordenação da Equipe', `Membro ${temp.name} movido para a posição ${idx}`);
-        showToast(`📍 Nova ordem dos membros salva!`, 'success');
+          const orderMap = window.getMemberOrderMap();
+          for (let i = 0; i < members.length; i++) {
+            members[i].order = i + 1;
+            orderMap[String(members[i].id)] = i + 1;
+            DB.save('members', members[i]).catch(() => {});
+          }
+          window.saveMemberOrderMap(orderMap);
 
-        await renderAdminMembersTable();
-        await refreshUI();
-      });
-    });
+          addAuditLog('Reordenação da Equipe', `Membro ${temp.name} movido para a posição ${idx}`);
+          showToast(`📍 Nova ordem dos membros salva!`, 'success');
 
-    // Listener para Mover Para Baixo (▼)
-    adminMembersTableContainer.querySelectorAll('.admin-move-down').forEach(btn => {
-      btn.addEventListener('click', async (e) => {
-        const idx = parseInt(e.currentTarget.getAttribute('data-index'), 10);
-        if (isNaN(idx) || idx >= members.length - 1) return;
-
-        const temp = members[idx];
-        members[idx] = members[idx + 1];
-        members[idx + 1] = temp;
-
-        const orderMap = window.getMemberOrderMap();
-        for (let i = 0; i < members.length; i++) {
-          members[i].order = i + 1;
-          orderMap[String(members[i].id)] = i + 1;
-          DB.save('members', members[i]).catch(() => {});
-        }
-        window.saveMemberOrderMap(orderMap);
-
-        addAuditLog('Reordenação da Equipe', `Membro ${temp.name} movido para a posição ${idx + 2}`);
-        showToast(`📍 Nova ordem dos membros salva!`, 'success');
-
-        await renderAdminMembersTable();
-        await refreshUI();
-      });
-    });
-
-    adminMembersTableContainer.querySelectorAll('.admin-save-member-btn').forEach(btn => {
-      btn.addEventListener('click', async (e) => {
-        const memberId = e.currentTarget.getAttribute('data-id');
-        const row = e.currentTarget.closest('tr');
-        const newPass = row.querySelector('.admin-new-pass-input').value.trim();
-        const newLevel = row.querySelector('.admin-change-level').value;
-
-        const targetMember = members.find(m => String(m.id) === String(memberId));
-        if (targetMember) {
-          targetMember.password = newPass;
-          targetMember.accessLevel = newLevel;
-
-          await DB.save('members', targetMember);
-          addAuditLog('Alteração de Colaborador', `Atualizada senha/permissão de ${targetMember.name} (Nível: ${newLevel})`);
-          showToast(`✅ Permissões de ${targetMember.name} atualizadas com sucesso!`, 'success');
+          await renderAdminMembersTable();
           await refreshUI();
-        }
+        });
+      });
+
+      container.querySelectorAll('.admin-move-down').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          const idx = parseInt(e.currentTarget.getAttribute('data-index'), 10);
+          if (isNaN(idx) || idx >= members.length - 1) return;
+
+          const temp = members[idx];
+          members[idx] = members[idx + 1];
+          members[idx + 1] = temp;
+
+          const orderMap = window.getMemberOrderMap();
+          for (let i = 0; i < members.length; i++) {
+            members[i].order = i + 1;
+            orderMap[String(members[i].id)] = i + 1;
+            DB.save('members', members[i]).catch(() => {});
+          }
+          window.saveMemberOrderMap(orderMap);
+
+          addAuditLog('Reordenação da Equipe', `Membro ${temp.name} movido para a posição ${idx + 2}`);
+          showToast(`📍 Nova ordem dos membros salva!`, 'success');
+
+          await renderAdminMembersTable();
+          await refreshUI();
+        });
+      });
+
+      container.querySelectorAll('.admin-save-member-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          const memberId = e.currentTarget.getAttribute('data-id');
+          const row = e.currentTarget.closest('tr');
+          const newPass = row.querySelector('.admin-new-pass-input').value.trim();
+          const newLevel = row.querySelector('.admin-change-level').value;
+
+          const targetMember = members.find(m => String(m.id) === String(memberId));
+          if (targetMember) {
+            targetMember.password = newPass;
+            targetMember.accessLevel = newLevel;
+
+            await DB.save('members', targetMember);
+            addAuditLog('Alteração de Colaborador', `Atualizada senha/permissão de ${targetMember.name} (Nível: ${newLevel})`);
+            showToast(`✅ Permissões de ${targetMember.name} atualizadas com sucesso!`, 'success');
+            await refreshUI();
+          }
+        });
       });
     });
   }
