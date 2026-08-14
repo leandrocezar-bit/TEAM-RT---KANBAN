@@ -19,6 +19,30 @@ document.addEventListener('DOMContentLoaded', async () => {
   let currentMemberFilter = 'all';
   let reportingTaskId = null;
 
+  const DEFAULT_MENU_ORDER = [
+    'btn-view-kanban',
+    'btn-view-manager',
+    'btn-view-map',
+    'btn-new-task',
+    'btn-view-settings',
+    'btn-view-projects',
+    'btn-view-chat',
+    'btn-view-ai',
+    'btn-view-admin'
+  ];
+
+  const MENU_LABELS = {
+    'btn-view-kanban': 'Quadro Kanban',
+    'btn-view-manager': 'Dashboard',
+    'btn-view-map': 'Portfólio do Setor',
+    'btn-new-task': 'Nova Atividade',
+    'btn-view-settings': 'Transferir Atividades',
+    'btn-view-projects': 'Projetos',
+    'btn-view-chat': 'Chat Geral',
+    'btn-view-ai': 'Assistente IA',
+    'btn-view-admin': 'Painel Admin'
+  };
+
   // ============================================================
   // AUTENTICAÇÃO E SESSÃO
   // ============================================================
@@ -56,6 +80,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (btnViewAdmin) {
         btnViewAdmin.style.display = isAdmin() ? 'inline-flex' : 'none';
       }
+
+      // Aplica a ordem personalizada do menu do usuário logado
+      applyUserMenuOrder();
 
       // Inicia a escuta de chat em segundo plano e escuta de eventos admin
       ChatEngine.startAutoSync();
@@ -909,6 +936,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       bindDynamicDateInputs();
     }
 
+    currentTaskAttachments = [];
+    renderAttachmentPreviews('task-attachments-preview-container', true);
+
     openModal(modalTask);
   }
 
@@ -1084,6 +1114,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           task.projectId = projectId;
           task.priority = priority;
           task.dueDate = dueDate;
+          task.attachments = [...currentTaskAttachments];
 
           await DB.save('tasks', task);
 
@@ -1125,6 +1156,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           projectId,
           priority,
           dueDate,
+          attachments: [...currentTaskAttachments],
           status: 'A FAZER',
           elapsedSeconds: 0,
           isTimerRunning: false,
@@ -1340,6 +1372,355 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
+  // ============================================================
+  // GERENCIAMENTO DE ANEXOS E PRINTS (CTRL + V)
+  // ============================================================
+
+  let currentTaskAttachments = [];
+
+  window.openImageViewer = function(imgSrc, titleStr = 'Captura de Tela') {
+    const modalViewer = document.getElementById('modal-image-viewer');
+    const imgEl = document.getElementById('image-viewer-img');
+    const titleEl = document.getElementById('image-viewer-title');
+
+    if (modalViewer && imgEl) {
+      imgEl.src = imgSrc;
+      if (titleEl) titleEl.textContent = `🔎 ${titleStr}`;
+      openModal(modalViewer);
+    }
+  };
+
+  function getFileBadge(type, name) {
+    const ext = name ? name.split('.').pop().toLowerCase() : '';
+    if (type && type.startsWith('image/')) return '🖼️ FOTO';
+    if (ext === 'pdf' || type === 'application/pdf') return '📕 PDF';
+    if (ext === 'xml' || type === 'text/xml' || type === 'application/xml') return '📰 XML';
+    if (ext === 'doc' || ext === 'docx') return '📘 DOC';
+    if (ext === 'xls' || ext === 'xlsx' || ext === 'csv') return '📊 XLS';
+    if (ext === 'zip' || ext === 'rar') return '📦 ZIP';
+    return '📄 DOC';
+  }
+
+  function renderAttachmentPreviews(containerId = 'task-attachments-preview-container', isEditable = true, onUpdateCallback = null) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    if (!currentTaskAttachments || currentTaskAttachments.length === 0) {
+      container.innerHTML = `<div style="font-size:0.775rem; color:var(--text-muted); font-style:italic;">Nenhum anexo adicionado ainda.</div>`;
+      return;
+    }
+
+    container.innerHTML = currentTaskAttachments.map((att, idx) => {
+      const isImg = att.type && att.type.startsWith('image/');
+      const nameShort = att.name.length > 22 ? att.name.substring(0, 19) + '...' : att.name;
+      const badge = getFileBadge(att.type, att.name);
+
+      if (isImg) {
+        return `
+          <div style="position:relative; width:95px; height:95px; border-radius:8px; border:1px solid var(--border-color); overflow:hidden; background:rgba(0,0,0,0.4); display:flex; flex-direction:column; align-items:center; justify-content:center;" title="Clique para ampliar: ${att.name}">
+            <img src="${att.data}" alt="${att.name}" class="btn-zoom-att" data-idx="${idx}" style="width:100%; height:100%; object-fit:cover; cursor:pointer;">
+            ${isEditable ? `<button type="button" class="btn-remove-att" data-idx="${idx}" style="position:absolute; top:3px; right:3px; background:rgba(239,68,68,0.9); color:#fff; border:none; border-radius:50%; width:20px; height:20px; font-size:12px; cursor:pointer; display:flex; align-items:center; justify-content:center; line-height:1; font-weight:bold;" title="Remover anexo">&times;</button>` : ''}
+          </div>
+        `;
+      } else {
+        return `
+          <div style="position:relative; padding:0.5rem 0.75rem; border-radius:8px; border:1px solid var(--border-color); background:var(--bg-input); display:flex; align-items:center; gap:0.6rem; min-width:160px; max-width:220px;" title="${att.name}">
+            <span style="font-size:0.75rem; font-weight:800; background:rgba(99,102,241,0.25); color:#a5b4fc; padding:0.25rem 0.45rem; border-radius:4px;">${badge}</span>
+            <div style="flex:1; overflow:hidden;">
+              <div style="font-size:0.775rem; font-weight:700; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${nameShort}</div>
+              <a href="${att.data}" download="${att.name}" style="font-size:0.725rem; color:var(--color-primary-light); text-decoration:none; font-weight:600;">📥 Baixar</a>
+            </div>
+            ${isEditable ? `<button type="button" class="btn-remove-att" data-idx="${idx}" style="background:rgba(239,68,68,0.9); color:#fff; border:none; border-radius:50%; width:18px; height:18px; font-size:10px; cursor:pointer; display:flex; align-items:center; justify-content:center; line-height:1; font-weight:bold;" title="Remover">&times;</button>` : ''}
+          </div>
+        `;
+      }
+    }).join('');
+
+    // Listener para ampliar imagem
+    container.querySelectorAll('.btn-zoom-att').forEach((img) => {
+      img.addEventListener('click', (e) => {
+        const idx = parseInt(e.currentTarget.dataset.idx, 10);
+        if (currentTaskAttachments[idx]) {
+          openImageViewer(currentTaskAttachments[idx].data, currentTaskAttachments[idx].name);
+        }
+      });
+    });
+
+    // Listener para remover anexo
+    if (isEditable) {
+      container.querySelectorAll('.btn-remove-att').forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const idx = parseInt(e.currentTarget.dataset.idx, 10);
+          if (!isNaN(idx)) {
+            currentTaskAttachments.splice(idx, 1);
+            renderAttachmentPreviews(containerId, isEditable, onUpdateCallback);
+            if (onUpdateCallback) onUpdateCallback();
+          }
+        });
+      });
+    }
+  }
+
+  // Dropzone e upload de arquivos
+  const dropzoneEl = document.getElementById('task-attachments-dropzone');
+  const fileInputEl = document.getElementById('task-file-input');
+
+  if (dropzoneEl && fileInputEl) {
+    dropzoneEl.addEventListener('click', (e) => {
+      if (e.target === fileInputEl) return;
+      fileInputEl.click();
+    });
+
+    fileInputEl.addEventListener('change', (e) => {
+      const files = Array.from(e.target.files);
+      if (files.length === 0) return;
+
+      let loaded = 0;
+      files.forEach((file) => {
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          currentTaskAttachments.push({
+            id: 'att-' + Date.now() + Math.floor(Math.random() * 1000),
+            name: file.name,
+            type: file.type || 'application/octet-stream',
+            data: evt.target.result,
+            createdAt: new Date().toISOString(),
+          });
+          loaded++;
+          if (loaded === files.length) {
+            renderAttachmentPreviews();
+            showToast(`📎 ${loaded} arquivo(s) anexado(s)!`, 'success');
+            fileInputEl.value = '';
+          }
+        };
+        reader.readAsDataURL(file);
+      });
+    });
+
+    ['dragenter', 'dragover'].forEach((eventName) => {
+      dropzoneEl.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        dropzoneEl.style.borderColor = 'var(--color-primary)';
+        dropzoneEl.style.background = 'rgba(99, 102, 241, 0.15)';
+      });
+    });
+
+    ['dragleave', 'drop'].forEach((eventName) => {
+      dropzoneEl.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        dropzoneEl.style.borderColor = 'var(--border-color)';
+        dropzoneEl.style.background = 'rgba(15, 23, 42, 0.4)';
+      });
+    });
+
+    dropzoneEl.addEventListener('drop', (e) => {
+      const files = Array.from(e.dataTransfer.files);
+      if (files.length === 0) return;
+
+      let loaded = 0;
+      files.forEach((file) => {
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          currentTaskAttachments.push({
+            id: 'att-' + Date.now() + Math.floor(Math.random() * 1000),
+            name: file.name,
+            type: file.type || 'application/octet-stream',
+            data: evt.target.result,
+            createdAt: new Date().toISOString(),
+          });
+          loaded++;
+          if (loaded === files.length) {
+            renderAttachmentPreviews();
+            showToast(`📎 ${loaded} arquivo(s) anexado(s)!`, 'success');
+          }
+        };
+        reader.readAsDataURL(file);
+      });
+    });
+  }
+
+  // Listener Global para Colar Print (Ctrl + V)
+  document.addEventListener('paste', (e) => {
+    const activeModal = document.querySelector('.modal-overlay.active');
+    if (!activeModal) return;
+    if (activeModal.id !== 'modal-task' && activeModal.id !== 'modal-task-details') return;
+
+    const items = (e.clipboardData || e.originalEvent?.clipboardData)?.items;
+    if (!items) return;
+
+    for (const item of items) {
+      if (item.type && item.type.indexOf('image') !== -1) {
+        const file = item.getAsFile();
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = (evt) => {
+            const timeStr = new Date().toLocaleTimeString('pt-BR').replace(/:/g, '');
+            const newAtt = {
+              id: 'att-' + Date.now() + Math.floor(Math.random() * 1000),
+              name: `Print_${timeStr}.png`,
+              type: file.type || 'image/png',
+              data: evt.target.result,
+              createdAt: new Date().toISOString(),
+            };
+            currentTaskAttachments.push(newAtt);
+
+            if (activeModal.id === 'modal-task') {
+              renderAttachmentPreviews('task-attachments-preview-container', true);
+            } else if (activeModal.id === 'modal-task-details') {
+              renderAttachmentPreviews('details-attachments-preview-container', true, async () => {
+                if (window.currentDetailsTaskId) {
+                  const task = await DB.get('tasks', window.currentDetailsTaskId);
+                  if (task) {
+                    task.attachments = currentTaskAttachments;
+                    await DB.save('tasks', task);
+                  }
+                }
+              });
+
+              if (window.currentDetailsTaskId) {
+                DB.get('tasks', window.currentDetailsTaskId).then(async (task) => {
+                  if (task) {
+                    task.attachments = currentTaskAttachments;
+                    await DB.save('tasks', task);
+                    await refreshUI();
+                  }
+                });
+              }
+            }
+
+            showToast('📸 Print/Captura de tela colado (Ctrl+V) com sucesso!', 'success');
+          };
+          reader.readAsDataURL(file);
+        }
+      }
+    }
+  });
+
+  // ============================================================
+  // PERSONALIZAÇÃO DA ORDEM DO MENU POR USUÁRIO (OPÇÃO 2)
+  // ============================================================
+
+  function getUserMenuOrder() {
+    const loggedId = getLoggedMemberId() || 'default';
+    try {
+      const saved = localStorage.getItem(`user_menu_order_${loggedId}`);
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return [...DEFAULT_MENU_ORDER];
+  }
+
+  function applyUserMenuOrder() {
+    const navContainer = document.querySelector('.nav-actions');
+    if (!navContainer) return;
+
+    const currentOrder = getUserMenuOrder();
+
+    currentOrder.forEach((btnId) => {
+      const btn = document.getElementById(btnId);
+      if (btn) {
+        navContainer.appendChild(btn);
+      }
+    });
+
+    DEFAULT_MENU_ORDER.forEach((btnId) => {
+      const btn = document.getElementById(btnId);
+      if (btn && !navContainer.contains(btn)) {
+        navContainer.appendChild(btn);
+      }
+    });
+
+    const btnViewAdmin = document.getElementById('btn-view-admin');
+    if (btnViewAdmin) {
+      btnViewAdmin.style.display = isAdmin() ? 'inline-flex' : 'none';
+    }
+  }
+
+  const modalCustomizeMenu = document.getElementById('modal-customize-menu');
+  const btnOpenCustomizeMenu = document.getElementById('btn-open-customize-menu');
+  const customizeMenuListContainer = document.getElementById('customize-menu-list');
+  const btnSaveMenuOrder = document.getElementById('btn-save-menu-order');
+  const btnResetMenuOrder = document.getElementById('btn-reset-menu-order');
+
+  let tempMenuOrder = [];
+
+  function renderCustomizeMenuList() {
+    if (!customizeMenuListContainer) return;
+    customizeMenuListContainer.innerHTML = '';
+
+    tempMenuOrder.forEach((btnId, idx) => {
+      const label = MENU_LABELS[btnId] || btnId;
+      const isFirst = idx === 0;
+      const isLast = idx === tempMenuOrder.length - 1;
+
+      const itemDiv = document.createElement('div');
+      itemDiv.style.cssText = 'display:flex; justify-content:space-between; align-items:center; background:var(--bg-input); border:1px solid var(--border-color); padding:0.5rem 0.75rem; border-radius:8px;';
+      itemDiv.innerHTML = `
+        <span style="font-weight:600; font-size:0.85rem; color:var(--text-main);">${label}</span>
+        <div style="display:flex; gap:0.35rem;">
+          <button type="button" class="btn btn-secondary btn-sm menu-move-up" data-idx="${idx}" ${isFirst ? 'disabled style="opacity:0.3; cursor:not-allowed; padding:2px 7px;"' : 'style="padding:2px 7px; cursor:pointer;"'}>▲</button>
+          <button type="button" class="btn btn-secondary btn-sm menu-move-down" data-idx="${idx}" ${isLast ? 'disabled style="opacity:0.3; cursor:not-allowed; padding:2px 7px;"' : 'style="padding:2px 7px; cursor:pointer;"'}>▼</button>
+        </div>
+      `;
+
+      customizeMenuListContainer.appendChild(itemDiv);
+    });
+
+    customizeMenuListContainer.querySelectorAll('.menu-move-up').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        const idx = parseInt(e.currentTarget.getAttribute('data-idx'), 10);
+        if (idx > 0) {
+          const temp = tempMenuOrder[idx];
+          tempMenuOrder[idx] = tempMenuOrder[idx - 1];
+          tempMenuOrder[idx - 1] = temp;
+          renderCustomizeMenuList();
+        }
+      });
+    });
+
+    customizeMenuListContainer.querySelectorAll('.menu-move-down').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        const idx = parseInt(e.currentTarget.getAttribute('data-idx'), 10);
+        if (idx < tempMenuOrder.length - 1) {
+          const temp = tempMenuOrder[idx];
+          tempMenuOrder[idx] = tempMenuOrder[idx + 1];
+          tempMenuOrder[idx + 1] = temp;
+          renderCustomizeMenuList();
+        }
+      });
+    });
+  }
+
+  if (btnOpenCustomizeMenu && modalCustomizeMenu) {
+    btnOpenCustomizeMenu.addEventListener('click', () => {
+      if (userProfileDropdown) userProfileDropdown.style.display = 'none';
+      tempMenuOrder = getUserMenuOrder();
+      renderCustomizeMenuList();
+      openModal(modalCustomizeMenu);
+    });
+  }
+
+  if (btnSaveMenuOrder) {
+    btnSaveMenuOrder.addEventListener('click', () => {
+      const loggedId = getLoggedMemberId() || 'default';
+      localStorage.setItem(`user_menu_order_${loggedId}`, JSON.stringify(tempMenuOrder));
+      applyUserMenuOrder();
+      closeModal(modalCustomizeMenu);
+      showToast('✨ Ordem do seu menu foi salva com sucesso!', 'success');
+    });
+  }
+
+  if (btnResetMenuOrder) {
+    btnResetMenuOrder.addEventListener('click', () => {
+      const loggedId = getLoggedMemberId() || 'default';
+      localStorage.removeItem(`user_menu_order_${loggedId}`);
+      tempMenuOrder = [...DEFAULT_MENU_ORDER];
+      applyUserMenuOrder();
+      renderCustomizeMenuList();
+      showToast('🔄 Ordem do menu restaurada para o padrão!', 'info');
+    });
+  }
+
   if (formImpediment) {
     formImpediment.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -1453,6 +1834,33 @@ document.addEventListener('DOMContentLoaded', async () => {
       `;
     }
 
+    window.currentDetailsTaskId = taskId;
+    currentTaskAttachments = task.attachments ? [...task.attachments] : [];
+
+    let attachmentsHtml = `
+      <div style="margin-top:0.75rem; background:rgba(15, 23, 42, 0.6); border:1px solid var(--border-color); border-radius:8px; padding:0.85rem;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.6rem; flex-wrap:wrap; gap:0.5rem;">
+          <h5 style="margin:0; font-size:0.875rem; color:#a5b4fc; font-weight:700; display:flex; align-items:center; gap:0.4rem;">
+            📎 Anexos, Documentos e Prints da Atividade
+          </h5>
+          <div style="display:flex; gap:0.5rem; align-items:center;">
+            <button type="button" id="btn-add-details-file" class="btn btn-primary btn-sm" style="font-size:0.775rem; padding:0.3rem 0.75rem; cursor:pointer;">
+              📁 + Anexar do PC / Print
+            </button>
+            <input type="file" id="details-file-input" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.xml,.csv,.txt,.json,.zip,.rar" style="display:none;">
+          </div>
+        </div>
+
+        <div id="details-dropzone" style="border: 2px dashed rgba(99, 102, 241, 0.35); border-radius: 8px; padding: 0.6rem 0.85rem; text-align: center; background: rgba(0, 0, 0, 0.25); cursor: pointer; margin-bottom: 0.75rem; transition: all 0.2s ease;">
+          <div style="font-size: 0.775rem; color: var(--text-muted); pointer-events: none;">
+            💡 <strong>Clique aqui</strong>, <strong>arraste arquivos do PC</strong> ou pressione <strong style="color:#a5b4fc;">Ctrl + V</strong> para anexar prints/arquivos direto
+          </div>
+        </div>
+
+        <div id="details-attachments-preview-container" style="display:flex; flex-wrap:wrap; gap:0.6rem;"></div>
+      </div>
+    `;
+
     // Monta o corpo dinâmico do modal
     container.innerHTML = `
       <div style="display:flex; flex-direction:column; gap:0.85rem;">
@@ -1468,6 +1876,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           <span><strong>📅 Prazo:</strong> ${formattedDueDate}</span>
         </div>
 
+        ${attachmentsHtml}
         ${impedimentsHtml}
 
         <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1.25rem; border-top:1px solid var(--border-color, #374151); padding-top:1rem;">
@@ -1480,6 +1889,72 @@ document.addEventListener('DOMContentLoaded', async () => {
         </div>
       </div>
     `;
+
+    renderAttachmentPreviews('details-attachments-preview-container', true, async () => {
+      task.attachments = currentTaskAttachments;
+      await DB.save('tasks', task);
+      await refreshUI();
+    });
+
+    const btnAddDetailsFile = container.querySelector('#btn-add-details-file');
+    const detailsDropzone = container.querySelector('#details-dropzone');
+    const detailsFileInput = container.querySelector('#details-file-input');
+
+    const handleFilesAdd = (files) => {
+      if (!files || files.length === 0) return;
+      let loaded = 0;
+      Array.from(files).forEach((file) => {
+        const reader = new FileReader();
+        reader.onload = async (evt) => {
+          currentTaskAttachments.push({
+            id: 'att-' + Date.now() + Math.floor(Math.random() * 1000),
+            name: file.name,
+            type: file.type || 'application/octet-stream',
+            data: evt.target.result,
+            createdAt: new Date().toISOString(),
+          });
+          loaded++;
+          if (loaded === files.length) {
+            task.attachments = currentTaskAttachments;
+            await DB.save('tasks', task);
+            renderAttachmentPreviews('details-attachments-preview-container', true);
+            showToast(`📎 ${loaded} arquivo(s) anexado(s) à atividade!`, 'success');
+            if (detailsFileInput) detailsFileInput.value = '';
+            await refreshUI();
+          }
+        };
+        reader.readAsDataURL(file);
+      });
+    };
+
+    if (detailsFileInput) {
+      if (btnAddDetailsFile) btnAddDetailsFile.addEventListener('click', () => detailsFileInput.click());
+      if (detailsDropzone) detailsDropzone.addEventListener('click', () => detailsFileInput.click());
+
+      detailsFileInput.addEventListener('change', (e) => handleFilesAdd(e.target.files));
+    }
+
+    if (detailsDropzone) {
+      ['dragenter', 'dragover'].forEach((eventName) => {
+        detailsDropzone.addEventListener(eventName, (e) => {
+          e.preventDefault();
+          detailsDropzone.style.borderColor = 'var(--color-primary)';
+          detailsDropzone.style.background = 'rgba(99, 102, 241, 0.2)';
+        });
+      });
+
+      ['dragleave', 'drop'].forEach((eventName) => {
+        detailsDropzone.addEventListener(eventName, (e) => {
+          e.preventDefault();
+          detailsDropzone.style.borderColor = 'rgba(99, 102, 241, 0.35)';
+          detailsDropzone.style.background = 'rgba(0, 0, 0, 0.25)';
+        });
+      });
+
+      detailsDropzone.addEventListener('drop', (e) => {
+        handleFilesAdd(e.dataTransfer.files);
+      });
+    }
 
     // Listener para Excluir Contratempo
     container.querySelectorAll('.btn-delete-impediment').forEach((btnImp) => {
@@ -1532,6 +2007,9 @@ document.addEventListener('DOMContentLoaded', async () => {
           .map((tm) => tm.memberId || tm.member_id);
 
         await renderTeamMembersCheckboxes(taskOwnerId, groupMembers);
+
+        currentTaskAttachments = task.attachments ? [...task.attachments] : [];
+        renderAttachmentPreviews('task-attachments-preview-container', true);
 
         const headerTitle = document.getElementById('modal-task-title-header');
         if (headerTitle) headerTitle.textContent = '✏️ Editar Atividade';

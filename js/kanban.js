@@ -443,8 +443,9 @@ export const KanbanEngine = {
                 ${groupMembers.map(gm => `<img src="${gm.photo}" title="Integrante: ${gm.name}" class="card-avatar" style="margin-left:-8px; border:2px solid var(--bg-card);">`).join('')}
               </div>
               
-              <div class="card-due-date">
-                📅 ${task.dueDate ? task.dueDate.split('T')[0].split('-').reverse().slice(0, 2).join('/') : '-'}
+              <div class="card-due-date" style="display:flex; align-items:center; gap:0.5rem;">
+                ${(task.attachments && task.attachments.length > 0) ? `<span style="font-size:0.75rem; color:#a5b4fc; font-weight:700;" title="${task.attachments.length} anexo(s)/print(s)">📎 ${task.attachments.length}</span>` : ''}
+                <span>📅 ${task.dueDate ? task.dueDate.split('T')[0].split('-').reverse().slice(0, 2).join('/') : '-'}</span>
               </div>
             </div>
           </div>

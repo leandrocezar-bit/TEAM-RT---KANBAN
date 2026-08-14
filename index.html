@@ -247,38 +247,43 @@
         Painel Admin
       </button>
 
-      <!-- ========================================================
-            PERFIL DO USUÁRIO LOGADO COM DROPDOWN DE SAÍDA
-            ======================================================== -->
-      <div class="user-profile-menu-wrapper" style="position: relative;">
+    </div>
 
-        <button type="button" id="btn-user-profile-menu" class="btn-profile-pill"
-          style="display: flex; align-items: center; gap: 0.55rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 9999px; padding: 0.3rem 0.75rem 0.3rem 0.35rem; cursor: pointer; color: var(--text-main); font-size: 0.85rem; font-weight: 600; outline: none; transition: all 0.2s ease;">
-          <img id="user-avatar" src="https://ui-avatars.com/api/?name=User&background=6366f1&color=fff" alt="Foto"
-            style="width: 28px; height: 28px; border-radius: 50%; object-fit: cover;">
-          <span id="user-name"
-            style="max-width: 130px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Carregando...</span>
-          <svg
-            style="width: 14px; height: 14px; fill: none; stroke: var(--text-muted); stroke-width: 2.2; transition: transform 0.2s ease;"
-            viewBox="0 0 24 24">
-            <path d="M6 9l6 6 6-6" />
-          </svg>
+    <!-- ========================================================
+          PERFIL DO USUÁRIO LOGADO COM DROPDOWN DE SAÍDA
+          ======================================================== -->
+    <div class="user-profile-menu-wrapper" style="position: relative; margin-left: auto;">
+
+      <button type="button" id="btn-user-profile-menu" class="btn-profile-pill"
+        style="display: flex; align-items: center; gap: 0.55rem; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 9999px; padding: 0.3rem 0.75rem 0.3rem 0.35rem; cursor: pointer; color: var(--text-main); font-size: 0.85rem; font-weight: 600; outline: none; transition: all 0.2s ease;">
+        <img id="user-avatar" src="https://ui-avatars.com/api/?name=User&background=6366f1&color=fff" alt="Foto"
+          style="width: 28px; height: 28px; border-radius: 50%; object-fit: cover;">
+        <span id="user-name"
+          style="max-width: 130px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Carregando...</span>
+        <svg
+          style="width: 14px; height: 14px; fill: none; stroke: var(--text-muted); stroke-width: 2.2; transition: transform 0.2s ease;"
+          viewBox="0 0 24 24">
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </button>
+
+      <!-- Dropdown com Opção de Logoff e Personalização -->
+      <div id="user-profile-dropdown"
+        style="display: none; position: absolute; top: calc(100% + 8px); right: 0; background: #1e293b; border: 1px solid var(--border-color); border-radius: 12px; padding: 0.5rem; min-width: 200px; box-shadow: 0 10px 25px rgba(0,0,0,0.6); z-index: 9999;">
+        <button type="button" id="btn-open-customize-menu"
+          style="width: 100%; display: flex; align-items: center; gap: 0.6rem; padding: 0.65rem 0.85rem; border: none; background: transparent; color: #ffffff; border-radius: 8px; font-size: 0.825rem; font-weight: 600; cursor: pointer; text-align: left; transition: background 0.2s ease; margin-bottom: 0.2rem;">
+          ⚙️ Personalizar Menu
         </button>
-
-        <!-- Dropdown com Opção de Logoff -->
-        <div id="user-profile-dropdown"
-          style="display: none; position: absolute; top: calc(100% + 8px); right: 0; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; padding: 0.4rem; min-width: 170px; box-shadow: var(--shadow-md); z-index: 1000;">
-          <button type="button" id="btn-logout"
-            style="width: 100%; display: flex; align-items: center; gap: 0.6rem; padding: 0.6rem 0.85rem; border: none; background: transparent; color: #ef4444; border-radius: 8px; font-size: 0.85rem; font-weight: 700; cursor: pointer; text-align: left; transition: background 0.2s ease;">
-            <svg style="width: 16px; height: 16px; fill: none; stroke: #ef4444; stroke-width: 2;" viewBox="0 0 24 24">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-              <polyline points="16 17 21 12 16 7"></polyline>
-              <line x1="21" y1="12" x2="9" y2="12"></line>
-            </svg>
-            Sair do Sistema
-          </button>
-        </div>
-
+        <div style="height: 1px; background: var(--border-color); margin: 0.3rem 0;"></div>
+        <button type="button" id="btn-logout"
+          style="width: 100%; display: flex; align-items: center; gap: 0.6rem; padding: 0.65rem 0.85rem; border: none; background: transparent; color: #ef4444; border-radius: 8px; font-size: 0.85rem; font-weight: 700; cursor: pointer; text-align: left; transition: background 0.2s ease;">
+          <svg style="width: 16px; height: 16px; fill: none; stroke: #ef4444; stroke-width: 2;" viewBox="0 0 24 24">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+            <polyline points="16 17 21 12 16 7"></polyline>
+            <line x1="21" y1="12" x2="9" y2="12"></line>
+          </svg>
+          Sair do Sistema
+        </button>
       </div>
 
     </div>
@@ -1180,6 +1185,28 @@
               placeholder="Instruções e requisitos da atividade..."></textarea>
           </div>
 
+          <!-- 📎 CAMPO NOVO: ANEXOS E PRINTS (CTRL + V / DRAG & DROP / ARQUIVOS DO PC) -->
+          <div class="form-group full-width">
+            <label class="form-label" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+              <span>📎 Anexos, Documentos e Capturas (Prints)</span>
+              <span style="font-size: 0.775rem; color: #a5b4fc; font-weight: normal;">
+                📋 Aceita Imagens, PDFs, Docs, XMLs, Planilhas ou <strong>Ctrl + V</strong> para prints!
+              </span>
+            </label>
+
+            <div id="task-attachments-dropzone" style="border: 2px dashed rgba(99, 102, 241, 0.4); border-radius: 10px; padding: 1.1rem 1rem; text-align: center; background: rgba(15, 23, 42, 0.6); cursor: pointer; transition: all 0.2s ease;">
+              <input type="file" id="task-file-input" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.xml,.csv,.txt,.json,.zip,.rar" style="display: none;">
+              <div style="font-size: 0.875rem; color: #ffffff; font-weight: 700; margin-bottom: 0.35rem; pointer-events: none;">
+                📁 Clique aqui para selecionar arquivos do seu PC (Imagens, PDFs, Docs, XML)
+              </div>
+              <div style="font-size: 0.775rem; color: var(--text-muted); pointer-events: none;">
+                Ou <strong>arraste e solte os arquivos aqui</strong> | Pressione <strong style="color: #a5b4fc;">Ctrl + V</strong> para colar capturas de tela (prints)
+              </div>
+            </div>
+
+            <div id="task-attachments-preview-container" style="display: flex; flex-wrap: wrap; gap: 0.6rem; margin-top: 0.75rem;"></div>
+          </div>
+
         </div>
 
 
@@ -1319,8 +1346,55 @@
     </div>
   </div>
 
+  <!-- ============================================================
+        MODAL PERSONALIZAR ORDEM DO MENU
+        ============================================================ -->
+  <div class="modal-overlay" id="modal-customize-menu">
+    <div class="modal-card" style="max-width: 480px;">
+      <div class="modal-header">
+        <h3 class="modal-title">
+          ⚙️ Personalizar Ordem do Menu
+        </h3>
+        <button class="modal-close">&times;</button>
+      </div>
+
+      <div style="padding: 0.5rem 0;">
+        <p style="font-size: 0.825rem; color: var(--text-muted); margin-bottom: 1rem;">
+          Defina a ordem dos botões do seu menu principal. Use os botões <strong>▲</strong> e <strong>▼</strong> para organizar como preferir. Essa preferência fica salva no seu usuário!
+        </p>
+
+        <div id="customize-menu-list" style="display: flex; flex-direction: column; gap: 0.5rem; max-height: 320px; overflow-y: auto; padding-right: 0.25rem;">
+        </div>
+      </div>
+
+      <div class="modal-actions" style="margin-top: 1.25rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+        <button type="button" id="btn-reset-menu-order" class="btn btn-secondary" style="font-size: 0.8rem;">
+          🔄 Restaurar Padrão
+        </button>
+        <div style="display: flex; gap: 0.5rem;">
+          <button type="button" class="btn btn-secondary btn-modal-cancel">
+            Cancelar
+          </button>
+          <button type="button" id="btn-save-menu-order" class="btn btn-primary">
+            Salvar Ordem
+          </button>
+        </div>
+      </div>
   </div>
 
+  <!-- ============================================================
+        MODAL VISUALIZADOR DE IMAGENS / PRINTS EM TELA CHEIA
+        ============================================================ -->
+  <div class="modal-overlay" id="modal-image-viewer" style="z-index: 10000;">
+    <div class="modal-card" style="max-width: 90vw; max-height: 90vh; background: rgba(15,23,42,0.95); border: 1px solid var(--border-color); padding: 1rem; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+      <div style="width: 100%; display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+        <span id="image-viewer-title" style="font-weight: 700; color: #fff; font-size: 0.9rem;">🔎 Visualização da Imagem</span>
+        <button class="modal-close">&times;</button>
+      </div>
+      <div style="flex: 1; width: 100%; display: flex; align-items: center; justify-content: center; overflow: hidden;">
+        <img id="image-viewer-img" src="" alt="Captura" style="max-width: 100%; max-height: 75vh; object-fit: contain; border-radius: 8px; border: 1px solid var(--border-color);">
+      </div>
+    </div>
   </div>
 
 
