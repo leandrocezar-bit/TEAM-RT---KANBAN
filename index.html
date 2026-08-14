@@ -1194,13 +1194,16 @@
               </span>
             </label>
 
-            <div id="task-attachments-dropzone" style="border: 2px dashed rgba(99, 102, 241, 0.4); border-radius: 10px; padding: 1.1rem 1rem; text-align: center; background: rgba(15, 23, 42, 0.6); cursor: pointer; transition: all 0.2s ease;">
+            <div id="task-attachments-dropzone" style="border: 2px dashed rgba(99, 102, 241, 0.4); border-radius: 10px; padding: 0.9rem 1rem; text-align: center; background: rgba(15, 23, 42, 0.6); transition: all 0.2s ease;">
               <input type="file" id="task-file-input" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.xml,.csv,.txt,.json,.zip,.rar" style="display: none;">
-              <div style="font-size: 0.875rem; color: #ffffff; font-weight: 700; margin-bottom: 0.35rem; pointer-events: none;">
-                📁 Clique aqui para selecionar arquivos do seu PC (Imagens, PDFs, Docs, XML)
+              <div style="display: flex; gap: 0.75rem; justify-content: center; align-items: center; flex-wrap: wrap; margin-bottom: 0.4rem;">
+                <button type="button" id="btn-trigger-task-file" class="btn btn-secondary btn-sm" style="font-size: 0.8rem; font-weight: 700; padding: 0.35rem 0.85rem; cursor: pointer;">
+                  📁 Selecionar Arquivos do PC
+                </button>
+                <span style="font-size: 0.8rem; color: #a5b4fc; font-weight: 600;">ou pressione <strong>Ctrl + V</strong> em qualquer lugar para colar print</span>
               </div>
-              <div style="font-size: 0.775rem; color: var(--text-muted); pointer-events: none;">
-                Ou <strong>arraste e solte os arquivos aqui</strong> | Pressione <strong style="color: #a5b4fc;">Ctrl + V</strong> para colar capturas de tela (prints)
+              <div style="font-size: 0.75rem; color: var(--text-muted); pointer-events: none;">
+                Você também pode <strong>arrastar e soltar arquivos</strong> para dentro desta área
               </div>
             </div>
 
@@ -1380,6 +1383,7 @@
           </button>
         </div>
       </div>
+    </div>
   </div>
 
   <!-- ============================================================
@@ -1387,9 +1391,14 @@
         ============================================================ -->
   <div class="modal-overlay" id="modal-image-viewer" style="z-index: 10000;">
     <div class="modal-card" style="max-width: 90vw; max-height: 90vh; background: rgba(15,23,42,0.95); border: 1px solid var(--border-color); padding: 1rem; display: flex; flex-direction: column; align-items: center; justify-content: center;">
-      <div style="width: 100%; display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+      <div style="width: 100%; display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; gap: 1rem; flex-wrap: wrap;">
         <span id="image-viewer-title" style="font-weight: 700; color: #fff; font-size: 0.9rem;">🔎 Visualização da Imagem</span>
-        <button class="modal-close">&times;</button>
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+          <a id="image-viewer-download-btn" href="" download="imagem.png" class="btn btn-primary btn-sm" style="font-size: 0.775rem; padding: 0.3rem 0.75rem; text-decoration: none; font-weight: 700;">
+            📥 Baixar Imagem
+          </a>
+          <button class="modal-close">&times;</button>
+        </div>
       </div>
       <div style="flex: 1; width: 100%; display: flex; align-items: center; justify-content: center; overflow: hidden;">
         <img id="image-viewer-img" src="" alt="Captura" style="max-width: 100%; max-height: 75vh; object-fit: contain; border-radius: 8px; border: 1px solid var(--border-color);">

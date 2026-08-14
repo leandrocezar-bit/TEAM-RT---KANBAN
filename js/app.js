@@ -1382,10 +1382,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     const modalViewer = document.getElementById('modal-image-viewer');
     const imgEl = document.getElementById('image-viewer-img');
     const titleEl = document.getElementById('image-viewer-title');
+    const downloadBtn = document.getElementById('image-viewer-download-btn');
 
     if (modalViewer && imgEl) {
       imgEl.src = imgSrc;
       if (titleEl) titleEl.textContent = `🔎 ${titleStr}`;
+      if (downloadBtn) {
+        downloadBtn.href = imgSrc;
+        downloadBtn.download = titleStr || 'imagem.png';
+      }
       openModal(modalViewer);
     }
   };
@@ -1417,9 +1422,19 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       if (isImg) {
         return `
-          <div style="position:relative; width:95px; height:95px; border-radius:8px; border:1px solid var(--border-color); overflow:hidden; background:rgba(0,0,0,0.4); display:flex; flex-direction:column; align-items:center; justify-content:center;" title="Clique para ampliar: ${att.name}">
-            <img src="${att.data}" alt="${att.name}" class="btn-zoom-att" data-idx="${idx}" style="width:100%; height:100%; object-fit:cover; cursor:pointer;">
-            ${isEditable ? `<button type="button" class="btn-remove-att" data-idx="${idx}" style="position:absolute; top:3px; right:3px; background:rgba(239,68,68,0.9); color:#fff; border:none; border-radius:50%; width:20px; height:20px; font-size:12px; cursor:pointer; display:flex; align-items:center; justify-content:center; line-height:1; font-weight:bold;" title="Remover anexo">&times;</button>` : ''}
+          <div style="position:relative; width:115px; border-radius:8px; border:1px solid var(--border-color); overflow:hidden; background:rgba(15,23,42,0.8); display:flex; flex-direction:column; align-items:center;" title="${att.name}">
+            <div style="width:100%; height:85px; overflow:hidden; position:relative; background:#000;">
+              <img src="${att.data}" alt="${att.name}" class="btn-zoom-att" data-idx="${idx}" style="width:100%; height:100%; object-fit:cover; cursor:pointer;" title="Clique para ampliar: ${att.name}">
+              ${isEditable ? `<button type="button" class="btn-remove-att" data-idx="${idx}" style="position:absolute; top:3px; right:3px; background:rgba(239,68,68,0.9); color:#fff; border:none; border-radius:50%; width:20px; height:20px; font-size:12px; cursor:pointer; display:flex; align-items:center; justify-content:center; line-height:1; font-weight:bold; z-index:2;" title="Remover anexo">&times;</button>` : ''}
+            </div>
+            <div style="width:100%; padding:0.3rem 0.4rem; background:rgba(15,23,42,0.95); display:flex; justify-content:space-around; align-items:center; border-top:1px solid var(--border-color);">
+              <button type="button" class="btn-zoom-att" data-idx="${idx}" style="background:transparent; border:none; color:#a5b4fc; font-size:0.7rem; font-weight:700; cursor:pointer; padding:1px 3px;" title="Visualizar em tela cheia">
+                🔍 Ver
+              </button>
+              <a href="${att.data}" download="${att.name}" style="color:var(--color-primary-light); font-size:0.7rem; font-weight:700; text-decoration:none; padding:1px 3px;" title="Baixar imagem no PC">
+                📥 Baixar
+              </a>
+            </div>
           </div>
         `;
       } else {
@@ -1439,6 +1454,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Listener para ampliar imagem
     container.querySelectorAll('.btn-zoom-att').forEach((img) => {
       img.addEventListener('click', (e) => {
+        e.stopPropagation();
+        e.preventDefault();
         const idx = parseInt(e.currentTarget.dataset.idx, 10);
         if (currentTaskAttachments[idx]) {
           openImageViewer(currentTaskAttachments[idx].data, currentTaskAttachments[idx].name);
@@ -1465,12 +1482,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Dropzone e upload de arquivos
   const dropzoneEl = document.getElementById('task-attachments-dropzone');
   const fileInputEl = document.getElementById('task-file-input');
+  const btnTriggerFile = document.getElementById('btn-trigger-task-file');
 
-  if (dropzoneEl && fileInputEl) {
-    dropzoneEl.addEventListener('click', (e) => {
-      if (e.target === fileInputEl) return;
-      fileInputEl.click();
-    });
+  if (fileInputEl) {
+    if (btnTriggerFile) {
+      btnTriggerFile.addEventListener('click', () => fileInputEl.click());
+    }
 
     fileInputEl.addEventListener('change', (e) => {
       const files = Array.from(e.target.files);
