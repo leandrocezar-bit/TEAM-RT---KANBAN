@@ -80,6 +80,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (btnViewAdmin) {
         btnViewAdmin.style.display = isAdmin() ? 'inline-flex' : 'none';
       }
+      const adminOnlyPanel = document.getElementById('admin-only-members-panel');
+      if (adminOnlyPanel) {
+        adminOnlyPanel.style.display = isAdmin() ? 'block' : 'none';
+      }
 
       // Aplica a ordem personalizada do menu do usuário logado
       applyUserMenuOrder();
@@ -99,17 +103,21 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   function setupAdminRealtimeListener() {
-    if (!DB.supabase) return;
+    if (!DB.client) return;
     if (window.adminRealtimeChannel) return;
 
-    window.adminRealtimeChannel = DB.supabase
-      .channel('system_admin_events')
+    window.adminRealtimeChannel = DB.client
+      .channel('system_admin_events', {
+        config: {
+          broadcast: { ack: true },
+        },
+      })
       .on('broadcast', { event: 'FORCE_LOGOUT_ALL' }, (payload) => {
         console.log('🔴 Broadcast de Deslogamento em Tempo Real recebido:', payload);
         const loggedId = getLoggedMemberId();
         const level = localStorage.getItem('logged_access_level');
 
-        if (level !== 'admin' && String(payload.payload?.adminId) !== String(loggedId)) {
+        if (String(payload.payload?.adminId) !== String(loggedId)) {
           localStorage.removeItem('app_authenticated');
           localStorage.removeItem('logged_member_id');
           localStorage.removeItem('logged_access_level');
@@ -2542,10 +2550,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
       }
 
-      if (DB.supabase) {
-        const channel = DB.supabase.channel('system_admin_events');
-        await channel.subscribe();
-        await channel.send({
+      if (window.adminRealtimeChannel) {
+        window.adminRealtimeChannel.send({
           type: 'broadcast',
           event: 'FORCE_LOGOUT_ALL',
           payload: {
@@ -2553,7 +2559,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             adminName: localStorage.getItem('logged_member_name') || 'Administrador',
             timestamp: Date.now()
           }
+        }).then(resp => {
+          console.log('Realtime Send Response:', resp);
+          if (resp !== 'ok') {
+            alert('Falha no Supabase ao disparar logout: ' + JSON.stringify(resp));
+          }
+        }).catch(err => {
+          alert('Erro de conexão ao enviar sinal: ' + err.message);
         });
+      } else {
+        alert('Erro: Canal de conexão global (Realtime) não foi iniciado neste navegador!');
       }
 
       addAuditLog('Deslogamento Global', 'Disparado encerramento forçado de todas as sessões ativas no sistema.');

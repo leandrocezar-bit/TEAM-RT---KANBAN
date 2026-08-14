@@ -35,6 +35,10 @@
       if (btnViewAdmin) {
         btnViewAdmin.style.display = isAdmin() ? 'inline-flex' : 'none';
       }
+      const adminOnlyPanel = document.getElementById('admin-only-members-panel');
+      if (adminOnlyPanel) {
+        adminOnlyPanel.style.display = isAdmin() ? 'block' : 'none';
+      }
       if (window.NavigationEngine) {
         window.NavigationEngine.applyUserMenuOrder();
       }
@@ -54,11 +58,15 @@
   }
 
   function setupAdminRealtimeListener() {
-    if (!window.DB || !window.DB.supabase) return;
+    if (!window.DB || !window.DB.client) return;
     if (window.adminRealtimeChannel) return;
 
-    window.adminRealtimeChannel = window.DB.supabase
-      .channel('system_admin_events')
+    window.adminRealtimeChannel = window.DB.client
+      .channel('system_admin_events', {
+        config: {
+          broadcast: { ack: true },
+        },
+      })
       .on('broadcast', { event: 'FORCE_LOGOUT_ALL' }, (payload) => {
         console.log('🔴 Broadcast de Deslogamento em Tempo Real recebido:', payload);
         const loggedId = getLoggedMemberId();
@@ -72,7 +80,10 @@
             performLogout(`Todos os usuários do nível ${payload.targetRole} foram deslogados pelo Administrador.`);
           }
         } else {
-          performLogout('O Administrador encerrou a sessão de todos os usuários do sistema.');
+          // Deslogamento Global - Desloga todo mundo exceto quem enviou
+          if (String(payload.payload?.adminId) !== String(loggedId) && String(payload.adminId) !== String(loggedId)) {
+            performLogout('O Administrador encerrou a sessão de todos os usuários do sistema.');
+          }
         }
       })
       .subscribe();

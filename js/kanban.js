@@ -151,6 +151,8 @@ export const KanbanEngine = {
     if (targetStatus === 'A FAZER') {
       // 🔄 Se a tarefa voltou para A FAZER, zera todo o tempo trabalhado, pausado e marcadores
       task.elapsedSeconds = 0;
+      task._legacySeconds = 0;
+      task.timeIntervals = [];
       task.isTimerRunning = false;
       task.lastTimerStartedAt = null;
       task.lastTimerStoppedAt = null;

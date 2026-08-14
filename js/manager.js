@@ -197,10 +197,59 @@ export const ManagerEngine = {
       const wipCount = memberTasks.filter(t => t.status === 'EM EXECUÇÃO').length;
       const doneCount = memberTasks.filter(t => t.status === 'CONCLUÍDO').length;
 
-      let totalSeconds = 0;
+      // ── Tempo Total Efetivo com Merge de Intervalos ──────────────────────────
+      // Tarefas com timeIntervals: intervalos são mesclados entre TODAS as tarefas
+      //   do membro → elimina dupla contagem de sessões simultâneas.
+      // Tarefas sem timeIntervals (legado): soma elapsedSeconds + sessão ativa.
+
+      const now = Date.now();
+      const allIntervals = [];  // intervalos reais de todas as tarefas
+      let legacySeconds = 0;    // tempo legado (elapsedSeconds antes da migração)
+
       memberTasks.forEach(t => {
-        totalSeconds += TimerEngine.getCurrentElapsedSeconds(t);
+        // Verifica se a tarefa de fato já foi migrada (tem o _legacySeconds preservado)
+        if (t.timeIntervals && t._legacySeconds !== undefined && t._legacySeconds !== null) {
+          // Novo sistema: adiciona o legado congelado + cada intervalo real
+          legacySeconds += (t._legacySeconds || 0);
+          t.timeIntervals.forEach(iv => {
+            const s = Number(iv.s);
+            const e = Number(iv.e) || now;
+            if (s && s > 0) allIntervals.push({ s, e });
+          });
+        } else {
+          // Legado: calcula elapsed + sessão ativa e soma diretamente
+          let secs = t.elapsedSeconds || 0;
+          if (t.isTimerRunning && t.lastTimerStartedAt) {
+            secs += Math.max(0, Math.floor((now - Number(t.lastTimerStartedAt)) / 1000));
+          }
+          legacySeconds += secs;
+        }
       });
+
+      // Merge: une intervalos sobrepostos para não contar o mesmo período duas vezes
+      let mergedSeconds = 0;
+      if (allIntervals.length > 0) {
+        const sorted = allIntervals.sort((a, b) => a.s - b.s);
+        const merged = [];
+        let cs = sorted[0].s;
+        let ce = sorted[0].e;
+        for (let i = 1; i < sorted.length; i++) {
+          const { s, e } = sorted[i];
+          if (s <= ce) {
+            ce = Math.max(ce, e);
+          } else {
+            merged.push([cs, ce]);
+            cs = s;
+            ce = e;
+          }
+        }
+        merged.push([cs, ce]);
+        mergedSeconds = Math.floor(
+          merged.reduce((acc, [s, e]) => acc + (e - s), 0) / 1000
+        );
+      }
+
+      const totalSeconds = legacySeconds + mergedSeconds;
 
       const memberTaskIds = new Set(memberTasks.map(t => String(t.id)));
       const memberImpediments = impediments.filter(imp => memberTaskIds.has(String(imp.taskId)));

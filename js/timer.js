@@ -1,5 +1,14 @@
 /**
  * Motor de Gerenciamento de Cronômetro e Tempo Trabalhado (Timer Engine)
+ *
+ * NOVO SISTEMA DE INTERVALOS (timeIntervals):
+ * Cada sessão de trabalho é gravada como { s: startMs, e: endMs|null }.
+ * Isso permite calcular o tempo real sem contar duplo sessões simultâneas.
+ *
+ * Compatibilidade:
+ * - Tarefas antigas (sem timeIntervals): usam elapsedSeconds (legado).
+ * - Tarefas novas: migram automaticamente na primeira vez que o timer é iniciado.
+ *   O elapsedSeconds existente é preservado em _legacySeconds.
  */
 
 import { DB } from './db.js';
@@ -15,24 +24,41 @@ export const TimerEngine = {
     const h = Math.floor(secs / 3600);
     const m = Math.floor((secs % 3600) / 60);
     const s = secs % 60;
-
     const pad = (num) => String(num).padStart(2, '0');
-
-    if (h > 0) {
-      return `${pad(h)}:${pad(m)}:${pad(s)}`;
-    }
+    if (h > 0) return `${pad(h)}:${pad(m)}:${pad(s)}`;
     return `${pad(m)}:${pad(s)}`;
   },
 
   /**
-   * Calcula os segundos acumulados atuais de uma tarefa (incluindo tempo rodando no momento)
+   * Soma a duração de todos os intervalos em segundos.
+   * Intervalos sem 'e' (abertos) usam Date.now() como fim.
+   */
+  sumIntervalSeconds(intervals) {
+    if (!intervals || intervals.length === 0) return 0;
+    const now = Date.now();
+    return Math.floor(
+      intervals.reduce((acc, iv) => {
+        const end = Number(iv.e) || now;
+        const start = Number(iv.s) || now;
+        return acc + Math.max(0, end - start);
+      }, 0) / 1000
+    );
+  },
+
+  /**
+   * Calcula os segundos acumulados atuais de uma tarefa.
+   * Usa timeIntervals se disponível E se a migração ocorreu (_legacySeconds definido).
    */
   getCurrentElapsedSeconds(task) {
+    // Se _legacySeconds está definido, a tarefa já foi migrada corretamente pelo startTimer
+    if (task.timeIntervals && task._legacySeconds !== undefined && task._legacySeconds !== null) {
+      return (task._legacySeconds || 0) + this.sumIntervalSeconds(task.timeIntervals);
+    }
+
+    // Legado: elapsedSeconds + tempo da sessão ativa atual
     let seconds = task.elapsedSeconds || 0;
     if (task.isTimerRunning && task.lastTimerStartedAt) {
-      const now = Date.now();
-      const diffSecs = Math.floor((now - task.lastTimerStartedAt) / 1000);
-      seconds += Math.max(0, diffSecs);
+      seconds += Math.max(0, Math.floor((Date.now() - Number(task.lastTimerStartedAt)) / 1000));
     }
     return seconds;
   },
@@ -46,8 +72,20 @@ export const TimerEngine = {
     if (!task.firstExecutionStartedAt) {
       task.firstExecutionStartedAt = new Date().toISOString();
     }
+
+    // ── Migração automática para o novo sistema ──────────────────────────
+    // Na primeira vez que o timer é iniciado após a atualização,
+    // congela o elapsedSeconds antigo em _legacySeconds e inicia os intervalos.
+    if (task._legacySeconds === undefined || task._legacySeconds === null) {
+      task._legacySeconds = task.elapsedSeconds || 0;
+      task.timeIntervals = [];
+    }
+
+    // Abre um novo intervalo de sessão
+    task.timeIntervals.push({ s: Date.now(), e: null });
     task.isTimerRunning = true;
     task.lastTimerStartedAt = Date.now();
+
     await DB.save('tasks', task);
     return task;
   },
@@ -59,9 +97,20 @@ export const TimerEngine = {
     if (!task.isTimerRunning) return task;
 
     const now = Date.now();
-    const diffSecs = Math.floor((now - (task.lastTimerStartedAt || now)) / 1000);
-    
-    task.elapsedSeconds = (task.elapsedSeconds || 0) + Math.max(0, diffSecs);
+
+    if (task._legacySeconds !== undefined && task._legacySeconds !== null && task.timeIntervals) {
+      // Novo sistema: fecha o intervalo aberto
+      const last = task.timeIntervals[task.timeIntervals.length - 1];
+      if (last && !last.e) last.e = now;
+
+      // Mantém elapsedSeconds atualizado para compatibilidade com o resto do sistema
+      task.elapsedSeconds = (task._legacySeconds || 0) + this.sumIntervalSeconds(task.timeIntervals);
+    } else {
+      // Legado: acumula no elapsedSeconds
+      const diffSecs = Math.floor((now - (Number(task.lastTimerStartedAt) || now)) / 1000);
+      task.elapsedSeconds = (task.elapsedSeconds || 0) + Math.max(0, diffSecs);
+    }
+
     task.isTimerRunning = false;
     task.lastTimerStartedAt = null;
     task.lastTimerStoppedAt = new Date().toISOString();
@@ -98,9 +147,9 @@ export const TimerEngine = {
         }
       });
 
-      if (onTickCallback) {
+      if (typeof onTickCallback === 'function') {
         onTickCallback(runningTasks);
       }
     }, 1000);
-  }
+  },
 };
