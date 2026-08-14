@@ -54,7 +54,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
 
       if (btnViewAdmin) {
-        btnViewAdmin.style.display = isManager() ? 'inline-flex' : 'none';
+        btnViewAdmin.style.display = isAdmin() ? 'inline-flex' : 'none';
       }
 
       // Inicia a escuta de chat em segundo plano e escuta de eventos admin
@@ -879,42 +879,46 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  if (btnNewTask) {
-    btnNewTask.addEventListener('click', async () => {
-      if (formTask) formTask.reset();
+  async function openNewTaskModal() {
+    if (formTask) formTask.reset();
 
-      const taskIdInput = document.getElementById('task-id');
-      if (taskIdInput) taskIdInput.value = '';
+    const taskIdInput = document.getElementById('task-id');
+    if (taskIdInput) taskIdInput.value = '';
 
-      const headerTitle = document.getElementById('modal-task-title-header');
-      if (headerTitle) headerTitle.textContent = '📌 Nova Atividade';
+    const headerTitle = document.getElementById('modal-task-title-header');
+    if (headerTitle) headerTitle.textContent = '📌 Nova Atividade';
 
-      await populateTaskMemberSelect();
-      await populateTaskProjectSelect();
+    await populateTaskMemberSelect();
+    await populateTaskProjectSelect();
 
-      const selectedMemberId = document.getElementById('task-member').value;
-      await renderTeamMembersCheckboxes(selectedMemberId, []);
+    const taskMemberEl = document.getElementById('task-member');
+    const selectedMemberId = taskMemberEl ? taskMemberEl.value : '';
+    await renderTeamMembersCheckboxes(selectedMemberId, []);
 
-      document.getElementById('task-date').value = new Date().toISOString().slice(0, 10);
+    const taskDateEl = document.getElementById('task-date');
+    if (taskDateEl) taskDateEl.value = new Date().toISOString().slice(0, 10);
 
-      const selectReplicate = document.getElementById('task-replicate');
-      if (selectReplicate) selectReplicate.value = 'nao';
-      const repPanel = document.getElementById('replicate-options-panel');
-      if (repPanel) repPanel.style.display = 'none';
-      const dynList = document.getElementById('dynamic-dates-list');
-      if (dynList) {
-        dynList.innerHTML = `
-          <div class="dynamic-date-row" style="display: flex; align-items: center; gap: 0.5rem;">
-            <input type="date" class="input-control input-dynamic-date" style="max-width: 200px; font-size: 0.825rem;">
-            <span style="font-size: 0.75rem; color: var(--text-dim);">Data 1</span>
-          </div>
-        `;
-        bindDynamicDateInputs();
-      }
+    const selectReplicate = document.getElementById('task-replicate');
+    if (selectReplicate) selectReplicate.value = 'nao';
+    const repPanel = document.getElementById('replicate-options-panel');
+    if (repPanel) repPanel.style.display = 'none';
+    const dynList = document.getElementById('dynamic-dates-list');
+    if (dynList) {
+      dynList.innerHTML = `
+        <div class="dynamic-date-row" style="display: flex; align-items: center; gap: 0.5rem;">
+          <input type="date" class="input-control input-dynamic-date" style="max-width: 200px; font-size: 0.825rem;">
+          <span style="font-size: 0.75rem; color: var(--text-dim);">Data 1</span>
+        </div>
+      `;
+      bindDynamicDateInputs();
+    }
 
-      openModal(modalTask);
-    });
+    openModal(modalTask);
   }
+
+  document.querySelectorAll('#btn-new-task, .btn-open-new-task').forEach(btn => {
+    btn.addEventListener('click', openNewTaskModal);
+  });
 
   // ============================================================
   // REPLICAÇÃO DE ATIVIDADES - CONTROLE DE UI DINÂMICA
