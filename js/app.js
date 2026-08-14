@@ -239,17 +239,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
       }
 
-      // 2. REGRA DE SEGURANÇA DE SENHA: A senha DEVE coincidir exatamente com a da tabela
+      // 2. REGRA DE SEGURANÇA DE SENHA: Criptografia SHA-256 e validação segura
       const registeredPassword = matchedMember.password ? String(matchedMember.password).trim() : null;
 
       if (registeredPassword) {
-        if (registeredPassword !== inputPassword) {
+        const isValid = await AuthEngine.verifyPassword(inputPassword, registeredPassword, matchedMember);
+        if (!isValid) {
           showToast('❌ Senha incorreta! Verifique sua senha de acesso.', 'warning');
           return;
         }
       } else {
-        // Se o colaborador não possuía senha gravada na tabela, vincula a senha informada
-        matchedMember.password = inputPassword;
+        // Se o colaborador não possuía senha gravada na tabela, vincula a senha criptografada em Hash SHA-256
+        matchedMember.password = await AuthEngine.hashPassword(inputPassword);
         try {
           await DB.save('members', matchedMember);
         } catch (err) {
@@ -545,6 +546,17 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
       AIEngine.renderAISection();
     }
+  }
+
+  window.refreshUI = refreshUI;
+
+  if (window.StateEngine) {
+    window.StateEngine.on('task:updated', async () => await refreshUI());
+    window.StateEngine.on('task:created', async () => await refreshUI());
+    window.StateEngine.on('absence:saved', async () => await refreshUI());
+    window.StateEngine.on('menu:reordered', () => {
+      if (window.NavigationEngine) window.NavigationEngine.applyUserMenuOrder();
+    });
   }
 
   // Navegação
@@ -1061,14 +1073,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         photoData = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=6366f1&color=fff`;
       }
 
+      const hashedPassword = await AuthEngine.hashPassword(password);
+
       const newMember = {
         id: 'm-' + Date.now(),
-        name,
-        role,
-        contact,
-        email,
-        password,
-        accessLevel: accessLevel === 'gestor' ? 'gestor' : 'colaborador',
+        name: AuthEngine.sanitizeHTML(name),
+        role: AuthEngine.sanitizeHTML(role),
+        contact: AuthEngine.sanitizeHTML(contact),
+        email: AuthEngine.sanitizeHTML(email),
+        password: hashedPassword,
+        accessLevel: accessLevel === 'gestor' ? 'gestor' : (accessLevel === 'admin' ? 'admin' : 'colaborador'),
         photo: photoData,
       };
 
@@ -2402,7 +2416,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
           const targetMember = members.find(m => String(m.id) === String(memberId));
           if (targetMember) {
-            targetMember.password = newPass;
+            if (newPass && newPass !== targetMember.password) {
+              targetMember.password = await AuthEngine.hashPassword(newPass);
+            }
             targetMember.accessLevel = newLevel;
 
             await DB.save('members', targetMember);
