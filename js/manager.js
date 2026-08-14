@@ -18,11 +18,8 @@ export const ManagerEngine = {
     const isAdminMember = (m) => {
       if (!m) return false;
       const id = String(m.id || '').toLowerCase();
-      const name = String(m.name || '').toLowerCase();
-      const email = String(m.email || '').toLowerCase();
-      const role = String(m.role || '').toLowerCase();
       const level = String(m.accessLevel || '').toLowerCase();
-      return level === 'admin' || id === 'm-admin' || id === 'admin' || name.includes('admin') || email.includes('admin') || role.includes('administrador');
+      return level === 'admin' || id === 'm-admin' || id === 'admin';
     };
 
     const allMembers = (await DB.getAll('members')) || [];
@@ -169,11 +166,8 @@ export const ManagerEngine = {
     const isAdminMember = (m) => {
       if (!m) return false;
       const id = String(m.id || '').toLowerCase();
-      const name = String(m.name || '').toLowerCase();
-      const email = String(m.email || '').toLowerCase();
-      const role = String(m.role || '').toLowerCase();
       const level = String(m.accessLevel || '').toLowerCase();
-      return level === 'admin' || id === 'm-admin' || id === 'admin' || name.includes('admin') || email.includes('admin') || role.includes('administrador');
+      return level === 'admin' || id === 'm-admin' || id === 'admin';
     };
 
     const rawOperational = (members || []).filter(m => !isAdminMember(m));

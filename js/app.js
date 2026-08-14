@@ -231,27 +231,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
 
       let accessLevel = matchedMember.accessLevel || 'colaborador';
-      const nameLower = (matchedMember.name || '').toLowerCase();
-      const roleLower = (matchedMember.role || '').toLowerCase();
-      const emailLower = (matchedMember.email || '').toLowerCase();
-
-      if (
-        matchedMember.accessLevel === 'admin' ||
-        roleLower.includes('admin') ||
-        nameLower.includes('admin') ||
-        nameLower.includes('leandro') ||
-        emailLower.includes('leandro')
-      ) {
-        accessLevel = 'admin';
-      } else if (
-        matchedMember.accessLevel === 'gestor' ||
-        roleLower.includes('gestor') ||
-        roleLower.includes('gerente') ||
-        roleLower.includes('coordenador') ||
-        nameLower.includes('gestor')
-      ) {
-        accessLevel = 'gestor';
-      }
 
       localStorage.setItem('app_authenticated', 'true');
       localStorage.setItem('logged_member_id', matchedMember.id);
@@ -713,11 +692,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   function isAdminMember(m) {
     if (!m) return false;
     const id = String(m.id || '').toLowerCase();
-    const name = String(m.name || '').toLowerCase();
-    const email = String(m.email || '').toLowerCase();
-    const role = String(m.role || '').toLowerCase();
     const level = String(m.accessLevel || '').toLowerCase();
-    return level === 'admin' || id === 'm-admin' || id === 'admin' || name.includes('admin') || email.includes('admin') || role.includes('administrador');
+    return level === 'admin' || id === 'm-admin' || id === 'admin';
   }
 
   async function renderTeamMembersCheckboxes(selectedMemberId, selectedTeamMemberIds = []) {
@@ -1810,7 +1786,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     `;
 
     members.forEach((m, idx) => {
-      const currentLevel = m.accessLevel || (m.role && m.role.toLowerCase().includes('gestor') ? 'gestor' : 'colaborador');
+      const currentLevel = m.accessLevel || 'colaborador';
       const isFirst = idx === 0;
       const isLast = idx === members.length - 1;
 
