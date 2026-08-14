@@ -205,57 +205,142 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
+  // ============================================================
+  // SEGURANÇA: HASH SHA-256
+  // ============================================================
+  async function hashPassword(password) {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(password);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  function isHashed(str) {
+    return typeof str === 'string' && str.length === 64 && /^[0-9a-f]+$/.test(str);
+  }
+
+  // ============================================================
+  // SEGURANÇA: RATE LIMITING (3 tentativas / 30s de bloqueio)
+  // ============================================================
+  const LOGIN_MAX_ATTEMPTS = 3;
+  const LOGIN_LOCKOUT_MS = 30 * 1000;
+  const LOGIN_ATTEMPT_KEY = 'login_attempts';
+  const LOGIN_LOCKOUT_KEY = 'login_locked_until';
+
+  function getLoginAttempts() {
+    return parseInt(localStorage.getItem(LOGIN_ATTEMPT_KEY) || '0', 10);
+  }
+
+  function incrementLoginAttempts() {
+    const attempts = getLoginAttempts() + 1;
+    localStorage.setItem(LOGIN_ATTEMPT_KEY, String(attempts));
+    if (attempts >= LOGIN_MAX_ATTEMPTS) {
+      localStorage.setItem(LOGIN_LOCKOUT_KEY, String(Date.now() + LOGIN_LOCKOUT_MS));
+    }
+    return attempts;
+  }
+
+  function resetLoginAttempts() {
+    localStorage.removeItem(LOGIN_ATTEMPT_KEY);
+    localStorage.removeItem(LOGIN_LOCKOUT_KEY);
+  }
+
+  function isLoginLocked() {
+    const lockedUntil = parseInt(localStorage.getItem(LOGIN_LOCKOUT_KEY) || '0', 10);
+    if (Date.now() < lockedUntil) return Math.ceil((lockedUntil - Date.now()) / 1000);
+    if (lockedUntil > 0) resetLoginAttempts();
+    return 0;
+  }
+
   if (formLogin) {
     formLogin.addEventListener('submit', async (e) => {
       e.preventDefault();
+
+      // ── Verificação de bloqueio por tentativas ──────────────────
+      const remainingSecs = isLoginLocked();
+      if (remainingSecs > 0) {
+        showToast(`🔒 Muitas tentativas. Aguarde ${remainingSecs}s para tentar novamente.`, 'warning');
+        return;
+      }
 
       const inputUser = document.getElementById('input-login-user').value.trim().toLowerCase();
       const inputPassword = document.getElementById('input-passcode').value.trim();
 
       if (!inputUser || !inputPassword) {
-        showToast('Informe usuário/e-mail e senha para entrar.', 'warning');
+        showToast('Informe e-mail e senha para entrar.', 'warning');
         return;
       }
 
-      // Busca a lista atualizada de colaboradores na tabela 'members' do Supabase
+      // ── Busca membros no Supabase ───────────────────────────────
       const members = (await DB.getAll('members', { forceRefresh: true })) || [];
 
-      // Procura o colaborador por e-mail, nome completo ou primeiro nome
+      // ── Opção 3: Busca APENAS por e-mail (mais seguro) ──────────
       let matchedMember = members.find((m) => {
         const memEmail = m.email ? String(m.email).trim().toLowerCase() : '';
-        const memName = m.name ? String(m.name).trim().toLowerCase() : '';
-        const firstName = memName.split(' ')[0].toLowerCase();
-        return (
-          memEmail === inputUser ||
-          memName === inputUser ||
-          firstName === inputUser ||
-          (memEmail && inputUser.includes(memEmail))
-        );
+        return memEmail === inputUser;
       });
 
-      // 1. REGRA DE SEGURANÇA: Só entra quem está cadastrado na tabela 'members'
       if (!matchedMember) {
-        showToast('❌ Acesso negado: Usuário não cadastrado na tabela de colaboradores.', 'warning');
+        incrementLoginAttempts();
+        const att = getLoginAttempts();
+        const remaining = LOGIN_MAX_ATTEMPTS - att;
+        if (remaining > 0) {
+          showToast(`❌ E-mail não encontrado. ${remaining} tentativa(s) restante(s).`, 'warning');
+        } else {
+          showToast(`🔒 Conta bloqueada por 30 segundos após múltiplas tentativas.`, 'error');
+        }
         return;
       }
 
-      // 2. REGRA DE SEGURANÇA DE SENHA: A senha DEVE coincidir exatamente com a da tabela
+      // ── Opção 2: Verificação de senha com hash SHA-256 ──────────
       const registeredPassword = matchedMember.password ? String(matchedMember.password).trim() : null;
 
       if (registeredPassword) {
-        if (registeredPassword !== inputPassword) {
-          showToast('❌ Senha incorreta! Verifique sua senha de acesso.', 'warning');
+        let passwordMatch = false;
+
+        if (isHashed(registeredPassword)) {
+          // Senha já está em hash — compara hash do input com o hash salvo
+          const inputHash = await hashPassword(inputPassword);
+          passwordMatch = inputHash === registeredPassword;
+        } else {
+          // Senha ainda é texto puro — compara direto e migra para hash
+          passwordMatch = registeredPassword === inputPassword;
+          if (passwordMatch) {
+            // Migração automática: salva a senha como hash
+            matchedMember.password = await hashPassword(inputPassword);
+            try {
+              await DB.save('members', matchedMember);
+              console.log('[Segurança] Senha migrada para hash SHA-256.');
+            } catch (err) {
+              console.warn('[Segurança] Erro ao migrar senha:', err);
+            }
+          }
+        }
+
+        if (!passwordMatch) {
+          incrementLoginAttempts();
+          const att = getLoginAttempts();
+          const remaining = LOGIN_MAX_ATTEMPTS - att;
+          if (remaining > 0) {
+            showToast(`❌ Senha incorreta. ${remaining} tentativa(s) restante(s).`, 'warning');
+          } else {
+            showToast(`🔒 Conta bloqueada por 30 segundos após múltiplas tentativas.`, 'error');
+          }
           return;
         }
       } else {
-        // Se o colaborador não possuía senha gravada na tabela, vincula a senha informada
-        matchedMember.password = inputPassword;
+        // Sem senha cadastrada: salva a primeira senha já com hash
+        matchedMember.password = await hashPassword(inputPassword);
         try {
           await DB.save('members', matchedMember);
         } catch (err) {
           console.warn('Erro ao registrar senha do colaborador:', err);
         }
       }
+
+      // ── Login bem-sucedido ──────────────────────────────────────
+      resetLoginAttempts();
 
       let accessLevel = matchedMember.accessLevel || 'colaborador';
 
@@ -2415,8 +2500,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
           const targetMember = members.find(m => String(m.id) === String(memberId));
           if (targetMember) {
-            if (newPass && newPass !== targetMember.password) {
-              targetMember.password = await AuthEngine.hashPassword(newPass);
+            if (newPass) {
+              // Salva a nova senha sempre como hash SHA-256
+              targetMember.password = await hashPassword(newPass);
             }
             targetMember.accessLevel = newLevel;
 
