@@ -211,7 +211,9 @@ export const TimerEngine = {
     }
 
     this.tickerInterval = setInterval(async () => {
-      const tasks = await DB.getAll('tasks');
+      // Ler diretamente da memória local em vez de bater no Supabase (DB.getAll)
+      // para evitar que o cache bust a cada 3 segundos acione a rede.
+      const tasks = window.DB ? window.DB.getMemory('tasks') : [];
       const runningTasks = tasks.filter(t => t.isTimerRunning);
 
       // Atualiza mostradores de timer no DOM diretamente

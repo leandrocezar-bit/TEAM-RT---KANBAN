@@ -204,12 +204,13 @@ export const ChatEngine = {
      * Inicia a checagem automática (Auto-Sync) em segundo plano em QUALQUER aba
      */
     startAutoSync() {
-        if (chatPollingInterval) clearInterval(chatPollingInterval);
+        if (chatPollingInterval) {
+            clearInterval(chatPollingInterval);
+        }
 
-        // Busca silenciosa em segundo plano a cada 3 segundos mesmo fora da aba do chat
-        chatPollingInterval = setInterval(() => {
-            this.syncMessages();
-        }, 3000);
+        // Removemos o setInterval que dava ping a cada 3 segundos.
+        // Agora o chat depende 100% do Realtime do Supabase (setupRealtimeChat),
+        // economizando milhares de requisições inúteis por hora.
 
         // Inscreve no Realtime para notificar na mesma hora
         this.setupRealtimeChat();

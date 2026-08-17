@@ -138,6 +138,9 @@ export const DB = {
 
   realtimeConnected: false,
 
+  getMemory(storeName) {
+    return memoryStore[storeName] || [];
+  },
 
   // ========================================================
   // INIT
