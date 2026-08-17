@@ -12,8 +12,10 @@
 
   <link rel="stylesheet" href="css/kanban.css">
 
-  <link rel="icon"
-    href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📋</text></svg>">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#ea580c">
+  <link rel="apple-touch-icon" href="assets/icon-192.png">
+  <link rel="icon" href="assets/icon-192.png">
 
   <!-- ============================================================
         ESTILOS CUSTOMIZADOS E AJUSTES VISUAIS
@@ -1828,6 +1830,20 @@
         ============================================================ -->
   <script type="module" src="js/app.js?v=47"></script>
 
+  <!-- PWA Service Worker Registration -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+          .then(registration => {
+            console.log('ServiceWorker registrado com sucesso:', registration.scope);
+          })
+          .catch(err => {
+            console.warn('Falha ao registrar o ServiceWorker:', err);
+          });
+      });
+    }
+  </script>
 </body>
 
 </html>
