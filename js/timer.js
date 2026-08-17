@@ -195,11 +195,9 @@ export const TimerEngine = {
         }
       }
 
-      await DB.save('tasks', task);
-      console.log(`[TimerMigration] ✓ Tarefa "${task.title}" migrada.`);
+      // A migração de formato agora acontece apenas na memória (RAM) para a tela funcionar.
+      // Removemos o DB.save e o console.log para poupar cota e limpar o console.
     }
-
-    console.log('[TimerMigration] Migração concluída.');
   },
 
   /**
