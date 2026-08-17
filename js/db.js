@@ -36,7 +36,7 @@ const SUPABASE_URL =
   'https://lspvdunxxxebzwyypqlx.supabase.co';
 
 const SUPABASE_ANON_KEY =
-  'sb_publishable_jf69uVHlxULskHzGN__srA_oTi2LWPJ';
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxzcHZkdW54eHhlYnp3eXlwcWx4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0ODczNzQsImV4cCI6MjEwMTA2MzM3NH0.no4lYLh6tcThA5psirrjlzrvYHSaYf42aShPoEWXPG0';
 
 
 export const supabase = createClient(
