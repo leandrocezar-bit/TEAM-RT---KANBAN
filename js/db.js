@@ -44,8 +44,8 @@ export const supabase = createClient(
   SUPABASE_ANON_KEY,
   {
     auth: {
-      autoRefreshToken: false,
       persistSession: false,
+      autoRefreshToken: false,
       detectSessionInUrl: false
     },
     realtime: {
