@@ -2647,26 +2647,20 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   await refreshUI();
 
+  // Retoma a sessão de usuários online (heartbeat) caso a página seja recarregada
+  if (localStorage.getItem('app_authenticated') === 'true') {
+    const loggedId = getLoggedMemberId();
+    if (loggedId && window.PresenceEngine) {
+      const members = await DB.getAll('members');
+      const matchedMember = members.find(m => String(m.id) === String(loggedId));
+      if (matchedMember) {
+        window.PresenceEngine.onLogin(matchedMember).catch(() => {});
+      }
+    }
+  }
+
   // ============================================================
-  // ATUALIZAÇÃO AUTOMÁTICA EM SEGUNDO PLANO (AUTO-REFRESH)
+  // (Auto-refresh removido a pedido para poupar cota do Supabase)
   // ============================================================
-  setInterval(async () => {
-    // Se o usuário estiver preenchendo uma nova tarefa ou editando membro, não atualiza 
-    // para não causar flickering ou perda de dados nos formulários.
-    const modalTask = document.getElementById('modal-task');
-    const modalMember = document.getElementById('modal-member');
-    
-    if (modalTask && modalTask.classList.contains('active')) return;
-    if (modalMember && modalMember.classList.contains('active')) return;
-
-    // Salva a posição de rolagem da página
-    const scrollY = window.scrollY;
-
-    // Apenas atualiza a UI silenciosamente
-    await refreshUI();
-
-    // Restaura a posição de rolagem
-    window.scrollTo(0, scrollY);
-  }, 60000);
 
 });
