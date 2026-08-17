@@ -1704,6 +1704,8 @@
         style="display: flex; gap: 8px; margin-bottom: 1.25rem; border-bottom: 1px solid var(--border-color); padding-bottom: 8px; overflow-x: auto;">
         <button type="button" class="btn btn-sm btn-primary admin-tab-btn active" data-tab="admin-tab-logout">🔴
           Deslogar & Segurança</button>
+        <button type="button" class="btn btn-sm btn-secondary admin-tab-btn" data-tab="admin-tab-online" id="admin-tab-btn-online">🟢
+          Online Agora</button>
         <button type="button" class="btn btn-sm btn-secondary admin-tab-btn" data-tab="admin-tab-members">👥
           Colaboradores & Senhas</button>
         <button type="button" class="btn btn-sm btn-secondary admin-tab-btn" data-tab="admin-tab-cleanup">🧹 Limpeza de
@@ -1744,6 +1746,18 @@
             <span>Ativar Modo Manutenção (Kanban Read-Only)</span>
           </label>
         </div>
+      </div>
+
+      <!-- CONTEÚDO DA ABA ONLINE AGORA -->
+      <div id="admin-tab-online" class="admin-tab-content" style="display: none;">
+        <style>
+          @keyframes pulse-green {
+            0%   { box-shadow: 0 0 0 0 rgba(16,185,129,0.7); }
+            70%  { box-shadow: 0 0 0 8px rgba(16,185,129,0); }
+            100% { box-shadow: 0 0 0 0 rgba(16,185,129,0); }
+          }
+        </style>
+        <div id="admin-tab-online-container"></div>
       </div>
 
       <!-- CONTEÚDO DA ABA 2: GESTÃO DE COLABORADORES & SENHAS -->
@@ -1799,6 +1813,7 @@
         ============================================================ -->
   <script src="js/state.js?v=1"></script>
   <script src="js/modules/auth.js?v=1"></script>
+  <script src="js/modules/presence.js?v=1"></script>
   <script src="js/modules/navigation.js?v=1"></script>
   <script src="js/modules/attachments.js?v=1"></script>
   <script src="js/modules/absence.js?v=1"></script>

@@ -127,6 +127,82 @@ export const TimerEngine = {
   },
 
   /**
+   * Migra tarefas legadas (sem timeIntervals) para o novo sistema de intervalos.
+   *
+   * Para cada tarefa legada com elapsedSeconds > 0, constrói um intervalo sintético
+   * { s: início, e: fim } usando os melhores timestamps disponíveis:
+   *   1. firstExecutionStartedAt → início real da execução
+   *   2. lastTimerStoppedAt / completedAt / updatedAt → fim real
+   *   3. Fallback: cria o intervalo "regressivo" a partir do fim (e - elapsedSeconds)
+   *
+   * O elapsedSeconds original é preservado em _legacySeconds para compatibilidade.
+   * Tarefas já migradas (com _legacySeconds definido) são ignoradas.
+   */
+  async migrateAllLegacyTasks() {
+    const tasks = (await DB.getAll('tasks')) || [];
+    const toMigrate = tasks.filter(
+      t => (t._legacySeconds === undefined || t._legacySeconds === null) &&
+           (t.elapsedSeconds > 0 || t.isTimerRunning)
+    );
+
+    if (toMigrate.length === 0) return;
+
+    console.log(`[TimerMigration] Migrando ${toMigrate.length} tarefa(s) legada(s)...`);
+
+    for (const task of toMigrate) {
+      const elapsed = task.elapsedSeconds || 0;
+      const elapsedMs = elapsed * 1000;
+
+      // Melhor estimativa para o fim da sessão
+      const endIso =
+        task.lastTimerStoppedAt ||
+        task.completedAt         ||
+        task.updatedAt           ||
+        new Date().toISOString();
+
+      const endMs = new Date(endIso).getTime();
+
+      // Melhor estimativa para o início da sessão
+      let startMs;
+      if (task.firstExecutionStartedAt) {
+        startMs = new Date(task.firstExecutionStartedAt).getTime();
+      } else if (task.lastTimerStartedAt) {
+        startMs = new Date(task.lastTimerStartedAt).getTime();
+      } else {
+        // Fallback: recua a partir do fim pelo tempo acumulado
+        startMs = endMs - elapsedMs;
+      }
+
+      // Garante que o intervalo sintético não seja maior que elapsedSeconds
+      // (pode ocorrer se a tarefa ficou pausada a maior parte do tempo)
+      const syntheticDurationMs = endMs - startMs;
+      const adjustedStartMs = syntheticDurationMs > elapsedMs
+        ? endMs - elapsedMs   // recua exatamente o tempo acumulado a partir do fim
+        : startMs;
+
+      task._legacySeconds = 0;  // todo o tempo está no intervalo sintético
+      task.timeIntervals  = [{ s: adjustedStartMs, e: endMs }];
+
+      // Se o timer ainda está rodando, abre um novo intervalo ativo
+      if (task.isTimerRunning && task.lastTimerStartedAt) {
+        const activeStart = Number(task.lastTimerStartedAt);
+        // Garante que não sobreponha o intervalo sintético
+        if (activeStart > endMs) {
+          task.timeIntervals.push({ s: activeStart, e: null });
+        } else {
+          // Estende o intervalo sintético até agora
+          task.timeIntervals[0].e = null;
+        }
+      }
+
+      await DB.save('tasks', task);
+      console.log(`[TimerMigration] ✓ Tarefa "${task.title}" migrada.`);
+    }
+
+    console.log('[TimerMigration] Migração concluída.');
+  },
+
+  /**
    * Inicia o ticker global para atualizar contadores no DOM a cada 1 segundo
    */
   startGlobalTicker(onTickCallback) {

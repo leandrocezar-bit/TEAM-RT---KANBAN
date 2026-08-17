@@ -363,6 +363,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       checkAuthentication();
       setupRealtimeNotifications();
       showToast(`Bem-vindo(a), ${matchedMember.name}!`, 'success');
+      // Registra sessão ativa (visto pelo admin em Online Agora)
+      if (window.PresenceEngine) {
+        window.PresenceEngine.onLogin(matchedMember).catch(() => {});
+      }
       await refreshUI();
     });
   }
@@ -396,6 +400,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       localStorage.removeItem('app_authenticated');
       localStorage.removeItem('logged_member_id');
       localStorage.removeItem('logged_access_level');
+
+      // Remove sessão ativa do painel Online
+      if (window.PresenceEngine) {
+        window.PresenceEngine.onLogout().catch(() => {});
+      }
 
       currentMemberFilter = 'all';
       activeView = 'kanban';
@@ -2304,6 +2313,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   TimerEngine.startGlobalTicker();
+  // Migra tarefas legadas (sem timeIntervals) para o novo sistema de intervalos.
+  // Roda em background — não bloqueia a UI.
+  TimerEngine.migrateAllLegacyTasks().catch(err =>
+    console.warn('[TimerMigration] Erro na migração:', err)
+  );
+
   UndoEngine.initKeyboardShortcut(refreshUI, showToast);
 
   window.openTaskDetailsModal = openTaskDetailsModal;
@@ -2541,6 +2556,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       if (targetTab === 'admin-tab-members') renderAdminMembersTable();
       if (targetTab === 'admin-tab-logs') renderAuditLogs();
+      if (targetTab === 'admin-tab-online' && window.PresenceEngine) {
+        window.PresenceEngine.renderOnlineUsers();
+      }
+
     });
   });
 

@@ -159,7 +159,7 @@ export const ManagerEngine = {
   /**
    * Renderiza os cards de desempenho individual por membro da equipe
    */
-  renderMemberCards(members, tasks, impediments) {
+  async renderMemberCards(members, tasks, impediments) {
     const container = document.getElementById('manager-members-grid');
     if (!container) return;
 
@@ -187,42 +187,75 @@ export const ManagerEngine = {
     }
 
     const filteredTasks = this.filterTasksByDateRange(tasks);
-
     const todayStr = new Date().toISOString().slice(0, 10);
 
-    container.innerHTML = visibleMembers.map(member => {
+    // Busca todas as tarefas uma vez para o cálculo de tempo por intervalo
+    const allTasksDB = (await DB.getAll('tasks')) || [];
+
+    // Janela de tempo do filtro em ms (meia-noite início → 23:59:59 fim)
+    const filterStartMs = this.startDateFilter
+      ? new Date(this.startDateFilter + 'T00:00:00').getTime()
+      : null;
+    const filterEndMs = this.endDateFilter
+      ? new Date(this.endDateFilter + 'T23:59:59').getTime()
+      : null;
+
+    const htmlParts = [];
+    for (const member of visibleMembers) {
       const memberTasks = filteredTasks.filter(t => String(t.member_id || t.memberId) === String(member.id));
 
       const todoCount = memberTasks.filter(t => t.status === 'A FAZER').length;
-      const wipCount = memberTasks.filter(t => t.status === 'EM EXECUÇÃO').length;
+      const wipCount  = memberTasks.filter(t => t.status === 'EM EXECUÇÃO').length;
       const doneCount = memberTasks.filter(t => t.status === 'CONCLUÍDO').length;
 
       // ── Tempo Total Efetivo com Merge de Intervalos ──────────────────────────
       // Tarefas com timeIntervals: intervalos são mesclados entre TODAS as tarefas
       //   do membro → elimina dupla contagem de sessões simultâneas.
-      // Tarefas sem timeIntervals (legado): soma elapsedSeconds + sessão ativa.
+      // Quando há filtro de data ativo, cada intervalo é clippado para a janela
+      //   selecionada → conta apenas o tempo efetivamente trabalhado no período.
+      // Tarefas sem timeIntervals (legado): soma elapsedSeconds (filtro por dueDate).
 
       const now = Date.now();
-      const allIntervals = [];  // intervalos reais de todas as tarefas
+      const allMemberTasks = allTasksDB.filter(
+        t => String(t.member_id || t.memberId) === String(member.id)
+      );
+
+      const allIntervals = [];  // intervalos reais (clippados ao período se filtro ativo)
       let legacySeconds = 0;    // tempo legado (elapsedSeconds antes da migração)
 
-      memberTasks.forEach(t => {
-        // Verifica se a tarefa de fato já foi migrada (tem o _legacySeconds preservado)
+      allMemberTasks.forEach(t => {
         if (t.timeIntervals && t._legacySeconds !== undefined && t._legacySeconds !== null) {
-          // Novo sistema: adiciona o legado congelado + cada intervalo real
-          legacySeconds += (t._legacySeconds || 0);
+          // Novo sistema: percorre cada intervalo e clippa à janela do filtro
           t.timeIntervals.forEach(iv => {
-            const s = Number(iv.s);
-            const e = Number(iv.e) || now;
-            if (s && s > 0) allIntervals.push({ s, e });
+            let s = Number(iv.s);
+            let e = Number(iv.e) || now;
+            if (!s || s <= 0) return;
+
+            // Clippa ao período filtrado
+            if (filterStartMs !== null) s = Math.max(s, filterStartMs);
+            if (filterEndMs   !== null) e = Math.min(e, filterEndMs);
+
+            // Só adiciona se ainda há duração válida após clippar
+            if (e > s) allIntervals.push({ s, e });
           });
-        } else {
-          // Legado: calcula elapsed + sessão ativa e soma diretamente
-          let secs = t.elapsedSeconds || 0;
-          if (t.isTimerRunning && t.lastTimerStartedAt) {
-            secs += Math.max(0, Math.floor((now - Number(t.lastTimerStartedAt)) / 1000));
+          // _legacySeconds não tem timestamp → só inclui se não há filtro de data
+          if (!filterStartMs && !filterEndMs) {
+            legacySeconds += (t._legacySeconds || 0);
           }
-          legacySeconds += secs;
+        } else {
+          // Legado (sem timeIntervals): usa dueDate/createdAt para filtrar
+          const taskDateStr = t.dueDate || (t.createdAt ? t.createdAt.slice(0, 10) : null);
+          const inRange = (!filterStartMs && !filterEndMs) ||
+            (taskDateStr &&
+              (!this.startDateFilter || taskDateStr >= this.startDateFilter) &&
+              (!this.endDateFilter   || taskDateStr <= this.endDateFilter));
+          if (inRange) {
+            let secs = t.elapsedSeconds || 0;
+            if (t.isTimerRunning && t.lastTimerStartedAt) {
+              secs += Math.max(0, Math.floor((now - Number(t.lastTimerStartedAt)) / 1000));
+            }
+            legacySeconds += secs;
+          }
         }
       });
 
@@ -252,6 +285,7 @@ export const ManagerEngine = {
       const totalSeconds = legacySeconds + mergedSeconds;
 
       const memberTaskIds = new Set(memberTasks.map(t => String(t.id)));
+
       const memberImpediments = impediments.filter(imp => memberTaskIds.has(String(imp.taskId)));
 
       // Status de ausência/escala ativo hoje
@@ -276,8 +310,9 @@ export const ManagerEngine = {
         `;
       }
 
-      return `
+      htmlParts.push(`
         <div class="manager-card">
+
           <div class="manager-card-header" style="display:flex; align-items:center; justify-content:space-between; width:100%; gap:0.5rem;">
             <div style="display:flex; align-items:center; gap:0.75rem; flex:1; min-width:0;">
               <img src="${member.photo}" alt="${member.name}" class="manager-avatar" style="flex-shrink:0;">
@@ -318,8 +353,10 @@ export const ManagerEngine = {
             </div>
           ` : ''}
         </div>
-      `;
-    }).join('');
+      `);
+    } // end for...of
+
+    container.innerHTML = htmlParts.join('');
 
     container.querySelectorAll('.btn-edit-member-profile').forEach(btn => {
       btn.addEventListener('click', async () => {
