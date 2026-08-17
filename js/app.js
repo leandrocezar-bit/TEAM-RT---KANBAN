@@ -217,6 +217,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ============================================================
+  // INJEÇÃO DA VERSÃO DO SISTEMA NA TELA DE LOGIN
+  // ============================================================
+  const loginFormContainer = document.getElementById('form-login');
+  if (loginFormContainer && !document.getElementById('login-version-indicator')) {
+    const versionDiv = document.createElement('div');
+    versionDiv.id = 'login-version-indicator';
+    versionDiv.style.cssText = 'margin-top: 1.5rem; color: #555555; font-size: 0.7rem; font-weight: 300; letter-spacing: 1px; text-align: center;';
+    versionDiv.textContent = 'Versão 1.44';
+    loginFormContainer.parentNode.insertBefore(versionDiv, loginFormContainer.nextSibling);
+  }
+
+  // ============================================================
   // SEGURANÇA: HASH SHA-256
   // ============================================================
   async function hashPassword(password) {
