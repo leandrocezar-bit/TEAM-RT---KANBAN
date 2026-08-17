@@ -219,6 +219,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ============================================================
   // INJEÇÃO DA VERSÃO DO SISTEMA NA TELA DE LOGIN
   // ============================================================
+  
+  // Limpa possíveis vestígios do HTML antigo no cache
+  document.querySelectorAll('div').forEach(el => {
+    if (el.textContent.trim().startsWith('Versão 1.') && el.id !== 'login-version-indicator') {
+      el.remove();
+    }
+  });
+
   const loginFormContainer = document.getElementById('form-login');
   if (loginFormContainer && !document.getElementById('login-version-indicator')) {
     const versionDiv = document.createElement('div');
