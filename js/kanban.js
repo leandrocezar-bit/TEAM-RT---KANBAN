@@ -359,12 +359,15 @@ export const KanbanEngine = {
 
       if (countEl) countEl.textContent = colTasks.length;
 
+      const prevScroll = colEl.scrollTop;
+
       if (colTasks.length === 0) {
         colEl.innerHTML = `
           <div style="text-align:center; padding:2rem 1rem; color:var(--text-dim); font-size:0.8rem;">
             Nenhuma atividade nesta coluna
           </div>
         `;
+        colEl.scrollTop = prevScroll;
         return;
       }
 
@@ -453,6 +456,9 @@ export const KanbanEngine = {
           </div>
         `;
       }).join('');
+
+      // Restaura o scroll da coluna
+      colEl.scrollTop = prevScroll;
 
       // Eventos de Drag & Drop nos cartões
       colEl.querySelectorAll('.kanban-card').forEach(card => {

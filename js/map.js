@@ -46,10 +46,12 @@ export const MapEngine = {
       impMap.get(String(imp.taskId)).push(imp);
     });
 
+    const taskMembers = (await DB.getAll('task_members')) || [];
+
     this.renderDateFilterControls();
-    this.renderHeaderMetrics(tasks);
+    this.renderHeaderMetrics(tasks, taskMembers);
     this.renderMembersPortfolioGrid(portfolio, members);
-    this.renderRoadmapTable(tasks, membersMap, impMap);
+    this.renderRoadmapTable(tasks, membersMap, impMap, taskMembers);
 
     this.attachEvents(portfolio);
     this.bindMemberTabsAutoListener(); // 🎯 Escuta o clique nas abas dos membros automaticamente
@@ -130,9 +132,19 @@ export const MapEngine = {
   /**
    * Métricas do Topo com Filtro de Competência Mensal / Período Customizado
    */
-  renderHeaderMetrics(tasks) {
+  renderHeaderMetrics(tasks, taskMembers = []) {
     const container = document.getElementById('map-metrics-summary');
     if (!container) return;
+
+    // Monta um Set de taskIds em que o membro filtrado é participante
+    const participantTaskIds = new Set();
+    if (this.activeMemberFilter !== 'all') {
+      taskMembers.forEach(tm => {
+        if (String(tm.memberId || tm.member_id) === String(this.activeMemberFilter)) {
+          participantTaskIds.add(String(tm.taskId));
+        }
+      });
+    }
 
     // Filtra por período De/Até ou por competência mensal, e também por membro selecionado
     const competenceTasks = tasks.filter(t => {
@@ -147,7 +159,9 @@ export const MapEngine = {
       }
 
       if (this.activeMemberFilter !== 'all') {
-        return String(t.member_id || t.memberId) === String(this.activeMemberFilter);
+        const isOwner       = String(t.member_id || t.memberId) === String(this.activeMemberFilter);
+        const isParticipant = participantTaskIds.has(String(t.id));
+        return isOwner || isParticipant;
       }
       return true;
     });
@@ -328,10 +342,21 @@ export const MapEngine = {
 
   /**
    * Renderiza a Tabela Roadmap Geral de Acompanhamento
+   * taskMembers: registros da tabela task_members (participantes de cada tarefa)
    */
-  renderRoadmapTable(tasks, membersMap, impMap) {
+  renderRoadmapTable(tasks, membersMap, impMap, taskMembers = []) {
     const container = document.getElementById('map-roadmap-table-body');
     if (!container) return;
+
+    // Monta um Set de taskIds em que o membro filtrado é participante
+    const participantTaskIds = new Set();
+    if (this.activeMemberFilter !== 'all') {
+      taskMembers.forEach(tm => {
+        if (String(tm.memberId || tm.member_id) === String(this.activeMemberFilter)) {
+          participantTaskIds.add(String(tm.taskId));
+        }
+      });
+    }
 
     const filteredTasks = tasks.filter(t => {
       const dateStr = t.dueDate || (t.createdAt ? t.createdAt.slice(0, 10) : null);
@@ -339,16 +364,22 @@ export const MapEngine = {
       if (this.startDateFilter || this.endDateFilter) {
         if (!dateStr) return false;
         if (this.startDateFilter && dateStr < this.startDateFilter) return false;
-        if (this.endDateFilter && dateStr > this.endDateFilter) return false;
+        if (this.endDateFilter   && dateStr > this.endDateFilter)   return false;
       } else {
         if (!dateStr || dateStr.slice(0, 7) !== this.selectedCompetence) return false;
       }
 
       if (this.activeMemberFilter !== 'all') {
-        return String(t.member_id || t.memberId) === String(this.activeMemberFilter);
+        const isOwner       = String(t.member_id || t.memberId) === String(this.activeMemberFilter);
+        const isParticipant = participantTaskIds.has(String(t.id));
+        return isOwner || isParticipant;
       }
       return true;
     });
+
+    // Mapa rápido: taskId → true se o membro filtrado é participante (não dono)
+    const isParticipantTask = (taskId) =>
+      this.activeMemberFilter !== 'all' && participantTaskIds.has(String(taskId));
 
     if (filteredTasks.length === 0) {
       container.innerHTML = `
@@ -364,6 +395,13 @@ export const MapEngine = {
     container.innerHTML = filteredTasks.map(task => {
       const taskOwnerId = task.member_id || task.memberId;
       const member = membersMap.get(String(taskOwnerId)) || { name: 'Não atribuído', photo: '' };
+      const isParticipant = isParticipantTask(task.id);
+
+      // Busca todos os participantes desta tarefa
+      const thisTaskParticipants = taskMembers
+        .filter(tm => String(tm.taskId) === String(task.id))
+        .map(tm => membersMap.get(String(tm.memberId || tm.member_id)))
+        .filter(m => m); // remove undefined
 
       let deadlineBadge = '';
       if (task.status === 'CONCLUÍDO') {
@@ -440,17 +478,29 @@ export const MapEngine = {
       }
 
       return `
-        <tr>
+        <tr style="${isParticipant ? 'opacity:0.9; border-left:3px solid rgba(99,102,241,0.5);' : ''}">
           <td>
             <strong>${task.title}</strong>
+            ${isParticipant ? `<span style="display:inline-block; margin-left:4px; font-size:0.65rem; font-weight:700; color:#818cf8; background:rgba(99,102,241,0.15); border:1px solid rgba(99,102,241,0.3); border-radius:4px; padding:1px 5px; vertical-align:middle;">👥 Participante</span>` : ''}
             <div style="font-size:0.75rem; color:var(--text-dim); text-overflow:ellipsis; overflow:hidden; white-space:nowrap; max-width:240px;">
               ${task.description || ''}
             </div>
           </td>
           <td>
-            <div style="display:flex; align-items:center; gap:0.4rem;">
-              <img src="${member.photo || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(member.name)}" alt="${member.name}" style="width:24px; height:24px; border-radius:50%; object-fit:cover;">
+            <div style="display:flex; align-items:center; gap:0.4rem; flex-wrap:wrap;">
+              <!-- Dono -->
+              <img src="${member.photo || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(member.name)}" title="Responsável: ${member.name}" style="width:24px; height:24px; border-radius:50%; object-fit:cover; border: 1px solid var(--border-color);">
               <span>${member.name}</span>
+              ${isParticipant ? `<span style="font-size:0.65rem; color:#818cf8; font-style:italic;">(você participa)</span>` : ''}
+              
+              <!-- Participantes -->
+              ${thisTaskParticipants.length > 0 ? `
+                <div style="display:flex; margin-left:0.5rem; border-left:1px solid var(--border-color); padding-left:0.5rem;">
+                  ${thisTaskParticipants.map(p => `
+                    <img src="${p.photo || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(p.name)}" title="Participante: ${p.name}" style="width:20px; height:20px; border-radius:50%; object-fit:cover; border:1px solid var(--bg-card); margin-left:-6px;">
+                  `).join('')}
+                </div>
+              ` : ''}
             </div>
           </td>
           <td>

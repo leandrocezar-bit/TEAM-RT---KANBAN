@@ -2,16 +2,19 @@
  * Controladora Principal do Aplicativo Kanban de Equipe (App Core Controller)
  */
 
-import { DB } from './db.js';
-import { TimerEngine } from './timer.js';
-import { KanbanEngine } from './kanban.js';
-import { ManagerEngine } from './manager.js';
-import { MapEngine } from './map.js';
-import { SettingsEngine } from './settings.js';
-import { ProjectsEngine } from './projects.js';
-import { UndoEngine } from './undo.js';
-import { ChatEngine } from './chat.js';
-import { AIEngine } from './ai.js';
+import { DB } from './db.js?v=37';
+import { TimerEngine } from './timer.js?v=37';
+import { KanbanEngine } from './kanban.js?v=37';
+import { ManagerEngine } from './manager2.js?v=40';
+import { MapEngine } from './map.js?v=37';
+import { SettingsEngine } from './settings.js?v=37';
+import { ProjectsEngine } from './projects.js?v=37';
+import { UndoEngine } from './undo.js?v=37';
+import { ChatEngine } from './chat.js?v=37';
+import { AIEngine } from './ai.js?v=37';
+
+// Expor o DB globalmente para módulos não-módulos (ex: presence.js) conseguirem acessar o Supabase
+window.DB = DB;
 
 document.addEventListener('DOMContentLoaded', async () => {
 
@@ -2643,4 +2646,27 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (btnAdminModalCloseFoot) btnAdminModalCloseFoot.addEventListener('click', () => closeModal(modalAdminControl));
 
   await refreshUI();
+
+  // ============================================================
+  // ATUALIZAÇÃO AUTOMÁTICA EM SEGUNDO PLANO (AUTO-REFRESH)
+  // ============================================================
+  setInterval(async () => {
+    // Se o usuário estiver preenchendo uma nova tarefa ou editando membro, não atualiza 
+    // para não causar flickering ou perda de dados nos formulários.
+    const modalTask = document.getElementById('modal-task');
+    const modalMember = document.getElementById('modal-member');
+    
+    if (modalTask && modalTask.classList.contains('active')) return;
+    if (modalMember && modalMember.classList.contains('active')) return;
+
+    // Salva a posição de rolagem da página
+    const scrollY = window.scrollY;
+
+    // Apenas atualiza a UI silenciosamente
+    await refreshUI();
+
+    // Restaura a posição de rolagem
+    window.scrollTo(0, scrollY);
+  }, 60000);
+
 });

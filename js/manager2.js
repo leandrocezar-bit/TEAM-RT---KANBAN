@@ -189,20 +189,41 @@ export const ManagerEngine = {
     const filteredTasks = this.filterTasksByDateRange(tasks);
     const todayStr = new Date().toISOString().slice(0, 10);
 
-    // Busca todas as tarefas uma vez para o cálculo de tempo por intervalo
+    // Busca todas as tarefas e os membros das tarefas uma vez
     const allTasksDB = (await DB.getAll('tasks')) || [];
+    const taskMembers = (await DB.getAll('task_members')) || [];
 
     // Janela de tempo do filtro em ms (meia-noite início → 23:59:59 fim)
-    const filterStartMs = this.startDateFilter
-      ? new Date(this.startDateFilter + 'T00:00:00').getTime()
-      : null;
-    const filterEndMs = this.endDateFilter
-      ? new Date(this.endDateFilter + 'T23:59:59').getTime()
-      : null;
+    // Se nenhum filtro de data foi selecionado, usa o mês atual como janela padrão
+    const competence = new Date().toISOString().slice(0, 7); // 'YYYY-MM'
+    const defaultStart = competence + '-01';
+    const lastDay = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+    const defaultEnd   = competence + '-' + String(lastDay).padStart(2, '0');
+
+    const activeStart = this.startDateFilter || defaultStart;
+    const activeEnd   = this.endDateFilter   || defaultEnd;
+
+    const filterStartMs = new Date(activeStart + 'T00:00:00').getTime();
+    const filterEndMs   = new Date(activeEnd   + 'T23:59:59').getTime();
+
+    // Flag para saber se o usuário selecionou um filtro manualmente
+    const hasManualFilter = !!(this.startDateFilter || this.endDateFilter);
 
     const htmlParts = [];
     for (const member of visibleMembers) {
-      const memberTasks = filteredTasks.filter(t => String(t.member_id || t.memberId) === String(member.id));
+      // 1. Encontra os IDs das tarefas onde o membro é participante
+      const participantTaskIds = new Set(
+        taskMembers
+          .filter(tm => String(tm.memberId || tm.member_id) === String(member.id))
+          .map(tm => String(tm.taskId))
+      );
+
+      // 2. Filtra as tarefas exibidas nos cards considerando dono ou participante
+      const memberTasks = filteredTasks.filter(t => {
+        const isOwner = String(t.member_id || t.memberId) === String(member.id);
+        const isParticipant = participantTaskIds.has(String(t.id));
+        return isOwner || isParticipant;
+      });
 
       const todoCount = memberTasks.filter(t => t.status === 'A FAZER').length;
       const wipCount  = memberTasks.filter(t => t.status === 'EM EXECUÇÃO').length;
@@ -216,39 +237,62 @@ export const ManagerEngine = {
       // Tarefas sem timeIntervals (legado): soma elapsedSeconds (filtro por dueDate).
 
       const now = Date.now();
-      const allMemberTasks = allTasksDB.filter(
-        t => String(t.member_id || t.memberId) === String(member.id)
-      );
+      
+      // Busca todas as tarefas do membro na base de dados (ignorando filtros de data, para calcular os intervalos corretamente)
+      const allMemberTasks = allTasksDB.filter(t => {
+        const isOwner = String(t.member_id || t.memberId) === String(member.id);
+        const isParticipant = participantTaskIds.has(String(t.id));
+        return isOwner || isParticipant;
+      });
 
       const allIntervals = [];  // intervalos reais (clippados ao período se filtro ativo)
       let legacySeconds = 0;    // tempo legado (elapsedSeconds antes da migração)
 
-      allMemberTasks.forEach(t => {
-        if (t.timeIntervals && t._legacySeconds !== undefined && t._legacySeconds !== null) {
-          // Novo sistema: percorre cada intervalo e clippa à janela do filtro
+      allMemberTasks.forEach(t => {
+        if (t.timeIntervals && Array.isArray(t.timeIntervals)) {
+          // Novo sistema: percorre cada intervalo e clippa à janela ativa
           t.timeIntervals.forEach(iv => {
             let s = Number(iv.s);
             let e = Number(iv.e) || now;
             if (!s || s <= 0) return;
 
-            // Clippa ao período filtrado
-            if (filterStartMs !== null) s = Math.max(s, filterStartMs);
-            if (filterEndMs   !== null) e = Math.min(e, filterEndMs);
+            // Clippa ao período filtrado (sempre há uma janela: mês atual ou filtro manual)
+            s = Math.max(s, filterStartMs);
+            e = Math.min(e, filterEndMs);
 
             // Só adiciona se ainda há duração válida após clippar
             if (e > s) allIntervals.push({ s, e });
           });
-          // _legacySeconds não tem timestamp → só inclui se não há filtro de data
-          if (!filterStartMs && !filterEndMs) {
-            legacySeconds += (t._legacySeconds || 0);
+          // _legacySeconds não tem timestamp preciso; inclui proporcionalmente
+          // só se a tarefa tem alguma data de execução dentro da janela
+          if (t._legacySeconds > 0) {
+            const rawDate = 
+              t.lastTimerStoppedAt ||
+              t.completedAt ||
+              t.updatedAt ||
+              t.dueDate ||
+              t.createdAt ||
+              new Date().toISOString();
+            
+            const execDateMs = parseToMs(rawDate);
+            if (execDateMs >= filterStartMs && execDateMs <= filterEndMs) {
+              legacySeconds += t._legacySeconds;
+            }
           }
         } else {
-          // Legado (sem timeIntervals): usa dueDate/createdAt para filtrar
-          const taskDateStr = t.dueDate || (t.createdAt ? t.createdAt.slice(0, 10) : null);
-          const inRange = (!filterStartMs && !filterEndMs) ||
-            (taskDateStr &&
-              (!this.startDateFilter || taskDateStr >= this.startDateFilter) &&
-              (!this.endDateFilter   || taskDateStr <= this.endDateFilter));
+          // Legado (sem timeIntervals): usa a melhor data de EXECUÇÃO disponível
+          // Prioridade: data real de conclusão/parada > prazo > criação
+          const rawDateStr =
+            t.lastTimerStoppedAt ||
+            t.completedAt ||
+            t.updatedAt ||
+            t.dueDate ||
+            t.createdAt ||
+            new Date().toISOString();
+
+          const execDateMs = parseToMs(rawDateStr);
+          const inRange = execDateMs >= filterStartMs && execDateMs <= filterEndMs;
+
           if (inRange) {
             let secs = t.elapsedSeconds || 0;
             if (t.isTimerRunning && t.lastTimerStartedAt) {
@@ -257,6 +301,7 @@ export const ManagerEngine = {
             legacySeconds += secs;
           }
         }
+
       });
 
       // Merge: une intervalos sobrepostos para não contar o mesmo período duas vezes
