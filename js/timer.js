@@ -147,7 +147,7 @@ export const TimerEngine = {
 
     if (toMigrate.length === 0) return;
 
-    console.log(`[TimerMigration] Migrando ${toMigrate.length} tarefa(s) legada(s)...`);
+    // console.log(`[TimerMigration] Migrando ${toMigrate.length} tarefa(s) legada(s)...`);
 
     for (const task of toMigrate) {
       const elapsed = task.elapsedSeconds || 0;
