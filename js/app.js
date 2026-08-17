@@ -2,16 +2,16 @@
  * Controladora Principal do Aplicativo Kanban de Equipe (App Core Controller)
  */
 
-import { DB } from './db.js?v=43';
-import { TimerEngine } from './timer.js?v=47';
-import { KanbanEngine } from './kanban.js?v=37';
-import { ManagerEngine } from './manager2.js?v=40';
-import { MapEngine } from './map.js?v=37';
-import { SettingsEngine } from './settings.js?v=37';
-import { ProjectsEngine } from './projects.js?v=37';
-import { UndoEngine } from './undo.js?v=37';
-import { ChatEngine } from './chat.js?v=43';
-import { AIEngine } from './ai.js?v=37';
+import { DB } from './db.js';
+import { TimerEngine } from './timer.js';
+import { KanbanEngine } from './kanban.js';
+import { ManagerEngine } from './manager2.js';
+import { MapEngine } from './map.js';
+import { SettingsEngine } from './settings.js';
+import { ProjectsEngine } from './projects.js';
+import { UndoEngine } from './undo.js';
+import { ChatEngine } from './chat.js';
+import { AIEngine } from './ai.js';
 
 // Expor o DB globalmente para módulos não-módulos (ex: presence.js) conseguirem acessar o Supabase
 window.DB = DB;
