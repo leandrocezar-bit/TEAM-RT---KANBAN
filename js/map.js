@@ -377,15 +377,27 @@ export const MapEngine = {
     }
 
     const filteredTasks = tasks.filter(t => {
-      const dateStr = t.dueDate || (t.createdAt ? t.createdAt.slice(0, 10) : null);
-
-      if (this.startDateFilter || this.endDateFilter) {
-        if (!dateStr) return false;
-        if (this.startDateFilter && dateStr < this.startDateFilter) return false;
-        if (this.endDateFilter   && dateStr > this.endDateFilter)   return false;
-      } else {
-        if (!dateStr || dateStr.slice(0, 7) !== this.selectedCompetence) return false;
+      const dueDateStr = t.dueDate || (t.createdAt ? t.createdAt.slice(0, 10) : null);
+      let compDateStr = null;
+      if (t.status === 'CONCLUÍDO') {
+        compDateStr = t.completedAt ? t.completedAt.slice(0, 10) : (t.updatedAt ? t.updatedAt.slice(0, 10) : null);
       }
+
+      let matchesDate = false;
+      if (this.startDateFilter || this.endDateFilter) {
+        const checkDate = (d) => {
+          if (!d) return false;
+          if (this.startDateFilter && d < this.startDateFilter) return false;
+          if (this.endDateFilter && d > this.endDateFilter) return false;
+          return true;
+        };
+        matchesDate = checkDate(dueDateStr) || checkDate(compDateStr);
+      } else {
+        const checkMonth = (d) => d && d.slice(0, 7) === this.selectedCompetence;
+        matchesDate = checkMonth(dueDateStr) || checkMonth(compDateStr);
+      }
+
+      if (!matchesDate) return false;
 
       if (this.activeMemberFilter !== 'all') {
         const isOwner       = String(t.member_id || t.memberId) === String(this.activeMemberFilter);
@@ -671,14 +683,27 @@ export const MapEngine = {
     }
 
     const filteredTasks = tasks.filter(t => {
-      const dateStr = t.dueDate || (t.createdAt ? t.createdAt.slice(0, 10) : null);
-      if (this.startDateFilter || this.endDateFilter) {
-        if (!dateStr) return false;
-        if (this.startDateFilter && dateStr < this.startDateFilter) return false;
-        if (this.endDateFilter   && dateStr > this.endDateFilter)   return false;
-      } else {
-        if (!dateStr || dateStr.slice(0, 7) !== this.selectedCompetence) return false;
+      const dueDateStr = t.dueDate || (t.createdAt ? t.createdAt.slice(0, 10) : null);
+      let compDateStr = null;
+      if (t.status === 'CONCLUÍDO') {
+        compDateStr = t.completedAt ? t.completedAt.slice(0, 10) : (t.updatedAt ? t.updatedAt.slice(0, 10) : null);
       }
+
+      let matchesDate = false;
+      if (this.startDateFilter || this.endDateFilter) {
+        const checkDate = (d) => {
+          if (!d) return false;
+          if (this.startDateFilter && d < this.startDateFilter) return false;
+          if (this.endDateFilter && d > this.endDateFilter) return false;
+          return true;
+        };
+        matchesDate = checkDate(dueDateStr) || checkDate(compDateStr);
+      } else {
+        const checkMonth = (d) => d && d.slice(0, 7) === this.selectedCompetence;
+        matchesDate = checkMonth(dueDateStr) || checkMonth(compDateStr);
+      }
+
+      if (!matchesDate) return false;
       if (this.activeMemberFilter !== 'all') {
         const isOwner = String(t.member_id || t.memberId) === String(this.activeMemberFilter);
         const isParticipant = participantTaskIds.has(String(t.id));
