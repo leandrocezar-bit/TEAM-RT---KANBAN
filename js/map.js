@@ -373,6 +373,19 @@ export const MapEngine = {
     this._lastTaskMembers = taskMembers;
     this._lastRoadmapAbsences = absences;
 
+    let filterStartMs = 0;
+    let filterEndMs = Infinity;
+    if (this.startDateFilter || this.endDateFilter) {
+      if (this.startDateFilter) filterStartMs = new Date(this.startDateFilter + 'T00:00:00').getTime() || 0;
+      if (this.endDateFilter) filterEndMs = new Date(this.endDateFilter + 'T23:59:59.999').getTime() || Infinity;
+    } else if (this.selectedCompetence) {
+      const parts = this.selectedCompetence.split('-');
+      if (parts.length === 2) {
+        filterStartMs = new Date(parts[0], parseInt(parts[1])-1, 1, 0, 0, 0).getTime();
+        filterEndMs = new Date(parts[0], parseInt(parts[1]), 0, 23, 59, 59, 999).getTime();
+      }
+    }
+
     // Monta um Set de taskIds em que o membro filtrado é participante
     const participantTaskIds = new Set();
     if (this.activeMemberFilter !== 'all') {
@@ -406,13 +419,31 @@ export const MapEngine = {
       }
 
       let matchesDate = false;
-      if (this.startDateFilter || this.endDateFilter) {
-        if (!targetDateStr) return false;
-        if (this.startDateFilter && targetDateStr < this.startDateFilter) return false;
-        if (this.endDateFilter && targetDateStr > this.endDateFilter) return false;
+      let workedInPeriod = false;
+
+      // 1. Verifica se houve trabalho faturado no período selecionado
+      if (t.timeIntervals && t.timeIntervals.length > 0) {
+        const now = Date.now();
+        workedInPeriod = t.timeIntervals.some(iv => {
+          const s = Number(iv.s) || now;
+          const e = Number(iv.e) || now;
+          return (s <= filterEndMs && e >= filterStartMs);
+        });
+      }
+
+      if (workedInPeriod) {
         matchesDate = true;
       } else {
-        matchesDate = targetDateStr && targetDateStr.slice(0, 7) === this.selectedCompetence;
+        // 2. Fallback legado: se não tem log exato, olha pra data alvo
+        if (this.startDateFilter || this.endDateFilter) {
+          if (targetDateStr) {
+            matchesDate = true;
+            if (this.startDateFilter && targetDateStr < this.startDateFilter) matchesDate = false;
+            if (this.endDateFilter && targetDateStr > this.endDateFilter) matchesDate = false;
+          }
+        } else {
+          matchesDate = targetDateStr && targetDateStr.slice(0, 7) === this.selectedCompetence;
+        }
       }
 
       if (!matchesDate) return false;
@@ -443,7 +474,7 @@ export const MapEngine = {
     let sumActiveSecs = 0;
     try {
       if (typeof TimerEngine.calculateUnionSeconds === 'function') {
-        sumActiveSecs = TimerEngine.calculateUnionSeconds(filteredTasks);
+        sumActiveSecs = TimerEngine.calculateUnionSeconds(filteredTasks, filterStartMs, filterEndMs);
       } else {
         filteredTasks.forEach(t => sumActiveSecs += TimerEngine.getCurrentElapsedSeconds(t));
       }

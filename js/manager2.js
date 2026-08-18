@@ -239,6 +239,20 @@ export const ManagerEngine = {
         return isOwner || isParticipant;
       });
 
+      // Convert filter dates to ms for interval slice
+      let filterStartMs = 0;
+      let filterEndMs = Infinity;
+      if (this.startDateFilter || this.endDateFilter) {
+        if (this.startDateFilter) filterStartMs = new Date(this.startDateFilter + 'T00:00:00').getTime() || 0;
+        if (this.endDateFilter) filterEndMs = new Date(this.endDateFilter + 'T23:59:59.999').getTime() || Infinity;
+      } else if (competence) {
+        const parts = competence.split('-');
+        if (parts.length === 2) {
+          filterStartMs = new Date(parts[0], parseInt(parts[1])-1, 1, 0, 0, 0).getTime();
+          filterEndMs = new Date(parts[0], parseInt(parts[1]), 0, 23, 59, 59, 999).getTime();
+        }
+      }
+
       const validTasks = [];
       allMemberTasks.forEach(t => {
         const getLocalDateStr = (dateVal) => {
@@ -263,16 +277,30 @@ export const ManagerEngine = {
         }
 
         let inRange = false;
+        let workedInPeriod = false;
 
-        if (this.startDateFilter || this.endDateFilter) {
-          if (targetDateStr) {
-            inRange = true;
-            if (this.startDateFilter && targetDateStr < this.startDateFilter) inRange = false;
-            if (this.endDateFilter && targetDateStr > this.endDateFilter) inRange = false;
-          }
+        if (t.timeIntervals && t.timeIntervals.length > 0) {
+          const now = Date.now();
+          workedInPeriod = t.timeIntervals.some(iv => {
+            const s = Number(iv.s) || now;
+            const e = Number(iv.e) || now;
+            return (s <= filterEndMs && e >= filterStartMs);
+          });
+        }
+
+        if (workedInPeriod) {
+          inRange = true;
         } else {
-          if (targetDateStr && targetDateStr.slice(0, 7) === competence) {
-            inRange = true;
+          if (this.startDateFilter || this.endDateFilter) {
+            if (targetDateStr) {
+              inRange = true;
+              if (this.startDateFilter && targetDateStr < this.startDateFilter) inRange = false;
+              if (this.endDateFilter && targetDateStr > this.endDateFilter) inRange = false;
+            }
+          } else {
+            if (targetDateStr && targetDateStr.slice(0, 7) === competence) {
+              inRange = true;
+            }
           }
         }
 
@@ -283,7 +311,7 @@ export const ManagerEngine = {
       totalSeconds = 0;
       try {
         if (typeof TimerEngine.calculateUnionSeconds === 'function') {
-          totalSeconds = TimerEngine.calculateUnionSeconds(validTasks);
+          totalSeconds = TimerEngine.calculateUnionSeconds(validTasks, filterStartMs, filterEndMs);
         } else {
           validTasks.forEach(t => totalSeconds += TimerEngine.getCurrentElapsedSeconds(t));
         }

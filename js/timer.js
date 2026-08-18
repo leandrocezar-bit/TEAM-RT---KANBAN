@@ -66,8 +66,9 @@ export const TimerEngine = {
   /**
    * Calcula o tempo real trabalhado (sem duplicações) fazendo a união
    * de todos os timeIntervals de um conjunto de tarefas.
+   * Pode opcionalmente fatiar os intervalos para o período especificado (filterStartMs a filterEndMs).
    */
-  calculateUnionSeconds(tasks) {
+  calculateUnionSeconds(tasks, filterStartMs = 0, filterEndMs = Infinity) {
     if (!tasks || tasks.length === 0) return 0;
     
     let totalLegacySeconds = 0;
@@ -84,10 +85,15 @@ export const TimerEngine = {
       // Soma os segundos legados desta tarefa (tempo antigo antes do novo sistema)
       totalLegacySeconds += (task._legacySeconds || 0);
 
-      // Coleta todos os intervalos
+      // Coleta todos os intervalos que se sobrepõem ao filtro de datas
       (task.timeIntervals || []).forEach(iv => {
-        const start = Number(iv.s) || now;
-        const end = Number(iv.e) || now;
+        let start = Number(iv.s) || now;
+        let end = Number(iv.e) || now;
+        
+        // Fatiamento do tempo (Timesheet)
+        start = Math.max(start, filterStartMs);
+        end = Math.min(end, filterEndMs);
+
         if (end > start) {
           allIntervals.push({ start, end });
         }
