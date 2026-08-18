@@ -280,8 +280,17 @@ export const ManagerEngine = {
           validTasks.push(t);
         }
       });
-      
-      let totalSeconds = TimerEngine.calculateUnionSeconds(validTasks);
+      let totalSeconds = 0;
+      try {
+        if (typeof TimerEngine.calculateUnionSeconds === 'function') {
+          totalSeconds = TimerEngine.calculateUnionSeconds(validTasks);
+        } else {
+          validTasks.forEach(t => totalSeconds += TimerEngine.getCurrentElapsedSeconds(t));
+        }
+      } catch (e) {
+        console.error("Erro ao calcular union seconds no dashboard:", e);
+        validTasks.forEach(t => totalSeconds += TimerEngine.getCurrentElapsedSeconds(t));
+      }
 
       const memberTaskIds = new Set(memberTasks.map(t => String(t.id)));
 

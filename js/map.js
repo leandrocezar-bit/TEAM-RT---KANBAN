@@ -184,7 +184,17 @@ export const MapEngine = {
     const todo = competenceTasks.filter(t => t.status === 'A FAZER').length;
     const completionPercent = total > 0 ? Math.round((done / total) * 100) : 0;
 
-    let totalSeconds = TimerEngine.calculateUnionSeconds(competenceTasks);
+    let totalSeconds = 0;
+    try {
+      if (typeof TimerEngine.calculateUnionSeconds === 'function') {
+        totalSeconds = TimerEngine.calculateUnionSeconds(competenceTasks);
+      } else {
+        competenceTasks.forEach(t => totalSeconds += TimerEngine.getCurrentElapsedSeconds(t));
+      }
+    } catch(e) {
+      console.error("Erro no portfolio union:", e);
+      competenceTasks.forEach(t => totalSeconds += TimerEngine.getCurrentElapsedSeconds(t));
+    }
 
     const [year, month] = this.selectedCompetence.split('-');
     const competenceName = new Date(parseInt(year), parseInt(month) - 1, 1)
@@ -430,7 +440,17 @@ export const MapEngine = {
 
     const todayStr = new Date().toISOString().slice(0, 10);
 
-    let sumActiveSecs = TimerEngine.calculateUnionSeconds(filteredTasks);
+    let sumActiveSecs = 0;
+    try {
+      if (typeof TimerEngine.calculateUnionSeconds === 'function') {
+        sumActiveSecs = TimerEngine.calculateUnionSeconds(filteredTasks);
+      } else {
+        filteredTasks.forEach(t => sumActiveSecs += TimerEngine.getCurrentElapsedSeconds(t));
+      }
+    } catch(e) {
+      console.error("Erro ao calcular union seconds:", e);
+      filteredTasks.forEach(t => sumActiveSecs += TimerEngine.getCurrentElapsedSeconds(t));
+    }
     let sumPausedSecs = 0;
 
     const rowsHtml = filteredTasks.map(task => {
