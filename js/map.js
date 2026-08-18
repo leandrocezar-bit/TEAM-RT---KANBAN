@@ -435,8 +435,9 @@ export const MapEngine = {
         deadlineBadge = `<span class="badge" style="background:rgba(16,185,129,0.2); color:#10b981; border:1px solid rgba(16,185,129,0.4);">🟢 No Prazo</span>`;
       }
 
-      let timeIntervalStr = '-';
-      const startIso = task.lastTimerStartedAt || task.createdAt;
+      let timeIntervalStr = '<span style="color:var(--text-dim); font-style:italic;">Não iniciada</span>';
+      let startIso = task.firstExecutionStartedAt || task.lastTimerStartedAt;
+      
       if (startIso) {
         const startTime = new Date(startIso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
         let endTime = 'Em andamento';
@@ -449,6 +450,10 @@ export const MapEngine = {
           endTime = new Date(task.lastTimerStoppedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
         }
         timeIntervalStr = `🕒 ${startTime} às ${endTime}`;
+      } else if (task.status === 'CONCLUÍDO' && (task.completedAt || task.updatedAt)) {
+         const endIso = task.completedAt || task.updatedAt;
+         const endTime = new Date(endIso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+         timeIntervalStr = `🕒 Concluída às ${endTime}`;
       }
 
       // Função de parsing seguro para milissegundos
@@ -613,8 +618,8 @@ export const MapEngine = {
       else if (task.dueDate === todayStr) saude = 'Vence Hoje';
       else saude = 'No Prazo';
 
-      let timeIntervalStr = '-';
-      const startIso = task.lastTimerStartedAt || task.createdAt;
+      let timeIntervalStr = 'Nao iniciada';
+      let startIso = task.firstExecutionStartedAt || task.lastTimerStartedAt;
       if (startIso) {
         const startTime = new Date(startIso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
         let endTime = 'Em andamento';
@@ -625,6 +630,10 @@ export const MapEngine = {
           endTime = new Date(task.lastTimerStoppedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
         }
         timeIntervalStr = `${startTime} as ${endTime}`;
+      } else if (task.status === 'CONCLUÍDO' && (task.completedAt || task.updatedAt)) {
+         const endIso = task.completedAt || task.updatedAt;
+         const endTime = new Date(endIso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+         timeIntervalStr = `Concluida as ${endTime}`;
       }
 
       const isTodo = task.status === 'A FAZER';
