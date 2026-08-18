@@ -377,11 +377,24 @@ export const MapEngine = {
     }
 
     const filteredTasks = tasks.filter(t => {
-      const dueDateStr = t.dueDate || (t.createdAt ? t.createdAt.slice(0, 10) : null);
+      const getLocalDateStr = (dateVal) => {
+        if (!dateVal) return null;
+        if (typeof dateVal === 'string' && dateVal.length >= 10 && dateVal.includes('-')) return dateVal.slice(0, 10);
+        try {
+          const d = new Date(dateVal);
+          if (isNaN(d.getTime())) return null;
+          const y = d.getFullYear();
+          const m = String(d.getMonth() + 1).padStart(2, '0');
+          const day = String(d.getDate()).padStart(2, '0');
+          return `${y}-${m}-${day}`;
+        } catch(e) { return null; }
+      };
+
+      const dueDateStr = getLocalDateStr(t.dueDate) || getLocalDateStr(t.createdAt);
       let targetDateStr = dueDateStr;
 
       if (t.status === 'CONCLUÍDO') {
-        const compDateStr = t.completedAt ? t.completedAt.slice(0, 10) : (t.updatedAt ? t.updatedAt.slice(0, 10) : null);
+        const compDateStr = getLocalDateStr(t.completedAt) || getLocalDateStr(t.updatedAt);
         if (compDateStr) targetDateStr = compDateStr;
       }
 
@@ -681,11 +694,24 @@ export const MapEngine = {
     }
 
     const filteredTasks = tasks.filter(t => {
-      const dueDateStr = t.dueDate || (t.createdAt ? t.createdAt.slice(0, 10) : null);
+      const getLocalDateStr = (dateVal) => {
+        if (!dateVal) return null;
+        if (typeof dateVal === 'string' && dateVal.length >= 10 && dateVal.includes('-')) return dateVal.slice(0, 10);
+        try {
+          const d = new Date(dateVal);
+          if (isNaN(d.getTime())) return null;
+          const y = d.getFullYear();
+          const m = String(d.getMonth() + 1).padStart(2, '0');
+          const day = String(d.getDate()).padStart(2, '0');
+          return `${y}-${m}-${day}`;
+        } catch(e) { return null; }
+      };
+
+      const dueDateStr = getLocalDateStr(t.dueDate) || getLocalDateStr(t.createdAt);
       let targetDateStr = dueDateStr;
 
       if (t.status === 'CONCLUÍDO') {
-        const compDateStr = t.completedAt ? t.completedAt.slice(0, 10) : (t.updatedAt ? t.updatedAt.slice(0, 10) : null);
+        const compDateStr = getLocalDateStr(t.completedAt) || getLocalDateStr(t.updatedAt);
         if (compDateStr) targetDateStr = compDateStr;
       }
 
