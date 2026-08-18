@@ -64,6 +64,68 @@ export const TimerEngine = {
   },
 
   /**
+   * Calcula o tempo real trabalhado (sem duplicações) fazendo a união
+   * de todos os timeIntervals de um conjunto de tarefas.
+   */
+  calculateUnionSeconds(tasks) {
+    if (!tasks || tasks.length === 0) return 0;
+    
+    let totalLegacySeconds = 0;
+    const allIntervals = [];
+    const now = Date.now();
+
+    tasks.forEach(task => {
+      // Se a tarefa não foi migrada pro novo sistema ainda
+      if (!task.timeIntervals || task._legacySeconds === undefined) {
+        totalLegacySeconds += this.getCurrentElapsedSeconds(task);
+        return;
+      }
+      
+      // Soma os segundos legados desta tarefa (tempo antigo antes do novo sistema)
+      totalLegacySeconds += (task._legacySeconds || 0);
+
+      // Coleta todos os intervalos
+      (task.timeIntervals || []).forEach(iv => {
+        const start = Number(iv.s) || now;
+        const end = Number(iv.e) || now;
+        if (end > start) {
+          allIntervals.push({ start, end });
+        }
+      });
+    });
+
+    if (allIntervals.length === 0) {
+      return totalLegacySeconds;
+    }
+
+    // Ordena pelo tempo de início
+    allIntervals.sort((a, b) => a.start - b.start);
+
+    // Algoritmo de União (Merge Intervals)
+    const merged = [allIntervals[0]];
+    for (let i = 1; i < allIntervals.length; i++) {
+      const current = allIntervals[i];
+      const lastMerged = merged[merged.length - 1];
+
+      if (current.start <= lastMerged.end) {
+        // Há sobreposição: estende o fim do último intervalo, se necessário
+        lastMerged.end = Math.max(lastMerged.end, current.end);
+      } else {
+        // Não há sobreposição: adiciona o novo intervalo
+        merged.push(current);
+      }
+    }
+
+    // Soma a duração dos intervalos unidos
+    let unionMs = 0;
+    merged.forEach(iv => {
+      unionMs += (iv.end - iv.start);
+    });
+
+    return totalLegacySeconds + Math.floor(unionMs / 1000);
+  },
+
+  /**
    * Inicia o cronômetro para uma tarefa
    */
   async startTimer(task) {

@@ -239,26 +239,49 @@ export const ManagerEngine = {
         return isOwner || isParticipant;
       });
 
+      const validTasks = [];
       allMemberTasks.forEach(t => {
-        const taskDateStr = t.dueDate || (t.createdAt ? t.createdAt.slice(0, 10) : null);
+        const getLocalDateStr = (dateVal) => {
+          if (!dateVal) return null;
+          if (typeof dateVal === 'string' && dateVal.length >= 10 && dateVal.includes('-')) return dateVal.slice(0, 10);
+          try {
+            const d = new Date(dateVal);
+            if (isNaN(d.getTime())) return null;
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${y}-${m}-${day}`;
+          } catch(e) { return null; }
+        };
+        
+        const dueDateStr = getLocalDateStr(t.dueDate) || getLocalDateStr(t.createdAt);
+        let targetDateStr = dueDateStr;
+
+        if (t.status === 'CONCLUÍDO') {
+          const compDateStr = getLocalDateStr(t.completedAt) || getLocalDateStr(t.updatedAt);
+          if (compDateStr) targetDateStr = compDateStr;
+        }
+
         let inRange = false;
 
         if (this.startDateFilter || this.endDateFilter) {
-          if (taskDateStr) {
+          if (targetDateStr) {
             inRange = true;
-            if (this.startDateFilter && taskDateStr < this.startDateFilter) inRange = false;
-            if (this.endDateFilter && taskDateStr > this.endDateFilter) inRange = false;
+            if (this.startDateFilter && targetDateStr < this.startDateFilter) inRange = false;
+            if (this.endDateFilter && targetDateStr > this.endDateFilter) inRange = false;
           }
         } else {
-          if (taskDateStr && taskDateStr.slice(0, 7) === competence) {
+          if (targetDateStr && targetDateStr.slice(0, 7) === competence) {
             inRange = true;
           }
         }
 
         if (inRange) {
-          totalSeconds += TimerEngine.getCurrentElapsedSeconds(t);
+          validTasks.push(t);
         }
       });
+      
+      let totalSeconds = TimerEngine.calculateUnionSeconds(validTasks);
 
       const memberTaskIds = new Set(memberTasks.map(t => String(t.id)));
 

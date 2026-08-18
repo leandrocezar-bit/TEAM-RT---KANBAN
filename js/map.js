@@ -184,10 +184,7 @@ export const MapEngine = {
     const todo = competenceTasks.filter(t => t.status === 'A FAZER').length;
     const completionPercent = total > 0 ? Math.round((done / total) * 100) : 0;
 
-    let totalSeconds = 0;
-    competenceTasks.forEach(t => {
-      totalSeconds += TimerEngine.getCurrentElapsedSeconds(t);
-    });
+    let totalSeconds = TimerEngine.calculateUnionSeconds(competenceTasks);
 
     const [year, month] = this.selectedCompetence.split('-');
     const competenceName = new Date(parseInt(year), parseInt(month) - 1, 1)
@@ -433,7 +430,7 @@ export const MapEngine = {
 
     const todayStr = new Date().toISOString().slice(0, 10);
 
-    let sumActiveSecs = 0;
+    let sumActiveSecs = TimerEngine.calculateUnionSeconds(filteredTasks);
     let sumPausedSecs = 0;
 
     const rowsHtml = filteredTasks.map(task => {
@@ -518,9 +515,6 @@ export const MapEngine = {
           pausedTimeStr = TimerEngine.formatTime(pausedSecs);
         }
       }
-
-      sumActiveSecs += activeSecs;
-
       let completionDateStr = '-';
       if (task.status === 'CONCLUÍDO') {
         const rawCompletion = task.completedAt || task.updatedAt;
