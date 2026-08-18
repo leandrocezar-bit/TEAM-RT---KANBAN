@@ -232,8 +232,8 @@ export const ManagerEngine = {
       // ── Tempo Total Efetivo (Cálculo Igual ao Portfólio) ─────────────────────
       let totalSeconds = 0;
       
-      // Busca todas as tarefas do membro na base de dados
-      const allMemberTasks = allTasksDB.filter(t => {
+      // Busca todas as tarefas do membro ativas no quadro
+      const allMemberTasks = tasks.filter(t => {
         const isOwner = String(t.member_id || t.memberId) === String(member.id);
         const isParticipant = participantTaskIds.has(String(t.id));
         return isOwner || isParticipant;
