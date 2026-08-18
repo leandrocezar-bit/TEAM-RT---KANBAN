@@ -378,23 +378,21 @@ export const MapEngine = {
 
     const filteredTasks = tasks.filter(t => {
       const dueDateStr = t.dueDate || (t.createdAt ? t.createdAt.slice(0, 10) : null);
-      let compDateStr = null;
+      let targetDateStr = dueDateStr;
+
       if (t.status === 'CONCLUÍDO') {
-        compDateStr = t.completedAt ? t.completedAt.slice(0, 10) : (t.updatedAt ? t.updatedAt.slice(0, 10) : null);
+        const compDateStr = t.completedAt ? t.completedAt.slice(0, 10) : (t.updatedAt ? t.updatedAt.slice(0, 10) : null);
+        if (compDateStr) targetDateStr = compDateStr;
       }
 
       let matchesDate = false;
       if (this.startDateFilter || this.endDateFilter) {
-        const checkDate = (d) => {
-          if (!d) return false;
-          if (this.startDateFilter && d < this.startDateFilter) return false;
-          if (this.endDateFilter && d > this.endDateFilter) return false;
-          return true;
-        };
-        matchesDate = checkDate(dueDateStr) || checkDate(compDateStr);
+        if (!targetDateStr) return false;
+        if (this.startDateFilter && targetDateStr < this.startDateFilter) return false;
+        if (this.endDateFilter && targetDateStr > this.endDateFilter) return false;
+        matchesDate = true;
       } else {
-        const checkMonth = (d) => d && d.slice(0, 7) === this.selectedCompetence;
-        matchesDate = checkMonth(dueDateStr) || checkMonth(compDateStr);
+        matchesDate = targetDateStr && targetDateStr.slice(0, 7) === this.selectedCompetence;
       }
 
       if (!matchesDate) return false;
@@ -684,23 +682,21 @@ export const MapEngine = {
 
     const filteredTasks = tasks.filter(t => {
       const dueDateStr = t.dueDate || (t.createdAt ? t.createdAt.slice(0, 10) : null);
-      let compDateStr = null;
+      let targetDateStr = dueDateStr;
+
       if (t.status === 'CONCLUÍDO') {
-        compDateStr = t.completedAt ? t.completedAt.slice(0, 10) : (t.updatedAt ? t.updatedAt.slice(0, 10) : null);
+        const compDateStr = t.completedAt ? t.completedAt.slice(0, 10) : (t.updatedAt ? t.updatedAt.slice(0, 10) : null);
+        if (compDateStr) targetDateStr = compDateStr;
       }
 
       let matchesDate = false;
       if (this.startDateFilter || this.endDateFilter) {
-        const checkDate = (d) => {
-          if (!d) return false;
-          if (this.startDateFilter && d < this.startDateFilter) return false;
-          if (this.endDateFilter && d > this.endDateFilter) return false;
-          return true;
-        };
-        matchesDate = checkDate(dueDateStr) || checkDate(compDateStr);
+        if (!targetDateStr) return false;
+        if (this.startDateFilter && targetDateStr < this.startDateFilter) return false;
+        if (this.endDateFilter && targetDateStr > this.endDateFilter) return false;
+        matchesDate = true;
       } else {
-        const checkMonth = (d) => d && d.slice(0, 7) === this.selectedCompetence;
-        matchesDate = checkMonth(dueDateStr) || checkMonth(compDateStr);
+        matchesDate = targetDateStr && targetDateStr.slice(0, 7) === this.selectedCompetence;
       }
 
       if (!matchesDate) return false;
