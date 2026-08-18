@@ -280,7 +280,7 @@ export const ManagerEngine = {
           validTasks.push(t);
         }
       });
-      let totalSeconds = 0;
+      totalSeconds = 0;
       try {
         if (typeof TimerEngine.calculateUnionSeconds === 'function') {
           totalSeconds = TimerEngine.calculateUnionSeconds(validTasks);
