@@ -229,105 +229,36 @@ export const ManagerEngine = {
       const wipCount  = memberTasks.filter(t => t.status === 'EM EXECUÇÃO').length;
       const doneCount = memberTasks.filter(t => t.status === 'CONCLUÍDO').length;
 
-      // ── Tempo Total Efetivo com Merge de Intervalos ──────────────────────────
-      // Tarefas com timeIntervals: intervalos são mesclados entre TODAS as tarefas
-      //   do membro → elimina dupla contagem de sessões simultâneas.
-      // Quando há filtro de data ativo, cada intervalo é clippado para a janela
-      //   selecionada → conta apenas o tempo efetivamente trabalhado no período.
-      // Tarefas sem timeIntervals (legado): soma elapsedSeconds (filtro por dueDate).
-
-      const now = Date.now();
+      // ── Tempo Total Efetivo (Cálculo Igual ao Portfólio) ─────────────────────
+      let totalSeconds = 0;
       
-      // Busca todas as tarefas do membro na base de dados (ignorando filtros de data, para calcular os intervalos corretamente)
+      // Busca todas as tarefas do membro na base de dados
       const allMemberTasks = allTasksDB.filter(t => {
         const isOwner = String(t.member_id || t.memberId) === String(member.id);
         const isParticipant = participantTaskIds.has(String(t.id));
         return isOwner || isParticipant;
       });
 
-      const allIntervals = [];  // intervalos reais (clippados ao período se filtro ativo)
-      let legacySeconds = 0;    // tempo legado (elapsedSeconds antes da migração)
+      allMemberTasks.forEach(t => {
+        const taskDateStr = t.dueDate || (t.createdAt ? t.createdAt.slice(0, 10) : null);
+        let inRange = false;
 
-      allMemberTasks.forEach(t => {
-        if (t.timeIntervals && Array.isArray(t.timeIntervals)) {
-          // Novo sistema: percorre cada intervalo e clippa à janela ativa
-          t.timeIntervals.forEach(iv => {
-            let s = Number(iv.s);
-            let e = Number(iv.e) || now;
-            if (!s || s <= 0) return;
-
-            // Clippa ao período filtrado (sempre há uma janela: mês atual ou filtro manual)
-            s = Math.max(s, filterStartMs);
-            e = Math.min(e, filterEndMs);
-
-            // Só adiciona se ainda há duração válida após clippar
-            if (e > s) allIntervals.push({ s, e });
-          });
-          // _legacySeconds não tem timestamp preciso; inclui proporcionalmente
-          // só se a tarefa tem alguma data de execução dentro da janela
-          if (t._legacySeconds > 0) {
-            const rawDate = 
-              t.lastTimerStoppedAt ||
-              t.completedAt ||
-              t.updatedAt ||
-              t.dueDate ||
-              t.createdAt ||
-              new Date().toISOString();
-            
-            const execDateMs = parseToMs(rawDate);
-            if (execDateMs >= filterStartMs && execDateMs <= filterEndMs) {
-              legacySeconds += t._legacySeconds;
-            }
+        if (this.startDateFilter || this.endDateFilter) {
+          if (taskDateStr) {
+            inRange = true;
+            if (this.startDateFilter && taskDateStr < this.startDateFilter) inRange = false;
+            if (this.endDateFilter && taskDateStr > this.endDateFilter) inRange = false;
           }
         } else {
-          // Legado (sem timeIntervals): usa a melhor data de EXECUÇÃO disponível
-          // Prioridade: data real de conclusão/parada > prazo > criação
-          const rawDateStr =
-            t.lastTimerStoppedAt ||
-            t.completedAt ||
-            t.updatedAt ||
-            t.dueDate ||
-            t.createdAt ||
-            new Date().toISOString();
-
-          const execDateMs = parseToMs(rawDateStr);
-          const inRange = execDateMs >= filterStartMs && execDateMs <= filterEndMs;
-
-          if (inRange) {
-            let secs = t.elapsedSeconds || 0;
-            if (t.isTimerRunning && t.lastTimerStartedAt) {
-              secs += Math.max(0, Math.floor((now - Number(t.lastTimerStartedAt)) / 1000));
-            }
-            legacySeconds += secs;
+          if (taskDateStr && taskDateStr.slice(0, 7) === competence) {
+            inRange = true;
           }
         }
 
+        if (inRange) {
+          totalSeconds += TimerEngine.getCurrentElapsedSeconds(t);
+        }
       });
-
-      // Merge: une intervalos sobrepostos para não contar o mesmo período duas vezes
-      let mergedSeconds = 0;
-      if (allIntervals.length > 0) {
-        const sorted = allIntervals.sort((a, b) => a.s - b.s);
-        const merged = [];
-        let cs = sorted[0].s;
-        let ce = sorted[0].e;
-        for (let i = 1; i < sorted.length; i++) {
-          const { s, e } = sorted[i];
-          if (s <= ce) {
-            ce = Math.max(ce, e);
-          } else {
-            merged.push([cs, ce]);
-            cs = s;
-            ce = e;
-          }
-        }
-        merged.push([cs, ce]);
-        mergedSeconds = Math.floor(
-          merged.reduce((acc, [s, e]) => acc + (e - s), 0) / 1000
-        );
-      }
-
-      const totalSeconds = legacySeconds + mergedSeconds;
 
       const memberTaskIds = new Set(memberTasks.map(t => String(t.id)));
 
