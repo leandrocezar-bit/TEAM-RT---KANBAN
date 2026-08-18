@@ -47,11 +47,12 @@ export const MapEngine = {
     });
 
     const taskMembers = (await DB.getAll('task_members')) || [];
+    const absences = window.cachedAbsences || (await DB.getAll('member_absences')) || [];
 
     this.renderDateFilterControls();
     this.renderHeaderMetrics(tasks, taskMembers);
     this.renderMembersPortfolioGrid(portfolio, members);
-    this.renderRoadmapTable(tasks, membersMap, impMap, taskMembers);
+    this.renderRoadmapTable(tasks, membersMap, impMap, taskMembers, absences);
 
     this.attachEvents(portfolio);
     this.bindMemberTabsAutoListener(); // 🎯 Escuta o clique nas abas dos membros automaticamente
@@ -355,7 +356,7 @@ export const MapEngine = {
    * Renderiza a Tabela Roadmap Geral de Acompanhamento
    * taskMembers: registros da tabela task_members (participantes de cada tarefa)
    */
-  renderRoadmapTable(tasks, membersMap, impMap, taskMembers = []) {
+  renderRoadmapTable(tasks, membersMap, impMap, taskMembers = [], absences = []) {
     const container = document.getElementById('map-roadmap-table-body');
     if (!container) return;
 
@@ -363,6 +364,7 @@ export const MapEngine = {
     this._lastRoadmapTasks = tasks;
     this._lastMembersMap = membersMap;
     this._lastTaskMembers = taskMembers;
+    this._lastRoadmapAbsences = absences;
 
     // Monta um Set de taskIds em que o membro filtrado é participante
     const participantTaskIds = new Set();
@@ -552,7 +554,95 @@ export const MapEngine = {
       `;
     }).join('');
 
-    container.innerHTML = rowsHtml + `
+    // --- Absences Logic ---
+    const filteredAbsences = absences.filter(a => {
+      const absDateStart = a.startDate;
+      const absDateEnd = a.endDate;
+      if (!absDateStart) return false;
+
+      if (this.startDateFilter || this.endDateFilter) {
+        if (this.startDateFilter && absDateEnd < this.startDateFilter) return false;
+        if (this.endDateFilter && absDateStart > this.endDateFilter) return false;
+      } else {
+        if (absDateStart.slice(0, 7) !== this.selectedCompetence && absDateEnd.slice(0, 7) !== this.selectedCompetence) return false;
+      }
+
+      if (this.activeMemberFilter !== 'all') {
+        if (String(a.memberId) !== String(this.activeMemberFilter)) return false;
+      }
+      return true;
+    });
+
+    const absenceRowsHtml = filteredAbsences.map(abs => {
+      const member = membersMap.get(String(abs.memberId)) || { name: 'Não atribuído', photo: '' };
+      
+      const labels = {
+        home_office: '🏡 Home Office',
+        ferias: '🏝️ Férias',
+        atestado: '📄 Atestado Médico',
+        folga: '🏖️ Folga / DSR',
+        presencial: '🏢 Presencial'
+      };
+      const title = labels[abs.type] || 'Ausência';
+      const isPartial = abs.durationType === 'parcial' && abs.startTime && abs.endTime;
+      
+      let executionTimeStr = '-';
+      let pausedSecs = 0;
+      let pausedTimeStr = '-';
+      
+      if (isPartial) {
+        executionTimeStr = `🕒 ${abs.startTime} às ${abs.endTime}`;
+        const [h1, m1] = abs.startTime.split(':').map(Number);
+        const [h2, m2] = abs.endTime.split(':').map(Number);
+        const startSecs = h1 * 3600 + m1 * 60;
+        const endSecs = h2 * 3600 + m2 * 60;
+        if (endSecs > startSecs) {
+          pausedSecs = endSecs - startSecs;
+          sumPausedSecs += pausedSecs;
+          pausedTimeStr = TimerEngine.formatTime(pausedSecs);
+        }
+      } else {
+        const d1 = abs.startDate.split('-').reverse().join('/');
+        const d2 = abs.endDate.split('-').reverse().join('/');
+        executionTimeStr = d1 === d2 ? `📅 ${d1}` : `📅 ${d1} a ${d2}`;
+        pausedTimeStr = 'Integral';
+      }
+
+      return `
+        <tr style="background: rgba(245,158,11,0.05); border-left: 3px solid #f59e0b;">
+          <td>
+            <strong>${title}</strong>
+            <div style="font-size:0.75rem; color:var(--text-dim); text-overflow:ellipsis; overflow:hidden; white-space:nowrap; max-width:240px;">
+              ${abs.description || 'Ausência justificada'}
+            </div>
+          </td>
+          <td>
+            <div style="display:flex; align-items:center; gap:0.4rem; flex-wrap:wrap;">
+              <img src="${member.photo || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(member.name)}" style="width:24px; height:24px; border-radius:50%; object-fit:cover; border: 1px solid var(--border-color);">
+              <span>${member.name}</span>
+            </div>
+          </td>
+          <td>-</td>
+          <td><strong style="color:#f59e0b;">Ausência ${isPartial ? 'Parcial' : 'Integral'}</strong></td>
+          <td>${abs.endDate.split('-').reverse().join('/')}</td>
+          <td>-</td>
+          <td style="font-size:0.775rem; color:var(--text-main); font-weight:600; white-space:nowrap;">
+            ${executionTimeStr}
+          </td>
+          <td style="font-size:0.775rem; font-weight:700; color:var(--text-dim); white-space:nowrap;">
+            -
+          </td>
+          <td style="font-size:0.775rem; font-weight:700; color:#f59e0b; white-space:nowrap;">
+            ⏸️ ${pausedTimeStr}
+          </td>
+          <td style="font-size:0.775rem; font-weight:700; color:var(--text-dim); white-space:nowrap;">
+            -
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    container.innerHTML = rowsHtml + absenceRowsHtml + `
       <tr style="background: rgba(99, 102, 241, 0.1); font-weight: bold; border-top: 2px solid var(--border-color);">
         <td colspan="7" style="text-align: right; color: var(--text-main); padding-right: 1rem;">Totais do Roadmap:</td>
         <td style="color: #10b981; font-size: 0.85rem;">⏱️ ${TimerEngine.formatTime(sumActiveSecs)}</td>
@@ -603,6 +693,11 @@ export const MapEngine = {
       if (typeof val === 'number' && !isNaN(val)) return val;
       const ms = new Date(val).getTime();
       return isNaN(ms) ? null : ms;
+    };
+
+    const sanitize = (str) => {
+      if (!str) return '""';
+      return '"' + String(str).replace(/"/g, '""').replace(/\n/g, ' ') + '"';
     };
 
     let csvContent = "Demanda / Atividade;Responsavel;Prioridade;Status;Prazo;Saude do Prazo;Horario de Execucao;Tempo Trabalhado;Tempo Pausado;Data da Conclusao\n";
@@ -662,11 +757,6 @@ export const MapEngine = {
         if (rawCompletion) completionDateStr = new Date(rawCompletion).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
       }
 
-      const sanitize = (str) => {
-        if (!str) return '""';
-        return '"' + String(str).replace(/"/g, '""').replace(/\n/g, ' ') + '"';
-      };
-
       const row = [
         sanitize(task.title),
         sanitize(member.name),
@@ -678,6 +768,65 @@ export const MapEngine = {
         sanitize(activeTimeStr),
         sanitize(pausedTimeStr),
         sanitize(completionDateStr)
+      ].join(';');
+
+      csvContent += row + "\n";
+    });
+
+    // Adiciona as ausências no CSV
+    const absences = this._lastRoadmapAbsences || [];
+    const filteredAbsences = absences.filter(a => {
+      const absDateStart = a.startDate;
+      const absDateEnd = a.endDate;
+      if (!absDateStart) return false;
+
+      if (this.startDateFilter || this.endDateFilter) {
+        if (this.startDateFilter && absDateEnd < this.startDateFilter) return false;
+        if (this.endDateFilter && absDateStart > this.endDateFilter) return false;
+      } else {
+        if (absDateStart.slice(0, 7) !== this.selectedCompetence && absDateEnd.slice(0, 7) !== this.selectedCompetence) return false;
+      }
+      if (this.activeMemberFilter !== 'all') {
+        if (String(a.memberId) !== String(this.activeMemberFilter)) return false;
+      }
+      return true;
+    });
+
+    filteredAbsences.forEach(abs => {
+      const member = membersMap.get(String(abs.memberId)) || { name: 'Nao atribuido' };
+      const labels = { home_office: 'Home Office', ferias: 'Ferias', atestado: 'Atestado Medico', folga: 'Folga / DSR', presencial: 'Presencial' };
+      const title = labels[abs.type] || 'Ausencia';
+      const isPartial = abs.durationType === 'parcial' && abs.startTime && abs.endTime;
+
+      let executionTimeStr = '-';
+      let pausedTimeStr = '-';
+      if (isPartial) {
+        executionTimeStr = `${abs.startTime} as ${abs.endTime}`;
+        const [h1, m1] = abs.startTime.split(':').map(Number);
+        const [h2, m2] = abs.endTime.split(':').map(Number);
+        const startSecs = h1 * 3600 + m1 * 60;
+        const endSecs = h2 * 3600 + m2 * 60;
+        if (endSecs > startSecs) {
+          pausedTimeStr = TimerEngine.formatTime(endSecs - startSecs);
+        }
+      } else {
+        const d1 = abs.startDate.split('-').reverse().join('/');
+        const d2 = abs.endDate.split('-').reverse().join('/');
+        executionTimeStr = d1 === d2 ? d1 : `${d1} a ${d2}`;
+        pausedTimeStr = 'Integral';
+      }
+
+      const row = [
+        sanitize(title + (abs.description ? ' - ' + abs.description : '')),
+        sanitize(member.name),
+        sanitize('-'),
+        sanitize(`Ausencia ${isPartial ? 'Parcial' : 'Integral'}`),
+        sanitize(abs.endDate.split('-').reverse().join('/')),
+        sanitize('-'),
+        sanitize(executionTimeStr),
+        sanitize('-'),
+        sanitize(pausedTimeStr),
+        sanitize('-')
       ].join(';');
 
       csvContent += row + "\n";
