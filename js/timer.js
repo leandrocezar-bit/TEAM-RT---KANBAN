@@ -46,13 +46,35 @@ export const TimerEngine = {
   },
 
   /**
+   * Retorna a soma em segundos apenas dos intervalos fechados (onde 'e' não é nulo).
+   */
+  getClosedIntervalsSum(task) {
+    if (!task.timeIntervals || task.timeIntervals.length === 0) return 0;
+    return Math.floor(
+      task.timeIntervals.reduce((acc, iv) => {
+        if (!iv.e) return acc;
+        return acc + Math.max(0, Number(iv.e) - Number(iv.s));
+      }, 0) / 1000
+    );
+  },
+
+  /**
+   * Calcula a base legada de segundos (tempo acumulado antes do sistema de intervalos ser iniciado para esta tarefa).
+   * Resolve o problema de perda de campos temporários no banco de dados.
+   */
+  getLegacyBaseSeconds(task) {
+    if (!task.timeIntervals || task.timeIntervals.length === 0) return task.elapsedSeconds || 0;
+    const closedSum = this.getClosedIntervalsSum(task);
+    return Math.max(0, (task.elapsedSeconds || 0) - closedSum);
+  },
+
+  /**
    * Calcula os segundos acumulados atuais de uma tarefa.
-   * Usa timeIntervals se disponível E se a migração ocorreu (_legacySeconds definido).
+   * Usa timeIntervals se disponível.
    */
   getCurrentElapsedSeconds(task) {
-    // Se _legacySeconds está definido, a tarefa já foi migrada corretamente pelo startTimer
-    if (task.timeIntervals && task._legacySeconds !== undefined && task._legacySeconds !== null) {
-      return (task._legacySeconds || 0) + this.sumIntervalSeconds(task.timeIntervals);
+    if (task.timeIntervals && task.timeIntervals.length > 0) {
+      return this.getLegacyBaseSeconds(task) + this.sumIntervalSeconds(task.timeIntervals);
     }
 
     // Legado: elapsedSeconds + tempo da sessão ativa atual
@@ -76,14 +98,14 @@ export const TimerEngine = {
     const now = Date.now();
 
     tasks.forEach(task => {
-      // Se a tarefa não foi migrada pro novo sistema ainda
-      if (!task.timeIntervals || task._legacySeconds === undefined) {
+      // Se a tarefa não tem sistema de intervalos
+      if (!task.timeIntervals || task.timeIntervals.length === 0) {
         totalLegacySeconds += this.getCurrentElapsedSeconds(task);
         return;
       }
       
-      // Soma os segundos legados desta tarefa (tempo antigo antes do novo sistema)
-      totalLegacySeconds += (task._legacySeconds || 0);
+      // Soma os segundos da base legada (calculado dinamicamente para não depender do DB)
+      totalLegacySeconds += this.getLegacyBaseSeconds(task);
 
       // Coleta todos os intervalos que se sobrepõem ao filtro de datas
       (task.timeIntervals || []).forEach(iv => {
@@ -142,10 +164,8 @@ export const TimerEngine = {
     }
 
     // ── Migração automática para o novo sistema ──────────────────────────
-    // Na primeira vez que o timer é iniciado após a atualização,
-    // congela o elapsedSeconds antigo em _legacySeconds e inicia os intervalos.
-    if (task._legacySeconds === undefined || task._legacySeconds === null) {
-      task._legacySeconds = task.elapsedSeconds || 0;
+    // Na primeira vez que o timer é iniciado após a atualização, inicializa os intervalos.
+    if (!task.timeIntervals) {
       task.timeIntervals = [];
     }
 
@@ -166,13 +186,16 @@ export const TimerEngine = {
 
     const now = Date.now();
 
-    if (task._legacySeconds !== undefined && task._legacySeconds !== null && task.timeIntervals) {
+    if (task.timeIntervals) {
+      // Pega a base legada ANTES de fechar o intervalo e atualizar o elapsedSeconds
+      const legacyBase = this.getLegacyBaseSeconds(task);
+
       // Novo sistema: fecha o intervalo aberto
       const last = task.timeIntervals[task.timeIntervals.length - 1];
       if (last && !last.e) last.e = now;
 
-      // Mantém elapsedSeconds atualizado para compatibilidade com o resto do sistema
-      task.elapsedSeconds = (task._legacySeconds || 0) + this.sumIntervalSeconds(task.timeIntervals);
+      // Mantém elapsedSeconds atualizado somando a base legada com todos os intervalos
+      task.elapsedSeconds = legacyBase + this.sumIntervalSeconds(task.timeIntervals);
     } else {
       // Legado: acumula no elapsedSeconds
       const diffSecs = Math.floor((now - (Number(task.lastTimerStartedAt) || now)) / 1000);
@@ -248,7 +271,6 @@ export const TimerEngine = {
         ? endMs - elapsedMs   // recua exatamente o tempo acumulado a partir do fim
         : startMs;
 
-      task._legacySeconds = 0;  // todo o tempo está no intervalo sintético
       task.timeIntervals  = [{ s: adjustedStartMs, e: endMs }];
 
       // Se o timer ainda está rodando, abre um novo intervalo ativo
