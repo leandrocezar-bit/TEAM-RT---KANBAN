@@ -12,6 +12,85 @@ export const MapEngine = {
   endDateFilter: null,
 
   /**
+   * Verifica se uma tarefa pertence ao período/competência selecionada.
+   * Centraliza a lógica para Métricas, Tabela e Exportação, garantindo consistência.
+   */
+  isTaskInPeriod(t) {
+    const getLocalDateStr = (dateVal) => {
+      if (!dateVal) return null;
+      if (typeof dateVal === 'string' && dateVal.length >= 10 && dateVal.includes('-')) return dateVal.slice(0, 10);
+      try {
+        const d = new Date(dateVal);
+        if (isNaN(d.getTime())) return null;
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+      } catch(e) { return null; }
+    };
+
+    let filterStartMs = 0;
+    let filterEndMs = Infinity;
+    if (this.startDateFilter || this.endDateFilter) {
+      if (this.startDateFilter) filterStartMs = new Date(this.startDateFilter + 'T00:00:00').getTime() || 0;
+      if (this.endDateFilter) filterEndMs = new Date(this.endDateFilter + 'T23:59:59.999').getTime() || Infinity;
+    } else if (this.selectedCompetence) {
+      const parts = this.selectedCompetence.split('-');
+      if (parts.length === 2) {
+        filterStartMs = new Date(parts[0], parseInt(parts[1])-1, 1, 0, 0, 0).getTime();
+        filterEndMs = new Date(parts[0], parseInt(parts[1]), 0, 23, 59, 59, 999).getTime();
+      }
+    }
+
+    const dueDateStr = getLocalDateStr(t.dueDate) || getLocalDateStr(t.createdAt);
+    let targetDateStr = dueDateStr;
+
+    if (t.status === 'CONCLUÍDO') {
+      // PRIORIZA completedAt para evitar que edições posteriores mudem a data de conclusão
+      const compDateStr = getLocalDateStr(t.completedAt) || getLocalDateStr(t.lastTimerStoppedAt) || dueDateStr;
+      if (compDateStr) targetDateStr = compDateStr;
+    }
+
+    let matchesDate = false;
+    let workedInPeriod = false;
+
+    // 1. Verifica se houve trabalho faturado no período selecionado
+    if (t.timeIntervals && t.timeIntervals.length > 0) {
+      const now = Date.now();
+      workedInPeriod = t.timeIntervals.some(iv => {
+        const s = Number(iv.s) || now;
+        let e = Number(iv.e);
+        if (!e) {
+          // Se o timer ficou aberto mas a tarefa está concluída, trava no tempo de conclusão ou início
+          if (t.status === 'CONCLUÍDO') {
+            e = t.completedAt ? new Date(t.completedAt).getTime() : s;
+          } else {
+            e = now;
+          }
+        }
+        return (s <= filterEndMs && e >= filterStartMs);
+      });
+    }
+
+    if (workedInPeriod) {
+      matchesDate = true;
+    } else {
+      // 2. Fallback: se não tem log exato, olha pra data alvo
+      if (this.startDateFilter || this.endDateFilter) {
+        if (targetDateStr) {
+          matchesDate = true;
+          if (this.startDateFilter && targetDateStr < this.startDateFilter) matchesDate = false;
+          if (this.endDateFilter && targetDateStr > this.endDateFilter) matchesDate = false;
+        }
+      } else {
+        matchesDate = targetDateStr && targetDateStr.slice(0, 7) === this.selectedCompetence;
+      }
+    }
+
+    return matchesDate;
+  },
+
+  /**
    * Obtém a lista de dados do portfólio
    */
   async getSectorPortfolio() {
@@ -158,17 +237,9 @@ export const MapEngine = {
       });
     }
 
-    // Filtra por período De/Até ou por competência mensal, e também por membro selecionado
+    // Filtra tarefas pela função centralizada (Garante mesmos números do Roadmap Table)
     const competenceTasks = tasks.filter(t => {
-      const dateStr = t.dueDate || (t.createdAt ? t.createdAt.slice(0, 10) : null);
-
-      if (this.startDateFilter || this.endDateFilter) {
-        if (!dateStr) return false;
-        if (this.startDateFilter && dateStr < this.startDateFilter) return false;
-        if (this.endDateFilter && dateStr > this.endDateFilter) return false;
-      } else {
-        if (!dateStr || dateStr.slice(0, 7) !== this.selectedCompetence) return false;
-      }
+      if (!this.isTaskInPeriod(t)) return false;
 
       if (this.activeMemberFilter !== 'all') {
         const isOwner       = String(t.member_id || t.memberId) === String(this.activeMemberFilter);
@@ -397,56 +468,7 @@ export const MapEngine = {
     }
 
     const filteredTasks = tasks.filter(t => {
-      const getLocalDateStr = (dateVal) => {
-        if (!dateVal) return null;
-        if (typeof dateVal === 'string' && dateVal.length >= 10 && dateVal.includes('-')) return dateVal.slice(0, 10);
-        try {
-          const d = new Date(dateVal);
-          if (isNaN(d.getTime())) return null;
-          const y = d.getFullYear();
-          const m = String(d.getMonth() + 1).padStart(2, '0');
-          const day = String(d.getDate()).padStart(2, '0');
-          return `${y}-${m}-${day}`;
-        } catch(e) { return null; }
-      };
-
-      const dueDateStr = getLocalDateStr(t.dueDate) || getLocalDateStr(t.createdAt);
-      let targetDateStr = dueDateStr;
-
-      if (t.status === 'CONCLUÍDO') {
-        const compDateStr = getLocalDateStr(t.completedAt) || getLocalDateStr(t.updatedAt);
-        if (compDateStr) targetDateStr = compDateStr;
-      }
-
-      let matchesDate = false;
-      let workedInPeriod = false;
-
-      // 1. Verifica se houve trabalho faturado no período selecionado
-      if (t.timeIntervals && t.timeIntervals.length > 0) {
-        const now = Date.now();
-        workedInPeriod = t.timeIntervals.some(iv => {
-          const s = Number(iv.s) || now;
-          const e = Number(iv.e) || now;
-          return (s <= filterEndMs && e >= filterStartMs);
-        });
-      }
-
-      if (workedInPeriod) {
-        matchesDate = true;
-      } else {
-        // 2. Fallback legado: se não tem log exato, olha pra data alvo
-        if (this.startDateFilter || this.endDateFilter) {
-          if (targetDateStr) {
-            matchesDate = true;
-            if (this.startDateFilter && targetDateStr < this.startDateFilter) matchesDate = false;
-            if (this.endDateFilter && targetDateStr > this.endDateFilter) matchesDate = false;
-          }
-        } else {
-          matchesDate = targetDateStr && targetDateStr.slice(0, 7) === this.selectedCompetence;
-        }
-      }
-
-      if (!matchesDate) return false;
+      if (!this.isTaskInPeriod(t)) return false;
 
       if (this.activeMemberFilter !== 'all') {
         const isOwner       = String(t.member_id || t.memberId) === String(this.activeMemberFilter);
@@ -739,38 +761,7 @@ export const MapEngine = {
     }
 
     const filteredTasks = tasks.filter(t => {
-      const getLocalDateStr = (dateVal) => {
-        if (!dateVal) return null;
-        if (typeof dateVal === 'string' && dateVal.length >= 10 && dateVal.includes('-')) return dateVal.slice(0, 10);
-        try {
-          const d = new Date(dateVal);
-          if (isNaN(d.getTime())) return null;
-          const y = d.getFullYear();
-          const m = String(d.getMonth() + 1).padStart(2, '0');
-          const day = String(d.getDate()).padStart(2, '0');
-          return `${y}-${m}-${day}`;
-        } catch(e) { return null; }
-      };
-
-      const dueDateStr = getLocalDateStr(t.dueDate) || getLocalDateStr(t.createdAt);
-      let targetDateStr = dueDateStr;
-
-      if (t.status === 'CONCLUÍDO') {
-        const compDateStr = getLocalDateStr(t.completedAt) || getLocalDateStr(t.updatedAt);
-        if (compDateStr) targetDateStr = compDateStr;
-      }
-
-      let matchesDate = false;
-      if (this.startDateFilter || this.endDateFilter) {
-        if (!targetDateStr) return false;
-        if (this.startDateFilter && targetDateStr < this.startDateFilter) return false;
-        if (this.endDateFilter && targetDateStr > this.endDateFilter) return false;
-        matchesDate = true;
-      } else {
-        matchesDate = targetDateStr && targetDateStr.slice(0, 7) === this.selectedCompetence;
-      }
-
-      if (!matchesDate) return false;
+      if (!this.isTaskInPeriod(t)) return false;
       if (this.activeMemberFilter !== 'all') {
         const isOwner = String(t.member_id || t.memberId) === String(this.activeMemberFilter);
         const isParticipant = participantTaskIds.has(String(t.id));
