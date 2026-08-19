@@ -30,15 +30,32 @@ export const TimerEngine = {
   },
 
   /**
-   * Soma a duração de todos os intervalos em segundos.
-   * Intervalos sem 'e' (abertos) usam Date.now() como fim.
+   * Obtém a data de fim segura para um intervalo. Se estiver aberto e a tarefa estiver CONCLUÍDA, 
+   * trava o fim na data de conclusão em vez de deixá-lo rodar até "agora".
    */
-  sumIntervalSeconds(intervals) {
+  getSafeEndMs(iv, task, now) {
+    let end = Number(iv.e);
+    if (!end || isNaN(end)) {
+      if (task && task.status === 'CONCLUÍDO') {
+        const comp = task.completedAt ? new Date(task.completedAt).getTime() : NaN;
+        end = !isNaN(comp) ? comp : (Number(iv.s) || now);
+      } else {
+        end = now;
+      }
+    }
+    return end;
+  },
+
+  /**
+   * Soma a duração de todos os intervalos em segundos.
+   * Intervalos sem 'e' (abertos) usam Date.now() ou a data de conclusão da tarefa.
+   */
+  sumIntervalSeconds(intervals, task = null) {
     if (!intervals || intervals.length === 0) return 0;
     const now = Date.now();
     return Math.floor(
       intervals.reduce((acc, iv) => {
-        const end = Number(iv.e) || now;
+        const end = this.getSafeEndMs(iv, task, now);
         const start = Number(iv.s) || now;
         return acc + Math.max(0, end - start);
       }, 0) / 1000
@@ -74,7 +91,7 @@ export const TimerEngine = {
    */
   getCurrentElapsedSeconds(task) {
     if (task.timeIntervals && task.timeIntervals.length > 0) {
-      return this.getLegacyBaseSeconds(task) + this.sumIntervalSeconds(task.timeIntervals);
+      return this.getLegacyBaseSeconds(task) + this.sumIntervalSeconds(task.timeIntervals, task);
     }
 
     // Legado: elapsedSeconds + tempo da sessão ativa atual
@@ -110,7 +127,7 @@ export const TimerEngine = {
       // Coleta todos os intervalos que se sobrepõem ao filtro de datas
       (task.timeIntervals || []).forEach(iv => {
         let start = Number(iv.s) || now;
-        let end = Number(iv.e) || now;
+        let end = this.getSafeEndMs(iv, task, now);
         
         // Fatiamento do tempo (Timesheet)
         start = Math.max(start, filterStartMs);
@@ -195,7 +212,7 @@ export const TimerEngine = {
       if (last && !last.e) last.e = now;
 
       // Mantém elapsedSeconds atualizado somando a base legada com todos os intervalos
-      task.elapsedSeconds = legacyBase + this.sumIntervalSeconds(task.timeIntervals);
+      task.elapsedSeconds = legacyBase + this.sumIntervalSeconds(task.timeIntervals, task);
     } else {
       // Legado: acumula no elapsedSeconds
       const diffSecs = Math.floor((now - (Number(task.lastTimerStartedAt) || now)) / 1000);
