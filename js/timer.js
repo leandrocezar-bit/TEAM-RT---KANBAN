@@ -255,7 +255,7 @@ export const TimerEngine = {
   async migrateAllLegacyTasks() {
     const tasks = (await DB.getAll('tasks')) || [];
     const toMigrate = tasks.filter(
-      t => (t._legacySeconds === undefined || t._legacySeconds === null) &&
+      t => (!t.timeIntervals || t.timeIntervals.length === 0) &&
            (t.elapsedSeconds > 0 || t.isTimerRunning)
     );
 
