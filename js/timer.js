@@ -91,7 +91,8 @@ export const TimerEngine = {
    */
   getCurrentElapsedSeconds(task) {
     if (task.timeIntervals && task.timeIntervals.length > 0) {
-      return this.getLegacyBaseSeconds(task) + this.sumIntervalSeconds(task.timeIntervals, task);
+      // Usar a união garante que intervalos duplicados ou sobrepostos nunca dobrem o tempo
+      return this.calculateUnionSeconds([task]);
     }
 
     // Legado: elapsedSeconds + tempo da sessão ativa atual
@@ -204,15 +205,15 @@ export const TimerEngine = {
     const now = Date.now();
 
     if (task.timeIntervals) {
-      // Pega a base legada ANTES de fechar o intervalo e atualizar o elapsedSeconds
+      // Pega a base legada ANTES de fechar o intervalo
       const legacyBase = this.getLegacyBaseSeconds(task);
 
       // Novo sistema: fecha o intervalo aberto
       const last = task.timeIntervals[task.timeIntervals.length - 1];
       if (last && !last.e) last.e = now;
 
-      // Mantém elapsedSeconds atualizado somando a base legada com todos os intervalos
-      task.elapsedSeconds = legacyBase + this.sumIntervalSeconds(task.timeIntervals, task);
+      // Mantém elapsedSeconds atualizado com o tempo correto já desduplicado
+      task.elapsedSeconds = this.calculateUnionSeconds([task]);
     } else {
       // Legado: acumula no elapsedSeconds
       const diffSecs = Math.floor((now - (Number(task.lastTimerStartedAt) || now)) / 1000);
