@@ -63,26 +63,31 @@ export const TimerEngine = {
   },
 
   /**
-   * Retorna a soma em segundos apenas dos intervalos fechados (onde 'e' não é nulo).
+   * Retorna a soma em segundos apenas dos intervalos fechados.
    */
   getClosedIntervalsSum(task) {
     if (!task.timeIntervals || task.timeIntervals.length === 0) return 0;
+    const now = Date.now();
     return Math.floor(
       task.timeIntervals.reduce((acc, iv) => {
-        if (!iv.e) return acc;
-        return acc + Math.max(0, Number(iv.e) - Number(iv.s));
+        const end = this.getSafeEndMs(iv, task, now);
+        if (!iv.e && task.status !== 'CONCLUÍDO') return acc; // Se tá aberto e rodando, não conta no fechado
+        return acc + Math.max(0, end - (Number(iv.s) || end));
       }, 0) / 1000
     );
   },
 
   /**
-   * Calcula a base legada de segundos (tempo acumulado antes do sistema de intervalos ser iniciado para esta tarefa).
-   * Resolve o problema de perda de campos temporários no banco de dados.
+   * Retorna os segundos da base legada que não estão nos intervalos.
    */
   getLegacyBaseSeconds(task) {
     if (!task.timeIntervals || task.timeIntervals.length === 0) return task.elapsedSeconds || 0;
-    const closedSum = this.getClosedIntervalsSum(task);
-    return Math.max(0, (task.elapsedSeconds || 0) - closedSum);
+    
+    // ANTI-DUPLICAÇÃO DEFINITIVA:
+    // Como o script de migração já transformou todo o tempo legado em intervalos sintéticos,
+    // a propriedade timeIntervals passa a ser a ÚNICA fonte da verdade.
+    // Continuar lendo task.elapsedSeconds estava somando o tempo verdadeiro com o histórico corrompido do DB.
+    return 0;
   },
 
   /**
