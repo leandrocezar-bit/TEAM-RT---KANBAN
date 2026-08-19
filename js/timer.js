@@ -135,6 +135,16 @@ export const TimerEngine = {
         let start = Number(iv.s) || now;
         let end = this.getSafeEndMs(iv, task, now);
         
+        // AUTO-CORREÇÃO DE INTERVALO SINTÉTICO INFLADO DO DB
+        // Impede matematicamente que o intervalo conte tempo ANTES da tarefa ter sido iniciada pela primeira vez.
+        // Corta qualquer tempo "fantasma" que tenha sido salvo errado no banco ontem.
+        if (task.firstExecutionStartedAt) {
+          const firstMs = new Date(task.firstExecutionStartedAt).getTime();
+          if (start < firstMs && !isNaN(firstMs)) {
+            start = firstMs;
+          }
+        }
+        
         // Fatiamento do tempo (Timesheet)
         start = Math.max(start, filterStartMs);
         end = Math.min(end, filterEndMs);
