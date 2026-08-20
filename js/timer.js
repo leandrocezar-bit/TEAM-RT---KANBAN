@@ -324,6 +324,30 @@ export const TimerEngine = {
   },
 
   /**
+   * Calcula o tempo exato em que a tarefa ficou em pausa (gaps entre sessões ativas).
+   */
+  getPausedSeconds(task) {
+    if (!task.timeIntervals || task.timeIntervals.length < 2) return 0;
+    
+    const validIntervals = task.timeIntervals.filter(iv => iv.s);
+    if (validIntervals.length < 2) return 0;
+    
+    const sorted = [...validIntervals].sort((a, b) => Number(a.s) - Number(b.s));
+    
+    let pausedMs = 0;
+    for (let i = 0; i < sorted.length - 1; i++) {
+      const currentEnd = Number(sorted[i].e) || Date.now();
+      const nextStart = Number(sorted[i + 1].s);
+      
+      if (nextStart > currentEnd) {
+        pausedMs += (nextStart - currentEnd);
+      }
+    }
+    
+    return Math.floor(pausedMs / 1000);
+  },
+
+  /**
    * Inicia o ticker global para atualizar contadores no DOM a cada 1 segundo
    */
   startGlobalTicker(onTickCallback) {

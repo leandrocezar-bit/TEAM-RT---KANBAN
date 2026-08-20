@@ -582,7 +582,7 @@ export const MapEngine = {
         }
 
         const totalElapsedSecs = Math.max(0, Math.floor((endMs - startMs) / 1000));
-        const pausedSecs = Math.max(0, totalElapsedSecs - activeSecs);
+        const pausedSecs = TimerEngine.getPausedSeconds(task);
         if (pausedSecs > 0) {
           sumPausedSecs += pausedSecs;
           pausedTimeStr = TimerEngine.formatTime(pausedSecs);
@@ -830,7 +830,7 @@ export const MapEngine = {
           endMs = parseToMs(task.completedAt) || parseToMs(task.lastTimerStoppedAt) || parseToMs(task.updatedAt) || Date.now();
         }
         const totalElapsedSecs = Math.max(0, Math.floor((endMs - startMs) / 1000));
-        const pausedSecs = Math.max(0, totalElapsedSecs - activeSecs);
+        const pausedSecs = TimerEngine.getPausedSeconds(task);
         if (pausedSecs > 0) pausedTimeStr = TimerEngine.formatTime(pausedSecs);
       }
 
