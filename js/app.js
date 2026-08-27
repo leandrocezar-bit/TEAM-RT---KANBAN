@@ -610,7 +610,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       await ManagerEngine.renderDashboard(
         openEvidenceModal,
         handleDeleteMember,
-        openCalendarDayModal
+        openCalendarDayModal,
+        currentMemberFilter
       );
       await renderAdminMembersTable();
     } else if (activeView === 'map') {
@@ -998,6 +999,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             onReportImpediment: openReportImpedimentModal,
             onOpenTaskDetails: openTaskDetailsModal,
           });
+        } else if (activeView === 'manager') {
+          await refreshUI();
         }
       });
     });

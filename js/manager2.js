@@ -14,7 +14,7 @@ export const ManagerEngine = {
   /**
    * Renderiza o Dashboard Completo do Gestor
    */
-  async renderDashboard(onViewEvidenceCallback, onDeleteMemberCallback, onOpenDayDetailsCallback) {
+  async renderDashboard(onViewEvidenceCallback, onDeleteMemberCallback, onOpenDayDetailsCallback, memberFilter = 'all') {
     const isAdminMember = (m) => {
       if (!m) return false;
       const id = String(m.id || '').toLowerCase();
@@ -35,7 +35,7 @@ export const ManagerEngine = {
 
     this.renderMemberCards(members, tasks, impediments);
     this.renderAbsenceMatrix(absences, members);
-    this.renderImpedimentsAlertList(impediments, tasks, members, onViewEvidenceCallback);
+    this.renderImpedimentsAlertList(impediments, tasks, members, onViewEvidenceCallback, memberFilter);
     this.renderCalendarGrid(tasks, members, onOpenDayDetailsCallback);
   },
 
@@ -416,7 +416,7 @@ export const ManagerEngine = {
   /**
    * Renderiza a lista detalhada de contratempos
    */
-  renderImpedimentsAlertList(impediments, tasks, members, onViewEvidence) {
+  renderImpedimentsAlertList(impediments, tasks, members, onViewEvidence, memberFilter = 'all') {
     const container = document.getElementById('impediments-list-container');
     if (!container) return;
 
@@ -427,6 +427,7 @@ export const ManagerEngine = {
     const tasksMap = new Map(tasks.map(t => [String(t.id), t]));
     const membersMap = new Map(members.map(m => [String(m.id), m]));
 
+    // 1. Filtrar visibilidade por permissão (não-gestor só vê o que é seu)
     let visibleImpediments = impediments;
     if (!isManager && loggedMemberId) {
       visibleImpediments = impediments.filter(imp => {
@@ -437,51 +438,173 @@ export const ManagerEngine = {
       });
     }
 
-    container.style.setProperty('max-height', '210px', 'important');
-    container.style.setProperty('overflow-y', 'auto', 'important');
-    container.style.paddingRight = '0.35rem';
+    // 2. Filtro de Aba de Membro (memberFilter)
+    if (memberFilter !== 'all') {
+      visibleImpediments = visibleImpediments.filter(imp => {
+        const task = tasksMap.get(String(imp.taskId));
+        if (!task) return false;
+        const taskOwnerId = task.member_id || task.memberId;
+        return String(taskOwnerId) === String(memberFilter);
+      });
+    }
+
+    // 3. Filtro de Datas do Dashboard
+    const competence = new Date().toISOString().slice(0, 7); // 'YYYY-MM'
+    let filterStartMs = 0;
+    let filterEndMs = Infinity;
+    
+    if (this.startDateFilter || this.endDateFilter) {
+      if (this.startDateFilter) filterStartMs = new Date(this.startDateFilter + 'T00:00:00').getTime() || 0;
+      if (this.endDateFilter) filterEndMs = new Date(this.endDateFilter + 'T23:59:59.999').getTime() || Infinity;
+    } else {
+      // Mês atual por padrão
+      const parts = competence.split('-');
+      if (parts.length === 2) {
+        filterStartMs = new Date(parts[0], parseInt(parts[1])-1, 1, 0, 0, 0).getTime();
+        filterEndMs = new Date(parts[0], parseInt(parts[1]), 0, 23, 59, 59, 999).getTime();
+      }
+    }
+
+    visibleImpediments = visibleImpediments.filter(imp => {
+      if (!imp.createdAt) return true;
+      const impTime = new Date(imp.createdAt).getTime();
+      return impTime >= filterStartMs && impTime <= filterEndMs;
+    });
+
+    // Remover limite de altura fixa para abraçar o novo layout
+    container.style.removeProperty('max-height');
+    container.style.removeProperty('overflow-y');
+    container.style.paddingRight = '0';
 
     if (visibleImpediments.length === 0) {
       container.innerHTML = `
-        <div style="text-align:center; padding:1.5rem; color:var(--text-muted); font-size:0.85rem;">
+        <div style="text-align:center; padding:1.5rem; color:var(--text-muted); font-size:0.85rem; background:var(--bg-card); border-radius:var(--radius-md); border:1px solid var(--border-color);">
           🎉 Nenhum contratempo registrado ${isManager ? 'na equipe' : 'nas suas atividades'} até o momento!
         </div>
       `;
       return;
     }
 
-    container.innerHTML = visibleImpediments.map(imp => {
-      const task = tasksMap.get(String(imp.taskId)) || { title: 'Tarefa não encontrada', memberId: null, member_id: null };
-      const taskOwnerId = task.member_id || task.memberId;
-      const member = membersMap.get(String(taskOwnerId)) || { name: 'Desconhecido', photo: '' };
-      const dateFormatted = new Date(imp.createdAt).toLocaleString('pt-BR');
+    // 1. KPIs
+    const totalImpediments = visibleImpediments.length;
+    const affectedTasks = new Set(visibleImpediments.map(imp => String(imp.taskId))).size;
+    
+    const memberImpediments = {};
+    visibleImpediments.forEach(imp => {
+      const task = tasksMap.get(String(imp.taskId));
+      if (task) {
+        const mId = String(task.member_id || task.memberId);
+        if (!memberImpediments[mId]) {
+          memberImpediments[mId] = 0;
+        }
+        memberImpediments[mId]++;
+      }
+    });
+    
+    const affectedMembersCount = Object.keys(memberImpediments).length;
 
-      return `
-        <div style="background:var(--bg-input); border:1px solid var(--border-color); border-radius:var(--radius-md); padding:0.85rem; margin-bottom:0.75rem; display:flex; justify-content:space-between; align-items:center; gap:0.75rem; flex-wrap:wrap;">
-          <div style="flex:1;">
-            <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.3rem;">
-              <span class="badge-impediment">⚠️ Contratempo</span>
-              <strong style="font-size:0.875rem;">${task.title}</strong>
-            </div>
-            <p style="font-size:0.825rem; color:var(--text-main); margin-bottom:0.3rem;">"${imp.description}"</p>
-            <div style="font-size:0.725rem; color:var(--text-dim); display:flex; align-items:center; gap:0.5rem;">
-              <span>👤 ${member.name}</span> • <span>🕒 ${dateFormatted}</span>
-            </div>
+    // 2. Ranking de Membros
+    const rankingArray = Object.keys(memberImpediments).map(mId => {
+      return {
+        member: membersMap.get(mId) || { name: 'Desconhecido', role: '', photo: '' },
+        count: memberImpediments[mId]
+      };
+    }).sort((a, b) => b.count - a.count);
+
+    const maxImpediments = rankingArray.length > 0 ? rankingArray[0].count : 1;
+
+    // Build HTML
+    let html = `
+      <div class="imp-dash-container">
+        <!-- KPIs Row -->
+        <div class="imp-kpi-row">
+          <div class="imp-kpi-card ${totalImpediments > 5 ? 'critical' : ''}">
+            <span class="imp-kpi-label">Total de Contratempos</span>
+            <span class="imp-kpi-value ${totalImpediments > 5 ? 'text-critical' : ''}">${totalImpediments}</span>
           </div>
-
-          <div style="display:flex; align-items:center; gap:0.4rem;">
-            ${imp.evidenceImage ? `
-              <button class="btn btn-secondary btn-view-evidence" data-img="${imp.evidenceImage}" style="font-size:0.75rem; padding:0.25rem 0.6rem;">
-                🖼️ Evidência
-              </button>
-            ` : ''}
-            <button class="btn btn-delete-imp-mgr" data-imp-id="${imp.id}" style="font-size:0.75rem; padding:0.25rem 0.6rem; background:rgba(239,68,68,0.2); color:#ef4444; border:1px solid rgba(239,68,68,0.4); cursor:pointer;" title="Excluir este contratempo">
-              🗑️ Excluir
-            </button>
+          <div class="imp-kpi-card">
+            <span class="imp-kpi-label">Tarefas Afetadas</span>
+            <span class="imp-kpi-value">${affectedTasks}</span>
+          </div>
+          <div class="imp-kpi-card">
+            <span class="imp-kpi-label">Membros Afetados</span>
+            <span class="imp-kpi-value">${affectedMembersCount}</span>
           </div>
         </div>
-      `;
-    }).join('');
+
+        <!-- 2-Column Layout -->
+        <div class="imp-content-grid">
+          
+          <!-- Ranking -->
+          <div class="imp-panel-section">
+            <div class="imp-panel-title">Membros Mais Afetados</div>
+            <div class="imp-scrollable">
+              ${rankingArray.map((item, index) => {
+                const percent = (item.count / maxImpediments) * 100;
+                const avatarUrl = item.member.photo || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(item.member.name);
+                return `
+                  <div class="imp-ranking-item">
+                    <span style="font-size:0.8rem; color:var(--text-dim); width:15px;">${index + 1}</span>
+                    <img src="${avatarUrl}" class="imp-ranking-avatar" alt="${item.member.name}">
+                    <div class="imp-ranking-info">
+                      <div class="imp-ranking-name">
+                        <span>${item.member.name}</span>
+                        <span>${item.count}</span>
+                      </div>
+                      <div class="imp-progress-track">
+                        <div class="imp-progress-bar" style="width: ${percent}%;"></div>
+                      </div>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+
+          <!-- Feed -->
+          <div class="imp-panel-section">
+            <div class="imp-panel-title">Feed de Contratempos Recentes</div>
+            <div class="imp-scrollable">
+              ${visibleImpediments.sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt)).map(imp => {
+                const task = tasksMap.get(String(imp.taskId)) || { title: 'Tarefa não encontrada' };
+                const taskOwnerId = task.member_id || task.memberId;
+                const member = membersMap.get(String(taskOwnerId)) || { name: 'Desconhecido' };
+                const avatarUrl = member.photo || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(member.name);
+                const dateFormatted = new Date(imp.createdAt).toLocaleString('pt-BR');
+                
+                return `
+                  <div class="imp-feed-item">
+                    <div class="imp-feed-dot"></div>
+                    <img src="${avatarUrl}" class="imp-feed-avatar" alt="${member.name}">
+                    <div class="imp-feed-content">
+                      <div class="imp-feed-task">${task.title}</div>
+                      <div class="imp-feed-text">"${imp.description}"</div>
+                      <div class="imp-feed-meta">
+                        <span>${member.name}</span>
+                        <span>${dateFormatted}</span>
+                      </div>
+                      <div style="margin-top:0.5rem; display:flex; gap:0.5rem;">
+                        ${imp.evidenceImage ? `
+                          <button class="btn btn-secondary btn-view-evidence" data-img="${imp.evidenceImage}" style="font-size:0.65rem; padding:0.2rem 0.5rem;">
+                            🖼️ Evidência
+                          </button>
+                        ` : ''}
+                        <button class="btn btn-delete-imp-mgr" data-imp-id="${imp.id}" style="font-size:0.65rem; padding:0.2rem 0.5rem; background:rgba(239,68,68,0.2); color:#ef4444; border:1px solid rgba(239,68,68,0.4); cursor:pointer;">
+                          🗑️ Excluir
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+
+        </div>
+      </div>
+    `;
+
+    container.innerHTML = html;
 
     container.querySelectorAll('.btn-view-evidence').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -510,67 +633,131 @@ export const ManagerEngine = {
     const container = document.getElementById('absence-matrix-container');
     if (!container) return;
 
-    if (absences.length === 0) {
+    if (members.length === 0) {
       container.innerHTML = `
         <div style="text-align:center; padding:1.25rem; color:var(--text-muted); font-size:0.85rem;">
-          🌱 Nenhum registro de ausência ou escala diferenciada cadastrado no momento.
+          🌱 Nenhum membro para exibir na escala.
         </div>
       `;
       return;
     }
 
-    const membersMap = new Map(members.map(m => [String(m.id), m]));
+    // Determine the month to show
+    let targetDate = new Date();
+    if (this.startDateFilter) {
+      const parsed = new Date(this.startDateFilter + 'T00:00:00');
+      if (!isNaN(parsed)) targetDate = parsed;
+    }
 
-    const typeConfig = {
-      home_office: { label: '🏡 Home Office', bg: 'rgba(99,102,241,0.15)', border: 'rgba(99,102,241,0.4)', color: '#818cf8' },
-      ferias: { label: '🏝️ Férias', bg: 'rgba(245,158,11,0.15)', border: 'rgba(245,158,11,0.4)', color: '#f59e0b' },
-      atestado: { label: '📄 Atestado Médico', bg: 'rgba(239,68,68,0.15)', border: 'rgba(239,68,68,0.4)', color: '#ef4444' },
-      folga: { label: '🏖️ Folga / DSR', bg: 'rgba(234,179,8,0.15)', border: 'rgba(234,179,8,0.4)', color: '#eab308' },
-      presencial: { label: '🏢 Presencial', bg: 'rgba(16,185,129,0.15)', border: 'rgba(16,185,129,0.4)', color: '#10b981' }
-    };
+    const year = targetDate.getFullYear();
+    const month = targetDate.getMonth();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
 
-    container.innerHTML = absences.map(abs => {
-      const member = membersMap.get(String(abs.memberId)) || { name: 'Desconhecido' };
-      const cfg = typeConfig[abs.type] || typeConfig.presencial;
-      const startFormatted = abs.startDate ? abs.startDate.split('-').reverse().join('/') : '';
-      const endFormatted = abs.endDate ? abs.endDate.split('-').reverse().join('/') : '';
-      const isPartial = abs.durationType === 'parcial' && abs.startTime && abs.endTime;
-      const hoursStr = isPartial ? ` ⏰ <strong>Horário:</strong> ${abs.startTime} às ${abs.endTime} (Parcial)` : ' (Dia Inteiro)';
+    const weekDays = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
 
-      return `
-        <div style="background:var(--bg-input); border:1px solid var(--border-color); border-radius:var(--radius-md); padding:0.75rem 0.9rem; margin-bottom:0.6rem; display:flex; justify-content:space-between; align-items:center; gap:0.75rem; flex-wrap:wrap;">
-          <div style="flex:1;">
-            <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.25rem;">
-              <span style="background:${cfg.bg}; border:1px solid ${cfg.border}; color:${cfg.color}; padding:0.2rem 0.5rem; border-radius:999px; font-size:0.75rem; font-weight:700;">
-                ${cfg.label}
-              </span>
-              <strong style="font-size:0.875rem; color:#fff;">${member.name}</strong>
-            </div>
-            <div style="font-size:0.775rem; color:var(--text-muted); display:flex; gap:0.75rem; flex-wrap:wrap;">
-              <span>📅 <strong>Período:</strong> ${startFormatted} até ${endFormatted}${hoursStr}</span>
-              ${abs.notes ? `<span>📝 <strong>Obs:</strong> ${abs.notes}</span>` : ''}
-            </div>
-          </div>
-
-          <button class="btn btn-delete-absence" data-abs-id="${abs.id}" style="font-size:0.75rem; padding:0.25rem 0.6rem; background:rgba(239,68,68,0.2); color:#ef4444; border:1px solid rgba(239,68,68,0.4); cursor:pointer;" title="Excluir este registro">
-            🗑️ Excluir
-          </button>
+    // Build Header
+    let headerHtml = `<div class="attendance-header-row"><div class="attendance-cell-header-member">Colaborador</div>`;
+    for (let day = 1; day <= daysInMonth; day++) {
+      const d = new Date(year, month, day);
+      const wDay = d.getDay();
+      const isWeekend = wDay === 0 || wDay === 6;
+      const wName = weekDays[wDay];
+      
+      headerHtml += `
+        <div class="attendance-cell-header-day ${isWeekend ? 'weekend' : ''}">
+          <span style="font-size:0.65rem;">${wName}</span>
+          <span style="font-size:0.85rem; font-weight:700;">${day}</span>
         </div>
       `;
-    }).join('');
+    }
+    headerHtml += `</div>`;
 
-    container.querySelectorAll('.btn-delete-absence').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const absId = btn.dataset.absId;
-        if (!absId) return;
+    // Build Rows
+    let rowsHtml = '';
+    
+    // Sort members alphabetically for better UX
+    const sortedMembers = [...members].sort((a,b) => (a.name || '').localeCompare(b.name || ''));
 
-        if (confirm('Deseja realmente excluir este registro de escala/ausência?')) {
-          await DB.delete('member_absences', absId);
-          if (window.showToast) window.showToast('Registro de ausência excluído!', 'success');
-          if (window.refreshUI) await window.refreshUI();
+    sortedMembers.forEach(member => {
+      // Find all absences for this member
+      const memberAbsences = absences.filter(a => String(a.memberId) === String(member.id));
+
+      const avatarUrl = member.photo || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(member.name);
+      
+      let rowHtml = `
+        <div class="attendance-row">
+          <div class="attendance-member-info">
+            <img src="${avatarUrl}" class="attendance-avatar" alt="${member.name}">
+            <div class="attendance-name-role">
+              <span class="attendance-name">${member.name}</span>
+              <span class="attendance-role">${member.role || 'Membro'}</span>
+            </div>
+          </div>
+      `;
+
+      for (let day = 1; day <= daysInMonth; day++) {
+        const d = new Date(year, month, day);
+        const wDay = d.getDay();
+        const isWeekend = wDay === 0 || wDay === 6;
+        
+        // Format YYYY-MM-DD
+        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        
+        // Check if there is an absence on this date
+        const absenceToday = memberAbsences.find(a => a.startDate <= dateStr && a.endDate >= dateStr);
+
+        let cellContent = '';
+
+        if (absenceToday) {
+          // Has absence
+          if (absenceToday.type === 'home_office') {
+            cellContent = `<div class="att-dot att-dot-wfh" title="Home Office"></div>`;
+          } else if (absenceToday.type === 'atestado') {
+            cellContent = `<div class="att-dot att-dot-medical" title="Atestado"></div>`;
+          } else if (absenceToday.type === 'ferias') {
+            cellContent = `<div class="att-dot att-dot-vacation" title="Férias"></div>`;
+          } else if (absenceToday.type === 'folga') {
+            cellContent = `<div class="att-dot att-dot-folga" title="Folga"></div>`;
+          } else {
+            cellContent = `<div class="att-dot att-dot-present" title="Presencial"></div>`;
+          }
+        } else {
+          // No absence record -> default to Present on Weekdays, empty on Weekends
+          if (!isWeekend) {
+            cellContent = `<div class="att-dot att-dot-present" title="Presencial"></div>`;
+          }
         }
-      });
+
+        rowHtml += `
+          <div class="attendance-cell-day ${isWeekend ? 'weekend' : ''}">
+            ${cellContent}
+          </div>
+        `;
+      }
+      
+      rowHtml += `</div>`;
+      rowsHtml += rowHtml;
     });
+
+    const legendHtml = `
+      <div class="attendance-legend">
+        <div class="att-legend-item"><div class="att-dot att-dot-present"></div> Presencial (Padrão)</div>
+        <div class="att-legend-item"><div class="att-dot att-dot-wfh"></div> Home Office</div>
+        <div class="att-legend-item"><div class="att-dot att-dot-medical"></div> Atestado</div>
+        <div class="att-legend-item"><div class="att-dot att-dot-vacation"></div> Férias</div>
+        <div class="att-legend-item"><div class="att-dot att-dot-folga"></div> Folga / DSR</div>
+      </div>
+    `;
+
+    container.innerHTML = `
+      <div class="attendance-matrix-container">
+        <div class="attendance-table">
+          ${headerHtml}
+          ${rowsHtml}
+        </div>
+        ${legendHtml}
+      </div>
+    `;
   },
 
   /**
