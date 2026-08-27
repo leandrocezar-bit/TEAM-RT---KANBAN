@@ -420,7 +420,8 @@ export const ManagerEngine = {
     const container = document.getElementById('impediments-list-container');
     if (!container) return;
 
-    const isManager = localStorage.getItem('logged_access_level') === 'gestor';
+    const accessLevel = localStorage.getItem('logged_access_level');
+    const isManager = accessLevel === 'gestor' || accessLevel === 'admin';
     const loggedMemberId = localStorage.getItem('logged_member_id');
 
     const tasksMap = new Map(tasks.map(t => [String(t.id), t]));

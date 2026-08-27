@@ -361,7 +361,8 @@ export const MapEngine = {
       return level === 'admin' || id === 'm-admin' || id === 'admin';
     };
 
-    const isManager = localStorage.getItem('logged_access_level') === 'gestor';
+    const accessLevel = localStorage.getItem('logged_access_level');
+    const isManager = accessLevel === 'gestor' || accessLevel === 'admin';
     const loggedMemberId = localStorage.getItem('logged_member_id');
 
     const rawOperational = (members || []).filter(m => !isAdminMember(m));
