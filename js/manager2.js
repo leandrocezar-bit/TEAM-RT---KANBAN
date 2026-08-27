@@ -173,7 +173,8 @@ export const ManagerEngine = {
     const rawOperational = (members || []).filter(m => !isAdminMember(m));
     const operationalMembers = window.sortMembersByCustomOrder ? window.sortMembersByCustomOrder(rawOperational) : rawOperational;
 
-    const isManager = localStorage.getItem('logged_access_level') === 'gestor';
+    const accessLevel = localStorage.getItem('logged_access_level');
+    const isManager = accessLevel === 'gestor' || accessLevel === 'admin';
     const loggedMemberId = localStorage.getItem('logged_member_id');
 
     let visibleMembers = operationalMembers;
