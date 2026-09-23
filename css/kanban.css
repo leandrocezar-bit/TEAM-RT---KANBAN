@@ -1508,3 +1508,42 @@ body {
   font-size: 0.75rem;
   color: var(--text-muted);
 }
+
+/* ============================================================
+   FILTRO POR DIA ESPECÍFICO — KANBAN
+   ============================================================ */
+
+.btn-period-filter {
+  transition: all 0.18s ease;
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+.btn-period-filter.active {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6) !important;
+  color: #fff !important;
+  border-color: #6366f1 !important;
+  box-shadow: 0 0 12px rgba(99,102,241,0.4);
+}
+
+.btn-period-filter:hover:not(.active) {
+  border-color: rgba(99,102,241,0.4);
+  color: #a5b4fc;
+}
+
+#specific-date-picker-wrapper {
+  animation: fadeInDown 0.2s ease;
+}
+
+#kanban-specific-date {
+  color-scheme: dark;
+}
+
+[data-theme="light"] #kanban-specific-date {
+  color-scheme: light;
+  color: #1e293b;
+}
+
+@keyframes fadeInDown {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}

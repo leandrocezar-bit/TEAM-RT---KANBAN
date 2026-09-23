@@ -8,15 +8,18 @@ import { UndoEngine } from './undo.js';
 
 export const KanbanEngine = {
   activeMemberId: 'all',
-  currentPeriodFilter: 'all', // 'all', 'daily', 'weekly', 'monthly'
+  currentPeriodFilter: 'all', // 'all', 'daily', 'weekly', 'monthly', 'specific'
+  specificFilterDate: null,   // Data selecionada quando filtro = 'specific' (string YYYY-MM-DD)
   lastCallbacks: {}, // Armazena os callbacks para re-renderizar quando o filtro mudar
 
   /**
    * 🗓️ Define o filtro de período e re-renderiza o quadro automaticamente
    */
-  setPeriodFilter(period, callbacks = null) {
+  setPeriodFilter(period, callbacks = null, specificDate = null) {
     this.currentPeriodFilter = period;
+    if (specificDate) this.specificFilterDate = specificDate;
     this.updatePeriodButtonsUI();
+    this.updateSpecificDatePickerUI();
     const cbs = (callbacks && Object.keys(callbacks).length > 0) ? callbacks : this.lastCallbacks;
     this.renderBoard(this.activeMemberId, cbs);
   },
@@ -36,6 +39,21 @@ export const KanbanEngine = {
   },
 
   /**
+   * 📅 Mostra/esconde o input de data específica e atualiza seu valor
+   */
+  updateSpecificDatePickerUI() {
+    const wrapper = document.getElementById('specific-date-picker-wrapper');
+    if (!wrapper) return;
+    if (this.currentPeriodFilter === 'specific') {
+      wrapper.style.display = 'flex';
+      const input = document.getElementById('kanban-specific-date');
+      if (input && this.specificFilterDate) input.value = this.specificFilterDate;
+    } else {
+      wrapper.style.display = 'none';
+    }
+  },
+
+  /**
    * 🖱️ Inicializa os ouvintes de clique nos botões de filtro de período
    */
   initPeriodFilterButtons(callbacks = {}) {
@@ -47,10 +65,27 @@ export const KanbanEngine = {
       btn.addEventListener('click', (e) => {
         e.preventDefault();
         const period = btn.dataset.period;
+        if (period === 'specific') {
+          // Define a data padrão como hoje ao ativar o filtro
+          const todayStr = new Date().toISOString().slice(0, 10);
+          if (!this.specificFilterDate) this.specificFilterDate = todayStr;
+        }
         this.setPeriodFilter(period, callbacks);
       });
     });
+
+    // Listener do input de data específica
+    const specificDateInput = document.getElementById('kanban-specific-date');
+    if (specificDateInput) {
+      specificDateInput.addEventListener('change', (e) => {
+        this.specificFilterDate = e.target.value;
+        const cbs = (callbacks && Object.keys(callbacks).length > 0) ? callbacks : this.lastCallbacks;
+        this.renderBoard(this.activeMemberId, cbs);
+      });
+    }
+
     this.updatePeriodButtonsUI();
+    this.updateSpecificDatePickerUI();
   },
 
   /**
@@ -314,7 +349,9 @@ export const KanbanEngine = {
 
       filteredTasks = filteredTasks.filter(t => {
         const taskDate = this.parseTaskDate(t);
-        if (!taskDate) return false;
+
+        // ✅ Atividades SEM data de prazo aparecem em todos os filtros
+        if (!taskDate) return true;
 
         if (this.currentPeriodFilter === 'daily') {
           return taskDate.getFullYear() === today.getFullYear() &&
@@ -339,6 +376,17 @@ export const KanbanEngine = {
             taskDate.getMonth() === today.getMonth() &&
             taskDate.getFullYear() === today.getFullYear()
           );
+        }
+
+        // 📅 Filtro por dia específico
+        if (this.currentPeriodFilter === 'specific' && this.specificFilterDate) {
+          const parts = this.specificFilterDate.split('-');
+          if (parts.length === 3) {
+            const filterDay = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+            return taskDate.getFullYear() === filterDay.getFullYear() &&
+                   taskDate.getMonth() === filterDay.getMonth() &&
+                   taskDate.getDate() === filterDay.getDate();
+          }
         }
 
         return true;

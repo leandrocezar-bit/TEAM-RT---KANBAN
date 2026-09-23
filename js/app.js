@@ -138,13 +138,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   function setupRealtimeNotifications() {
     const loggedMemberId = getLoggedMemberId();
-    if (!loggedMemberId || !DB.supabase) return;
+    if (!loggedMemberId || !DB.client) return;
 
     if (window.activeNotificationChannel) {
-      DB.supabase.removeChannel(window.activeNotificationChannel);
+      DB.client.removeChannel(window.activeNotificationChannel);
     }
 
-    window.activeNotificationChannel = DB.supabase
+    window.activeNotificationChannel = DB.client
       .channel('realtime-activity-transfers')
       .on(
         'postgres_changes',
@@ -398,8 +398,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     btnLogout.addEventListener('click', () => {
       if (userProfileDropdown) userProfileDropdown.style.display = 'none';
 
-      if (window.activeNotificationChannel && DB.supabase) {
-        DB.supabase.removeChannel(window.activeNotificationChannel);
+      if (window.activeNotificationChannel && DB.client) {
+        DB.client.removeChannel(window.activeNotificationChannel);
       }
 
       localStorage.removeItem('app_authenticated');
@@ -2456,7 +2456,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             </select>
           </td>
           <td style="padding:0.6rem 0.75rem;">
-            <input type="text" class="admin-new-pass-input" data-id="${m.id}" placeholder="Definir senha..." value="${m.password || ''}" style="width:120px; background:rgba(15,23,42,0.8); color:var(--text-main); border:1px solid var(--border-color); border-radius:6px; padding:2px 6px; font-size:0.8rem;">
+          <input type="password" class="admin-new-pass-input" data-id="${m.id}" placeholder="Nova senha..." style="width:120px; background:rgba(15,23,42,0.8); color:var(--text-main); border:1px solid var(--border-color); border-radius:6px; padding:2px 6px; font-size:0.8rem;">
           </td>
           <td style="padding:0.6rem 0.75rem; text-align:right;">
             <button type="button" class="btn btn-sm btn-primary admin-save-member-btn" data-id="${m.id}" style="padding:3px 8px; font-size:0.75rem;">
@@ -2626,8 +2626,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       let count = 0;
 
       for (const t of tasks) {
-        if (t.status === 'done') {
-          const finishedTime = t.updatedAt ? new Date(t.updatedAt).getTime() : 0;
+        if (t.status === 'CONCLUÍDO') {
+          const finishedTime = t.completedAt
+            ? new Date(t.completedAt).getTime()
+            : (t.updatedAt ? new Date(t.updatedAt).getTime() : 0);
           if (finishedTime > 0 && finishedTime < thirtyDaysAgo) {
             await DB.delete('tasks', t.id);
             count++;

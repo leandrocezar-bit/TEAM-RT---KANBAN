@@ -40,6 +40,8 @@ export const UndoEngine = {
           task.status = action.fromStatus;
           if (action.fromStatus === 'A FAZER') {
             task.elapsedSeconds = 0;
+            task._legacySeconds = 0;
+            task.timeIntervals = [];
             task.isTimerRunning = false;
             task.lastTimerStartedAt = null;
             task.lastTimerStoppedAt = null;
