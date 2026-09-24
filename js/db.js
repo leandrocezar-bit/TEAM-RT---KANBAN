@@ -1125,12 +1125,15 @@ export const DB = {
 
     try {
 
-      const {
-        data,
-        error
-      } = await supabase
-        .from(tableName)
-        .select('*');
+          let query = supabase
+            .from(tableName)
+            .select('*');
+            
+          if (storeName === 'tasks') {
+            query = query.order('created_at', { ascending: false }).limit(1000);
+          }
+          
+          const { data, error } = await query;
 
 
       if (error) {
